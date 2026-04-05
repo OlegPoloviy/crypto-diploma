@@ -1,0 +1,10 @@
+{
+  "name": "crypto-thesis-platform",
+  "private": true,
+  "packageManager": "pnpm@10",
+  "scripts": {
+    "dev:api": "pnpm --filter api start:dev",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm -r build"
+  }
+}
