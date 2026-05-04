@@ -45,9 +45,12 @@ export function useParsedTexts() {
   );
 
   useEffect(() => {
-    void refresh(true);
+    const initialLoad = window.setTimeout(() => void refresh(true), 0);
     const interval = window.setInterval(() => void refresh(), 2500);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
   }, [refresh]);
 
   async function createFromText(input: { title: string; text: string }) {
