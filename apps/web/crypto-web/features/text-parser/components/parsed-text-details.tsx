@@ -31,6 +31,20 @@ export function ParsedTextDetails({ selected }: { selected?: ParsedText }) {
               <DetailMetric label="Unique" value={formatNumber(selected.uniqueWords)} />
               <DetailMetric label="Updated" value={formatTime(selected.updatedAt)} />
             </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <DetailMetric
+                label="Hurst"
+                value={formatMetric(selected.hurstExponent)}
+              />
+              <DetailMetric
+                label="DFA alpha"
+                value={formatMetric(selected.dfaAlpha)}
+              />
+              <DetailMetric
+                label="Entropy"
+                value={formatMetric(selected.wordFrequencyEntropy)}
+              />
+            </div>
             <div className="rounded-md border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-400/20 dark:bg-cyan-400/10">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
                 Parsed text id
@@ -62,4 +76,8 @@ function DetailMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-semibold text-slate-950 tabular-nums dark:text-slate-100">{value}</p>
     </div>
   );
+}
+
+function formatMetric(value?: number | null) {
+  return typeof value === "number" ? value.toFixed(4) : "Pending";
 }

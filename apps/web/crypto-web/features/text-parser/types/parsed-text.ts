@@ -10,6 +10,9 @@ export interface ParsedText {
   totalWords: number;
   totalChars: number;
   uniqueWords: number;
+  hurstExponent?: number | null;
+  dfaAlpha?: number | null;
+  wordFrequencyEntropy?: number | null;
   originalFileName?: string;
   errorMessage?: string;
   createdAt: string;

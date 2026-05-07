@@ -26,6 +26,15 @@ export class CreateParsedTextResponseDto {
   @ApiProperty({ example: 0 })
   uniqueWords: number;
 
+  @ApiProperty({ example: 0.71, required: false, nullable: true })
+  hurstExponent?: number | null;
+
+  @ApiProperty({ example: 0.68, required: false, nullable: true })
+  dfaAlpha?: number | null;
+
+  @ApiProperty({ example: 4.2, required: false, nullable: true })
+  wordFrequencyEntropy?: number | null;
+
   @ApiProperty({ example: 'book.txt', required: false })
   originalFileName?: string;
 

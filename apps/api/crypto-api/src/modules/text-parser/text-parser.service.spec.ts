@@ -37,6 +37,9 @@ describe('TextParserService', () => {
       totalWords: 9,
       totalChars: 37,
       uniqueWords: 6,
+      hurstExponent: expect.any(Number),
+      dfaAlpha: expect.any(Number),
+      wordFrequencyEntropy: expect.any(Number),
     });
   });
 

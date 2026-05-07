@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createParsedTextFromFile,
@@ -15,11 +15,28 @@ export function useParsedTexts() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
 
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? items[0],
     [items, selectedId],
   );
+  const hasActiveJobs = useMemo(
+    () =>
+      items.some(
+        (item) => item.status === "queued" || item.status === "processing",
+      ),
+    [items],
+  );
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  const selectParsedText = useCallback((id: string | null) => {
+    selectedIdRef.current = id;
+    setSelectedId(id);
+  }, []);
 
   const refresh = useCallback(
     async (showSpinner = false) => {
@@ -30,8 +47,8 @@ export function useParsedTexts() {
       try {
         const data = await listParsedTexts();
         setItems(data);
-        if (!selectedId && data.length > 0) {
-          setSelectedId(data[0].id);
+        if (!selectedIdRef.current && data.length > 0) {
+          selectParsedText(data[0].id);
         }
       } catch (error) {
         setMessage(
@@ -41,17 +58,24 @@ export function useParsedTexts() {
         setIsRefreshing(false);
       }
     },
-    [selectedId],
+    [selectParsedText],
   );
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void refresh(true), 0);
-    const interval = window.setInterval(() => void refresh(), 2500);
     return () => {
       window.clearTimeout(initialLoad);
-      window.clearInterval(interval);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!hasActiveJobs) {
+      return;
+    }
+
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => window.clearInterval(interval);
+  }, [hasActiveJobs, refresh]);
 
   async function createFromText(input: { title: string; text: string }) {
     return submit(() => createParsedTextFromRaw(input));
@@ -67,7 +91,7 @@ export function useParsedTexts() {
 
     try {
       const created = await factory();
-      setSelectedId(created.id);
+      selectParsedText(created.id);
       setMessage(`Queued "${created.title}" for parsing.`);
       await refresh();
       return created;
@@ -88,7 +112,8 @@ export function useParsedTexts() {
     isRefreshing,
     isSubmitting,
     message,
-    setSelectedId,
+    setSelectedId: selectParsedText,
+    hasActiveJobs,
     refresh,
     createFromText,
     createFromFile,
