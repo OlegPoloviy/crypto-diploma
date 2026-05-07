@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Binary,
   BookOpenText,
   Database,
   FileText,
@@ -7,10 +8,12 @@ import {
   LayoutDashboard,
   Plus,
 } from "lucide-react";
+import Link from "next/link";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "New Corpus", icon: Plus, active: true },
+  { label: "Classical Ciphers", icon: Binary, href: "/classical-ciphers" },
   { label: "History", icon: History },
   { label: "Compare Runs", icon: BarChart3 },
   { label: "Datasets", icon: Database },
@@ -34,18 +37,10 @@ export function ParserSidebar() {
 
       <nav className="mt-8 space-y-2">
         {navItems.map((item) => (
-          <button
+          <NavItem
             key={item.label}
-            type="button"
-            className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition ${
-              item.active
-                ? "border border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
-            }`}
-          >
-            <item.icon className="size-4" />
-            {item.label}
-          </button>
+            item={item}
+          />
         ))}
       </nav>
 
@@ -60,5 +55,33 @@ export function ParserSidebar() {
         </p>
       </div>
     </aside>
+  );
+}
+
+function NavItem({ item }: { item: (typeof navItems)[number] }) {
+  const className = `flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition ${
+    item.active
+      ? "border border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100"
+      : "text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
+  }`;
+  const content = (
+    <>
+      <item.icon className="size-4" />
+      {item.label}
+    </>
+  );
+
+  if (item.href) {
+    return (
+      <Link href={item.href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" className={className}>
+      {content}
+    </button>
   );
 }

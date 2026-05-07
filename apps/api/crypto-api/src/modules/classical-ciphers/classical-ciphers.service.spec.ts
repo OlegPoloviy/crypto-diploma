@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ClassicalCiphersService } from './classical-ciphers.service';
 import { ParsedTextStatus } from '../text-parser/parsed-text.entity';
 import { encryptCaesarCheckpoints } from './classical-ciphers.engine';
+import { calculateTextMetrics } from './classical-ciphers.metrics';
 import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
@@ -84,6 +85,7 @@ describe('ClassicalCiphersService', () => {
     ]);
     expect(result.steps[0].text).toBe('kddkmu kd nkgx');
     expect(result.steps[1].text).toBe('kxrkgi kx bkal');
+    expect(result.steps.map((step) => step.keyLength)).toEqual([1, 3]);
   });
 
   it('limits async Caesar checkpoints for large texts', () => {
@@ -95,6 +97,19 @@ describe('ClassicalCiphersService', () => {
     expect(result.steps).toHaveLength(5);
     expect(result.finalText).toContain('zrug0');
     expect(result.steps.at(-1)?.description).toBe('Encrypted 120 of 120 words');
+  });
+
+  it('keeps Caesar word-frequency entropy identical to the original text', () => {
+    const plainText = 'the quick brown fox jumps over the lazy dog '.repeat(
+      200,
+    );
+    const encryptedText = encryptCaesarCheckpoints(plainText, 3, 1).finalText;
+    const plainMetrics = calculateTextMetrics(plainText);
+    const encryptedMetrics = calculateTextMetrics(encryptedText);
+
+    expect(encryptedMetrics.wordFrequencyEntropy).toBe(
+      plainMetrics.wordFrequencyEntropy,
+    );
   });
 
   it('rejects keys without letters', () => {

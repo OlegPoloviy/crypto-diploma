@@ -54,6 +54,15 @@ export class ParsedTextEntity {
   @Column({ default: 0 })
   uniqueWords: number;
 
+  @Column({ type: 'double precision', nullable: true })
+  hurstExponent?: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  dfaAlpha?: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  wordFrequencyEntropy?: number | null;
+
   @Column({ type: 'text', nullable: true })
   errorMessage?: string;
 

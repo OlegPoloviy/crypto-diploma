@@ -7,6 +7,13 @@ export class CipherStepResponseDto {
   @ApiProperty({ example: "Applied key symbol 'E' (2 of 3)" })
   description: string;
 
+  @ApiProperty({
+    example: 10,
+    required: false,
+    description: 'Applied Vigenere key length for key-length experiments',
+  })
+  keyLength?: number;
+
   @ApiProperty({ example: 'Kflmo world' })
   text: string;
 

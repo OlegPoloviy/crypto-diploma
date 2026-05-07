@@ -4,6 +4,11 @@ export interface TextMetrics {
   wordFrequencyEntropy: number;
 }
 
+const ALPHABETS = [
+  'abcdefghijklmnopqrstuvwxyz',
+  '\u0430\u0431\u0432\u0433\u0491\u0434\u0435\u0454\u0436\u0437\u0438\u0456\u0457\u0439\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044c\u044e\u044f',
+];
+
 export function calculateTextMetrics(text: string): TextMetrics {
   const series = textToNumericSeries(text);
 
@@ -17,7 +22,20 @@ export function calculateTextMetrics(text: string): TextMetrics {
 function textToNumericSeries(text: string): number[] {
   const letters = text.toLowerCase().match(/\p{L}/gu) ?? [];
 
-  return letters.map((letter) => letter.codePointAt(0) ?? 0);
+  return letters
+    .map((letter) => letterToAlphabetIndex(letter))
+    .filter((index): index is number => index !== null);
+}
+
+function letterToAlphabetIndex(letter: string): number | null {
+  for (const alphabet of ALPHABETS) {
+    const index = alphabet.indexOf(letter);
+    if (index >= 0) {
+      return index;
+    }
+  }
+
+  return null;
 }
 
 function calculateHurstExponent(series: number[]): number {
@@ -26,9 +44,9 @@ function calculateHurstExponent(series: number[]): number {
   }
 
   const points: Array<{ x: number; y: number }> = [];
-  const maxWindow = Math.min(Math.floor(series.length / 2), 128);
+  const maxWindow = Math.min(Math.floor(series.length / 4), 2048);
 
-  for (let windowSize = 4; windowSize <= maxWindow; windowSize *= 2) {
+  for (let windowSize = 8; windowSize <= maxWindow; windowSize *= 2) {
     const ranges: number[] = [];
 
     for (
@@ -77,22 +95,22 @@ function calculateDfaAlpha(series: number[]): number {
     return cumulative;
   });
   const points: Array<{ x: number; y: number }> = [];
-  const maxScale = Math.min(Math.floor(series.length / 2), 128);
+  const maxScale = Math.min(Math.floor(series.length / 4), 131072);
 
-  for (let scale = 4; scale <= maxScale; scale *= 2) {
-    const fluctuations: number[] = [];
+  for (let scale = 8; scale <= maxScale; scale *= 2) {
+    let totalSquaredError = 0;
+    let totalPoints = 0;
 
     for (let start = 0; start + scale <= profile.length; start += scale) {
       const segment = profile.slice(start, start + scale);
-      const rms = detrendedRootMeanSquare(segment);
+      const detrended = detrendedSquaredError(segment);
 
-      if (rms > 0) {
-        fluctuations.push(rms);
-      }
+      totalSquaredError += detrended.squaredError;
+      totalPoints += detrended.points;
     }
 
-    if (fluctuations.length > 0) {
-      const fluctuation = average(fluctuations);
+    if (totalPoints > 0) {
+      const fluctuation = Math.sqrt(totalSquaredError / totalPoints);
       if (fluctuation > 0) {
         points.push({ x: Math.log(scale), y: Math.log(fluctuation) });
       }
@@ -127,7 +145,10 @@ function calculateWordFrequencyEntropy(text: string): number {
   return entropy;
 }
 
-function detrendedRootMeanSquare(segment: number[]): number {
+function detrendedSquaredError(segment: number[]): {
+  squaredError: number;
+  points: number;
+} {
   const n = segment.length;
   const xMean = (n - 1) / 2;
   const yMean = average(segment);
@@ -146,7 +167,7 @@ function detrendedRootMeanSquare(segment: number[]): number {
     return sum + (value - trend) ** 2;
   }, 0);
 
-  return Math.sqrt(squaredError / n);
+  return { squaredError, points: n };
 }
 
 function slopeOrDefault(

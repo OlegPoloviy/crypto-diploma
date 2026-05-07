@@ -21,8 +21,8 @@ export class VigenereCipherDto {
   text: string;
 
   @ApiProperty({
-    example: 'KEY',
-    description: 'Alphabetic Vigenere key',
+    example: 'VERYLONGRESEARCHKEY',
+    description: 'Alphabetic Vigenere key. Longer keys are supported',
   })
   @IsString()
   @IsNotEmpty()
@@ -31,7 +31,7 @@ export class VigenereCipherDto {
 
 export class VigenereKeyLengthsDto extends VigenereCipherDto {
   @ApiProperty({
-    example: [1, 3, 5, 10, 20],
+    example: [1, 3, 5, 10, 20, 100, 1000],
     required: false,
     description:
       'Key lengths to compare. The provided key is repeated or truncated to each length',
@@ -41,7 +41,7 @@ export class VigenereKeyLengthsDto extends VigenereCipherDto {
   @ArrayMaxSize(20)
   @IsInt({ each: true })
   @Min(1, { each: true })
-  @Max(200, { each: true })
+  @Max(10000, { each: true })
   @IsOptional()
   keyLengths?: number[];
 }

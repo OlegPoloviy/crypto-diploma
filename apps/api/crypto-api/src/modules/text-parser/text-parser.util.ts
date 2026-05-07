@@ -1,8 +1,13 @@
+import { calculateTextMetrics } from '../classical-ciphers/classical-ciphers.metrics';
+
 export interface ParsedTextResult {
   words: string[];
   totalWords: number;
   totalChars: number;
   uniqueWords: number;
+  hurstExponent: number;
+  dfaAlpha: number;
+  wordFrequencyEntropy: number;
 }
 
 export function parseBookText(rawText: string): ParsedTextResult {
@@ -14,6 +19,7 @@ export function parseBookText(rawText: string): ParsedTextResult {
     totalWords: words.length,
     totalChars: words.reduce((sum, word) => sum + word.length, 0),
     uniqueWords: new Set(words).size,
+    ...calculateTextMetrics(words.join(' ')),
   };
 }
 

@@ -175,6 +175,8 @@ export function encryptVigenereByKeyLengths(
       index + 1,
       `Encrypted with key length ${length}`,
       encryptedText,
+      undefined,
+      { keyLength: length },
     );
   });
 
@@ -285,10 +287,12 @@ function createStep(
   description: string,
   text: string,
   maxStoredTextLength?: number,
+  metadata: Partial<Pick<CipherStepResponseDto, 'keyLength'>> = {},
 ): CipherStepResponseDto {
   return {
     step,
     description,
+    ...metadata,
     text: maxStoredTextLength ? truncateText(text, maxStoredTextLength) : text,
     ...calculateTextMetrics(text),
   };
@@ -335,7 +339,8 @@ function modulo(value: number, divisor: number): number {
 
 function countWords(text: string): number {
   let count = 0;
-  for (const _match of text.matchAll(/\S+/g)) {
+  for (const match of text.matchAll(/\S+/g)) {
+    void match;
     count += 1;
   }
 
