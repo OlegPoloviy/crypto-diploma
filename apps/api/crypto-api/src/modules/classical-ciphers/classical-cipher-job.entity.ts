@@ -13,6 +13,7 @@ import {
   ClassicalCipherJobStatus,
   ClassicalCipherParameters,
 } from './classical-ciphers.types';
+import { CipherMetricStatDto } from './dto/cipher-metric-stat.dto';
 import { CipherStepResponseDto } from './dto/cipher-step-response.dto';
 
 @Entity('classical_cipher_jobs')
@@ -48,6 +49,9 @@ export class ClassicalCipherJobEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   steps?: CipherStepResponseDto[] | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metricStats?: CipherMetricStatDto[] | null;
 
   @Column({ type: 'text', nullable: true })
   errorMessage?: string | null;

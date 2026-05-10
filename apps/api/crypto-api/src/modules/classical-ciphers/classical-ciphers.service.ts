@@ -202,6 +202,7 @@ export class ClassicalCiphersService {
       await this.cipherJobsRepo.update(job.id, {
         finalText: result.finalText,
         steps: result.steps,
+        metricStats: result.metricStats,
         status: ClassicalCipherJobStatus.COMPLETED,
       });
     } catch (error) {
@@ -255,6 +256,7 @@ export class ClassicalCiphersService {
       status: job.status,
       finalText: job.finalText,
       steps: job.steps,
+      metricStats: job.metricStats,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,

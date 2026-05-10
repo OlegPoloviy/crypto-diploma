@@ -19,6 +19,21 @@ export interface CipherStep {
   wordFrequencyEntropy: number;
 }
 
+export type CipherMetricKey =
+  | "hurstExponent"
+  | "dfaAlpha"
+  | "wordFrequencyEntropy";
+
+export interface CipherMetricStat {
+  key: CipherMetricKey;
+  label: string;
+  final: number;
+  mean: number;
+  standardDeviation: number;
+  min: number;
+  max: number;
+}
+
 export interface ClassicalCipherJob {
   id: string;
   parsedTextId: string;
@@ -27,6 +42,7 @@ export interface ClassicalCipherJob {
   parameters: Record<string, unknown>;
   finalText?: string | null;
   steps?: CipherStep[] | null;
+  metricStats?: CipherMetricStat[] | null;
   errorMessage?: string | null;
   createdAt: string;
   updatedAt: string;

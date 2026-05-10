@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { calculateTextMetrics } from './classical-ciphers.metrics';
+import {
+  CipherMetricKey,
+  CipherMetricStatDto,
+} from './dto/cipher-metric-stat.dto';
 import { CipherResponseDto } from './dto/cipher-response.dto';
 import { CipherStepResponseDto } from './dto/cipher-step-response.dto';
 import {
@@ -9,6 +13,12 @@ import {
 
 const DEFAULT_CAESAR_JOB_MAX_STEPS = 40;
 const MAX_STORED_STEP_TEXT_LENGTH = 8000;
+
+const METRIC_DESCRIPTORS: Array<{ key: CipherMetricKey; label: string }> = [
+  { key: 'hurstExponent', label: 'Hurst' },
+  { key: 'dfaAlpha', label: 'DFA' },
+  { key: 'wordFrequencyEntropy', label: 'Entropy' },
+];
 
 interface Alphabet {
   lower: string;
@@ -80,6 +90,7 @@ export function encryptCaesar(text: string, shift: number): CipherResponseDto {
   return {
     finalText: currentText,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -92,9 +103,12 @@ export function encryptCaesarCheckpoints(
 
   const totalWords = countWords(text);
   if (totalWords === 0) {
+    const steps = [createStep(1, 'No words to encrypt', text)];
+
     return {
       finalText: text,
-      steps: [createStep(1, 'No words to encrypt', text)],
+      steps,
+      metricStats: calculateStepMetricStats(steps),
     };
   }
 
@@ -134,6 +148,7 @@ export function encryptCaesarCheckpoints(
   return {
     finalText,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -156,6 +171,7 @@ export function encryptVigenereByKeySymbols(
   return {
     finalText: steps.at(-1)?.text ?? text,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -183,6 +199,7 @@ export function encryptVigenereByKeyLengths(
   return {
     finalText: steps.at(-1)?.text ?? text,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -353,4 +370,42 @@ function truncateText(text: string, maxLength: number): string {
   }
 
   return `${text.slice(0, maxLength)}\n... [truncated ${text.length - maxLength} chars]`;
+}
+
+function calculateStepMetricStats(
+  steps: CipherStepResponseDto[],
+): CipherMetricStatDto[] {
+  if (steps.length === 0) {
+    return [];
+  }
+
+  return METRIC_DESCRIPTORS.map((metric) => {
+    const values = steps.map((step) => step[metric.key]);
+    const mean = average(values);
+    const variance =
+      values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+      values.length;
+
+    return {
+      key: metric.key,
+      label: metric.label,
+      final: roundMetric(values.at(-1) ?? 0),
+      mean: roundMetric(mean),
+      standardDeviation: roundMetric(Math.sqrt(variance)),
+      min: roundMetric(Math.min(...values)),
+      max: roundMetric(Math.max(...values)),
+    };
+  });
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundMetric(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.round(value * 10000) / 10000;
 }

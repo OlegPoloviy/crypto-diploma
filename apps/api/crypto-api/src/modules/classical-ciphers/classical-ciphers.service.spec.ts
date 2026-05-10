@@ -60,6 +60,15 @@ describe('ClassicalCiphersService', () => {
     expect(result.steps[0].hurstExponent).toEqual(expect.any(Number));
     expect(result.steps[0].dfaAlpha).toEqual(expect.any(Number));
     expect(result.steps[0].wordFrequencyEntropy).toEqual(expect.any(Number));
+    expect(result.metricStats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'hurstExponent',
+          mean: expect.any(Number),
+          standardDeviation: expect.any(Number),
+        }),
+      ]),
+    );
   });
 
   it('encrypts Vigenere cipher progressively by key symbols', () => {
@@ -122,6 +131,7 @@ describe('ClassicalCiphersService', () => {
     jest.spyOn(service as never, 'runCipherWorker').mockResolvedValue({
       finalText: 'khoor zruog',
       steps: [],
+      metricStats: [],
     } as never);
     parsedTextsRepo.findOne.mockResolvedValue({
       id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
@@ -154,6 +164,7 @@ describe('ClassicalCiphersService', () => {
       expect.objectContaining({
         status: ClassicalCipherJobStatus.COMPLETED,
         finalText: 'khoor zruog',
+        metricStats: [],
       }),
     );
   });

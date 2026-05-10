@@ -3,6 +3,7 @@ import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
 } from '../classical-ciphers.types';
+import { CipherMetricStatDto } from './cipher-metric-stat.dto';
 import { CipherStepResponseDto } from './cipher-step-response.dto';
 
 export class CipherJobResponseDto {
@@ -26,6 +27,9 @@ export class CipherJobResponseDto {
 
   @ApiProperty({ type: CipherStepResponseDto, isArray: true, nullable: true })
   steps?: CipherStepResponseDto[] | null;
+
+  @ApiProperty({ type: CipherMetricStatDto, isArray: true, nullable: true })
+  metricStats?: CipherMetricStatDto[] | null;
 
   @ApiProperty({ example: null, nullable: true })
   errorMessage?: string | null;
