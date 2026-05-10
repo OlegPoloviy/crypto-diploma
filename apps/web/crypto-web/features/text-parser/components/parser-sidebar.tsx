@@ -7,6 +7,7 @@ import {
   History,
   LayoutDashboard,
   Plus,
+  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -14,6 +15,7 @@ const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "New Corpus", icon: Plus, active: true },
   { label: "Classical Ciphers", icon: Binary, href: "/classical-ciphers" },
+  { label: "Complex Ciphers", icon: ShieldCheck, href: "/complex-ciphers" },
   { label: "History", icon: History },
   { label: "Compare Runs", icon: BarChart3 },
   { label: "Datasets", icon: Database },

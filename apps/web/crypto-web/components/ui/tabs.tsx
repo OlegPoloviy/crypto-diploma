@@ -52,7 +52,7 @@ function TabsTrigger({
       data-state={active ? "active" : "inactive"}
       onClick={() => context.onValueChange(value)}
       className={cn(
-        "rounded-sm px-3 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+        "inline-flex h-full min-w-0 items-center justify-center gap-2 rounded-sm px-3 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm [&_svg]:shrink-0",
         className,
       )}
       {...props}

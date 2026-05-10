@@ -15,6 +15,7 @@ import {
   Loader2,
   Play,
   RefreshCw,
+  ShieldCheck,
   Sigma,
 } from "lucide-react";
 
@@ -206,6 +207,16 @@ function CipherSidebar() {
           <Binary className="size-4" />
           Classical Ciphers
         </div>
+        <Button
+          asChild
+          variant="ghost"
+          className="h-10 w-full justify-start rounded-md text-slate-500 dark:text-slate-400"
+        >
+          <Link href="/complex-ciphers">
+            <ShieldCheck className="size-4" />
+            Complex Ciphers
+          </Link>
+        </Button>
       </nav>
 
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
