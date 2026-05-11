@@ -14,6 +14,18 @@ export async function GET(
   return proxyResponse(response);
 }
 
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const response = await fetch(`${API_URL}/complex-ciphers/jobs/${id}`, {
+    method: "DELETE",
+  });
+
+  return proxyResponse(response);
+}
+
 async function proxyResponse(response: Response) {
   const text = await response.text();
 

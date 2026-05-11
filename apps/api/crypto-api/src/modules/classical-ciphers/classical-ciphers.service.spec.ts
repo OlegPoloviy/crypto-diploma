@@ -17,6 +17,7 @@ describe('ClassicalCiphersService', () => {
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    delete: jest.Mock;
     find: jest.Mock;
     findOne: jest.Mock;
   };
@@ -34,6 +35,7 @@ describe('ClassicalCiphersService', () => {
         ...value,
       })),
       update: jest.fn(),
+      delete: jest.fn(async () => ({ affected: 1 })),
       find: jest.fn(),
       findOne: jest.fn(),
     };
@@ -166,6 +168,14 @@ describe('ClassicalCiphersService', () => {
         finalText: 'khoor zruog',
         metricStats: [],
       }),
+    );
+  });
+
+  it('deletes a classical cipher job', async () => {
+    await service.deleteJob('0f50273c-4181-4496-9648-e84f355cedee');
+
+    expect(cipherJobsRepo.delete).toHaveBeenCalledWith(
+      '0f50273c-4181-4496-9648-e84f355cedee',
     );
   });
 

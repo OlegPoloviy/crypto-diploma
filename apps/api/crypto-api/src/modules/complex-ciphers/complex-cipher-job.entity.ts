@@ -14,6 +14,7 @@ import {
   ComplexCipherParameters,
 } from './complex-ciphers.types';
 import { CipherMetricStatDto } from '../classical-ciphers/dto/cipher-metric-stat.dto';
+import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
 
 @Entity('complex_cipher_jobs')
 export class ComplexCipherJobEntity {
@@ -45,6 +46,9 @@ export class ComplexCipherJobEntity {
 
   @Column({ type: 'text', nullable: true })
   finalText?: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  steps?: CipherStepResponseDto[] | null;
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown> | null;

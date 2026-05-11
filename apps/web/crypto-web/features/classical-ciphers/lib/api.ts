@@ -46,6 +46,14 @@ export async function createCipherJob(input: {
   return parseResponse<ClassicalCipherJob>(response);
 }
 
+export async function deleteCipherJob(id: string): Promise<void> {
+  const response = await fetch(`/api/classical-ciphers/jobs/${id}`, {
+    method: "DELETE",
+  });
+
+  await parseResponse<void>(response);
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
 

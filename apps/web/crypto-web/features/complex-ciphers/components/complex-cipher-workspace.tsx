@@ -18,6 +18,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Shuffle,
+  Trash2,
   UnlockKeyhole,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ import {
   BinaryEncoding,
   ComplexCipherJob,
   ComplexCipherJobStatus,
+  CipherStep,
 } from "../types/aes-cipher";
 
 const encodingOptions: BinaryEncoding[] = ["utf8", "hex", "base64"];
@@ -217,6 +219,7 @@ function AesJobsPanel({
                   <th className="px-4 py-3 font-medium">Parameters</th>
                   <th className="px-4 py-3 font-medium">Output</th>
                   <th className="px-4 py-3 font-medium">Updated</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -250,11 +253,25 @@ function AesJobsPanel({
                     <td className="px-4 py-4 text-slate-500 dark:text-slate-400">
                       {formatTime(job.updatedAt)}
                     </td>
+                    <td className="px-4 py-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void workspace.deleteJob(job.id);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete
+                      </Button>
+                    </td>
                   </tr>
                 ))}
                 {workspace.jobs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-14 text-center">
+                    <td colSpan={6} className="px-5 py-14 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                         <ShieldCheck className="size-8" />
                         <p>No AES corpus jobs yet.</p>
@@ -268,12 +285,18 @@ function AesJobsPanel({
         </CardContent>
       </Card>
 
-      <AesJobDetails job={workspace.selectedJob} />
+      <AesJobDetails workspace={workspace} job={workspace.selectedJob} />
     </div>
   );
 }
 
-function AesJobDetails({ job }: { job: ComplexCipherJob | null }) {
+function AesJobDetails({
+  workspace,
+  job,
+}: {
+  workspace: ReturnType<typeof useAesWorkspace>;
+  job: ComplexCipherJob | null;
+}) {
   if (!job) {
     return (
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -302,6 +325,15 @@ function AesJobDetails({ job }: { job: ComplexCipherJob | null }) {
           <div className="flex flex-wrap gap-2">
             <JobStatusBadge status={job.status} />
             <Badge variant="outline">{formatJobParameters(job)}</Badge>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+              onClick={() => void workspace.deleteJob(job.id)}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -309,6 +341,7 @@ function AesJobDetails({ job }: { job: ComplexCipherJob | null }) {
         <div className="min-w-0 space-y-3">
           <MetricStrip job={job} />
           <AesMetricCharts job={job} />
+          <AesRoundSteps job={job} />
           {job.errorMessage ? (
             <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
               {job.errorMessage}
@@ -358,6 +391,185 @@ function AesJobDetails({ job }: { job: ComplexCipherJob | null }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
+  const steps = job.steps ?? [];
+  const isSampled = job.metadata?.stepSampled === true;
+  const sampleSize =
+    typeof job.metadata?.stepSampleSize === "number"
+      ? job.metadata.stepSampleSize
+      : null;
+
+  if (steps.length === 0) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
+        AES round states will appear after the corpus worker completes.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3">
+      <AesRoundMetricChart steps={steps} />
+
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#080b16]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              AES rounds
+            </p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              {isSampled
+                ? `Sampled corpus state after whitening and each AES round (${formatNumber(sampleSize ?? steps.at(-1)?.text.length ?? 0)} bytes).`
+                : "Corpus state after whitening and each AES round."}
+            </p>
+          </div>
+          <Badge variant="outline">{steps.length} states</Badge>
+        </div>
+
+        <div className="max-h-96 overflow-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="sticky top-0 border-b border-slate-200 bg-slate-100 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
+              <tr>
+                <th className="px-4 py-3 font-medium">Step</th>
+                <th className="px-4 py-3 font-medium">State</th>
+                <th className="px-4 py-3 font-medium">Hurst</th>
+                <th className="px-4 py-3 font-medium">DFA</th>
+                <th className="px-4 py-3 font-medium">Entropy</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-white/5">
+              {steps.map((step) => (
+                <tr key={step.step}>
+                  <td className="px-4 py-3 align-top">
+                    <div className="font-medium text-slate-950 dark:text-slate-100">
+                      {step.step}
+                    </div>
+                    <div className="mt-1 max-w-56 text-xs text-slate-500 dark:text-slate-400">
+                      {step.description}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <code className="block max-w-[420px] truncate font-mono text-xs text-slate-600 dark:text-slate-300">
+                      {step.text}
+                    </code>
+                  </td>
+                  <MetricCell value={step.hurstExponent} />
+                  <MetricCell value={step.dfaAlpha} />
+                  <MetricCell value={step.wordFrequencyEntropy} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
+  const width = 760;
+  const height = 220;
+  const padding = 36;
+  const metrics = [
+    { key: "hurstExponent", label: "Hurst", color: "#22d3ee" },
+    { key: "dfaAlpha", label: "DFA", color: "#cbd5e1" },
+    { key: "wordFrequencyEntropy", label: "Byte entropy", color: "#34d399" },
+  ] as const;
+  const allValues = steps.flatMap((step) => [
+    step.hurstExponent,
+    step.dfaAlpha,
+    step.wordFrequencyEntropy,
+  ]);
+  const maxValue = Math.max(1, ...allValues);
+  const pointFor = (index: number, value: number) => {
+    const x =
+      padding +
+      (steps.length <= 1
+        ? 0
+        : (index / (steps.length - 1)) * (width - padding * 2));
+    const y =
+      height - padding - (value / maxValue) * (height - padding * 2);
+
+    return { x, y };
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
+        {metrics.map((metric) => (
+          <LegendDot key={metric.key} color={metric.color} label={metric.label} />
+        ))}
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="AES round metrics chart"
+        className="h-56 w-full overflow-visible"
+      >
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y = padding + ratio * (height - padding * 2);
+          return (
+            <line
+              key={ratio}
+              x1={padding}
+              x2={width - padding}
+              y1={y}
+              y2={y}
+              stroke="currentColor"
+              className="text-slate-200 dark:text-white/10"
+            />
+          );
+        })}
+
+        {metrics.map((metric) => {
+          const path = steps
+            .map((step, index) => {
+              const point = pointFor(index, step[metric.key]);
+              return `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+            })
+            .join(" ");
+
+          return (
+            <path
+              key={metric.key}
+              d={path}
+              fill="none"
+              stroke={metric.color}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+
+        {steps.map((step, index) => {
+          const x = pointFor(index, 0).x;
+
+          return (
+            <text
+              key={step.step}
+              x={x}
+              y={height - 10}
+              textAnchor="middle"
+              className="fill-slate-500 text-[11px] dark:fill-slate-400"
+            >
+              {step.step}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function MetricCell({ value }: { value: number }) {
+  return (
+    <td className="px-4 py-3 align-top font-mono text-xs tabular-nums text-slate-700 dark:text-slate-300">
+      {value.toFixed(4)}
+    </td>
   );
 }
 

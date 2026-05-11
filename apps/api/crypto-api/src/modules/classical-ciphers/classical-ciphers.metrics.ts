@@ -19,12 +19,26 @@ export function calculateTextMetrics(text: string): TextMetrics {
   };
 }
 
+export function calculateByteMetrics(bytes: Uint8Array): TextMetrics {
+  const series = bytesToNumericSeries(bytes);
+
+  return {
+    hurstExponent: roundMetric(calculateHurstExponent(series)),
+    dfaAlpha: roundMetric(calculateDfaAlpha(series)),
+    wordFrequencyEntropy: roundMetric(calculateSeriesEntropy(series)),
+  };
+}
+
 function textToNumericSeries(text: string): number[] {
   const letters = text.toLowerCase().match(/\p{L}/gu) ?? [];
 
   return letters
     .map((letter) => letterToAlphabetIndex(letter))
     .filter((index): index is number => index !== null);
+}
+
+function bytesToNumericSeries(bytes: Uint8Array): number[] {
+  return Array.from(bytes);
 }
 
 function letterToAlphabetIndex(letter: string): number | null {
@@ -139,6 +153,25 @@ function calculateWordFrequencyEntropy(text: string): number {
   let entropy = 0;
   for (const count of counts.values()) {
     const probability = count / words.length;
+    entropy -= probability * Math.log2(probability);
+  }
+
+  return entropy;
+}
+
+function calculateSeriesEntropy(series: number[]): number {
+  if (series.length === 0) {
+    return 0;
+  }
+
+  const counts = new Map<number, number>();
+  for (const value of series) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const probability = count / series.length;
     entropy -= probability * Math.log2(probability);
   }
 

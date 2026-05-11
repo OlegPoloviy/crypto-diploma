@@ -8,6 +8,7 @@ import { ParsedText } from "@/features/text-parser/types/parsed-text";
 import {
   createAesJob,
   decryptAes,
+  deleteComplexCipherJob,
   encryptAes,
   listComplexCipherJobs,
 } from "../lib/api";
@@ -254,6 +255,25 @@ export function useAesWorkspace() {
     }
   }
 
+  async function deleteJob(id: string) {
+    setMessage(null);
+
+    try {
+      await deleteComplexCipherJob(id);
+      const remainingJobs = jobsRef.current.filter((job) => job.id !== id);
+      setJobs(remainingJobs);
+      if (selectedJobIdRef.current === id) {
+        selectJob(remainingJobs[0]?.id ?? null);
+      }
+      setMessage("AES job stopped and deleted.");
+      await refreshJobs();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to delete AES job",
+      );
+    }
+  }
+
   function loadFipsVector() {
     setOperation("encrypt");
     setMode("ecb");
@@ -322,6 +342,7 @@ export function useAesWorkspace() {
     setSelectedJobId: selectJob,
     submit,
     submitJob,
+    deleteJob,
     refreshJobs,
     loadFipsVector,
     swapToDecrypt,

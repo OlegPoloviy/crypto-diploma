@@ -42,6 +42,9 @@ interface QueuedComplexCipherJob {
 export class ComplexCiphersService {
   private readonly logger = new Logger(ComplexCiphersService.name);
   private readonly queue: QueuedComplexCipherJob[] = [];
+  private readonly deletedJobIds = new Set<string>();
+  private currentJobId: string | null = null;
+  private currentWorker: Worker | null = null;
   private isProcessing = false;
 
   constructor(
@@ -131,6 +134,25 @@ export class ComplexCiphersService {
     return this.toJobResponse(job);
   }
 
+  async deleteJob(id: string): Promise<void> {
+    const queuedIndex = this.queue.findIndex((job) => job.id === id);
+    const removedFromQueue = queuedIndex >= 0;
+    if (removedFromQueue) {
+      this.queue.splice(queuedIndex, 1);
+    }
+
+    const isActiveJob = this.currentJobId === id;
+    if (isActiveJob) {
+      this.deletedJobIds.add(id);
+      await this.currentWorker?.terminate();
+    }
+
+    const result = await this.cipherJobsRepo.delete(id);
+    if (!result.affected && !removedFromQueue && !isActiveJob) {
+      throw new NotFoundException(`Complex cipher job ${id} not found`);
+    }
+  }
+
   private async createJob(
     parsedTextId: string,
     algorithm: ComplexCipherAlgorithm,
@@ -204,24 +226,40 @@ export class ComplexCiphersService {
   }
 
   private async processJob(job: QueuedComplexCipherJob): Promise<void> {
+    if (this.deletedJobIds.has(job.id)) {
+      return;
+    }
+
     await this.cipherJobsRepo.update(job.id, {
       status: ComplexCipherJobStatus.PROCESSING,
       errorMessage: null,
     });
 
     try {
-      const result = await this.runCipherWorker({
-        text: job.text,
-        algorithm: job.algorithm,
-        parameters: job.parameters,
-      });
+      const result = await this.runCipherWorker(
+        {
+          text: job.text,
+          algorithm: job.algorithm,
+          parameters: job.parameters,
+        },
+        job.id,
+      );
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       await this.cipherJobsRepo.update(job.id, {
         finalText: result.finalText,
+        steps: result.steps,
         metadata: result.metadata,
         metricStats: result.metricStats,
         status: ComplexCipherJobStatus.COMPLETED,
       });
     } catch (error) {
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : 'Failed to run cipher job';
       this.logger.error(
@@ -232,18 +270,34 @@ export class ComplexCiphersService {
         status: ComplexCipherJobStatus.FAILED,
         errorMessage: message,
       });
+    } finally {
+      this.deletedJobIds.delete(job.id);
     }
   }
 
   private runCipherWorker(
     data: ComplexCipherWorkerData,
+    jobId: string,
   ): Promise<ComplexCipherWorkerResult> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(join(__dirname, 'complex-ciphers.worker.js'), {
         workerData: data,
       });
+      let settled = false;
+
+      this.currentJobId = jobId;
+      this.currentWorker = worker;
+
+      const cleanup = (): void => {
+        if (this.currentWorker === worker) {
+          this.currentWorker = null;
+          this.currentJobId = null;
+        }
+      };
 
       worker.once('message', (message: ComplexCipherWorkerMessage) => {
+        settled = true;
+        cleanup();
         if ('error' in message) {
           reject(new Error(message.error));
           return;
@@ -251,9 +305,14 @@ export class ComplexCiphersService {
 
         resolve(message);
       });
-      worker.once('error', reject);
+      worker.once('error', (error) => {
+        settled = true;
+        cleanup();
+        reject(error);
+      });
       worker.once('exit', (code) => {
-        if (code !== 0) {
+        cleanup();
+        if (!settled && code !== 0) {
           reject(new Error(`Cipher worker stopped with exit code ${code}`));
         }
       });
@@ -270,6 +329,7 @@ export class ComplexCiphersService {
       parameters: job.parameters,
       status: job.status,
       finalText: job.finalText,
+      steps: job.steps,
       metadata: job.metadata,
       metricStats: job.metricStats,
       errorMessage: job.errorMessage,

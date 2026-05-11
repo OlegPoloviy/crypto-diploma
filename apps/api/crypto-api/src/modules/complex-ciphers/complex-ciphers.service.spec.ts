@@ -4,8 +4,12 @@ import {
   decryptAesBlock,
   encryptAes,
   encryptAesBlock,
+  encryptAesCorpusWithSampledSteps,
+  encryptAesCorpusWithSteps,
+  encryptAesWithSteps,
   parseBytes,
 } from './aes.engine';
+import { runComplexCipher } from './complex-ciphers.engine';
 import { ComplexCiphersService } from './complex-ciphers.service';
 import { ParsedTextStatus } from '../text-parser/parsed-text.entity';
 import {
@@ -24,6 +28,7 @@ describe('ComplexCiphersService', () => {
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    delete: jest.Mock;
     find: jest.Mock;
     findOne: jest.Mock;
   };
@@ -41,6 +46,7 @@ describe('ComplexCiphersService', () => {
         ...value,
       })),
       update: jest.fn(),
+      delete: jest.fn(async () => ({ affected: 1 })),
       find: jest.fn(),
       findOne: jest.fn(),
     };
@@ -71,6 +77,29 @@ describe('ComplexCiphersService', () => {
     );
     expect(Buffer.from(decrypted).toString('hex')).toBe(
       '00112233445566778899aabbccddeeff',
+    );
+  });
+
+  it('exposes AES-128 block encryption states after whitening and each round', () => {
+    const plaintext = parseBytes(
+      '00112233445566778899aabbccddeeff',
+      BinaryEncoding.HEX,
+      'plaintext',
+    );
+    const key = parseBytes(
+      '000102030405060708090a0b0c0d0e0f',
+      BinaryEncoding.HEX,
+      'key',
+    );
+
+    const steps = encryptAesWithSteps(plaintext, key);
+
+    expect(steps).toHaveLength(11);
+    expect(Buffer.from(steps[0]).toString('hex')).toBe(
+      '00102030405060708090a0b0c0d0e0f0',
+    );
+    expect(Buffer.from(steps.at(-1) as Uint8Array).toString('hex')).toBe(
+      '69c4e0d86a7b0430d8cdb78070b4c55a',
     );
   });
 
@@ -122,6 +151,107 @@ describe('ComplexCiphersService', () => {
       'c7ffa7dc5d5ec3069bb369dcbe3d838f',
     );
     expect(Buffer.from(decrypted.plaintext).toString('utf8')).toBe('hello AES');
+  });
+
+  it('aggregates AES states by round across the full padded corpus', () => {
+    const key = parseBytes(
+      '000102030405060708090a0b0c0d0e0f',
+      BinaryEncoding.HEX,
+      'key',
+    );
+    const iv = parseBytes(
+      '101112131415161718191a1b1c1d1e1f',
+      BinaryEncoding.HEX,
+      'iv',
+    );
+    const plaintext = parseBytes(
+      'corpus text that spans multiple blocks',
+      BinaryEncoding.UTF8,
+      'plaintext',
+    );
+
+    const encrypted = encryptAes(plaintext, key, { mode: AesMode.CBC, iv });
+    const steps = encryptAesCorpusWithSteps(plaintext, key, {
+      mode: AesMode.CBC,
+      iv,
+    });
+
+    expect(steps).toHaveLength(11);
+    expect(steps.every((step) => step.length === encrypted.ciphertext.length))
+      .toBe(true);
+    expect(Buffer.from(steps.at(-1) as Uint8Array).toString('hex')).toBe(
+      Buffer.from(encrypted.ciphertext).toString('hex'),
+    );
+  });
+
+  it('samples AES corpus step states without truncating the final ciphertext', () => {
+    const key = parseBytes(
+      '000102030405060708090a0b0c0d0e0f',
+      BinaryEncoding.HEX,
+      'key',
+    );
+    const iv = parseBytes(
+      '101112131415161718191a1b1c1d1e1f',
+      BinaryEncoding.HEX,
+      'iv',
+    );
+    const plaintext = new TextEncoder().encode('a'.repeat(60_000));
+
+    const encrypted = encryptAes(plaintext, key, { mode: AesMode.CBC, iv });
+    const result = encryptAesCorpusWithSampledSteps(plaintext, key, {
+      mode: AesMode.CBC,
+      iv,
+    });
+
+    expect(Buffer.from(result.ciphertext).toString('hex')).toBe(
+      Buffer.from(encrypted.ciphertext).toString('hex'),
+    );
+    expect(result.sampleSize).toBe(50_000);
+    expect(result.steps).toHaveLength(11);
+    expect(result.steps.every((step) => step.length === 50_000)).toBe(true);
+    expect(result.steps.at(-1)?.length).toBeLessThan(result.ciphertext.length);
+  });
+
+  it('calculates AES job step metrics from raw bytes instead of hex text', () => {
+    const result = runComplexCipher(
+      'corpus text that spans multiple blocks',
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.CBC,
+        iv: '101112131415161718191a1b1c1d1e1f',
+      },
+    );
+
+    expect(result.steps).toHaveLength(11);
+    expect(result.steps?.at(-1)?.text).toBe(result.finalText);
+    expect(result.metricStats).toContainEqual(
+      expect.objectContaining({
+        key: 'wordFrequencyEntropy',
+        label: 'Byte entropy',
+      }),
+    );
+    expect(result.metadata.byteEntropy).toBe(
+      result.steps?.at(-1)?.wordFrequencyEntropy,
+    );
+  });
+
+  it('stores sampled AES job step payloads for large corpora', () => {
+    const result = runComplexCipher('a'.repeat(60_000), ComplexCipherAlgorithm.AES, {
+      key: '000102030405060708090a0b0c0d0e0f',
+      mode: AesMode.CBC,
+      iv: '101112131415161718191a1b1c1d1e1f',
+    });
+
+    expect(result.metadata).toMatchObject({
+      ciphertextLength: 60_016,
+      stepSampleSize: 50_000,
+      stepSampled: true,
+      stepSampleSourceBytes: 60_016,
+    });
+    expect(result.steps?.at(-1)?.text.length).toBeLessThan(
+      result.finalText.length,
+    );
   });
 
   it('exposes AES encryption through the service DTO contract', () => {
@@ -217,6 +347,14 @@ describe('ComplexCiphersService', () => {
           expect.objectContaining({ key: 'hurstExponent' }),
         ]),
       }),
+    );
+  });
+
+  it('deletes a complex cipher job', async () => {
+    await service.deleteJob('0f50273c-4181-4496-9648-e84f355cedee');
+
+    expect(cipherJobsRepo.delete).toHaveBeenCalledWith(
+      '0f50273c-4181-4496-9648-e84f355cedee',
     );
   });
 

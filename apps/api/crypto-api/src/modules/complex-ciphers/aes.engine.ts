@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
 
 const BLOCK_SIZE = 16;
+const DEFAULT_AES_STEP_SAMPLE_SIZE = 50_000;
 const S_BOX = [
   0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe,
   0xd7, 0xab, 0x76, 0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4,
@@ -51,6 +52,13 @@ const RCON = [0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 interface AesOptions {
   mode?: AesMode;
   iv?: Uint8Array;
+}
+
+export interface AesCorpusSampledStepsResult {
+  ciphertext: Uint8Array;
+  steps: Uint8Array[];
+  sampleSize: number;
+  totalBytes: number;
 }
 
 export function encryptAes(
@@ -116,6 +124,77 @@ export function decryptAes(
   };
 }
 
+export function encryptAesCorpusWithSteps(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  options: AesOptions = {},
+): Uint8Array[] {
+  const mode = options.mode ?? AesMode.CBC;
+  const roundKeys = expandKey(key);
+  const roundBuffers: number[][] = Array.from(
+    { length: roundKeys.length },
+    () => [],
+  );
+  const padded = addPkcs7Padding(plaintext);
+  const iv = getIv(mode, options.iv);
+  let previous = iv;
+
+  for (let offset = 0; offset < padded.length; offset += BLOCK_SIZE) {
+    let block: Uint8Array = padded.slice(offset, offset + BLOCK_SIZE);
+    if (mode === AesMode.CBC) {
+      block = xorBlocks(block, previous);
+    }
+
+    const steps = encryptAesWithSteps(block, roundKeys);
+    steps.forEach((step, index) => roundBuffers[index].push(...step));
+    previous = steps.at(-1) as Uint8Array;
+  }
+
+  return roundBuffers.map((buffer) => Uint8Array.from(buffer));
+}
+
+export function encryptAesCorpusWithSampledSteps(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  options: AesOptions = {},
+  maxSampleSize = DEFAULT_AES_STEP_SAMPLE_SIZE,
+): AesCorpusSampledStepsResult {
+  const mode = options.mode ?? AesMode.CBC;
+  const roundKeys = expandKey(key);
+  const padded = addPkcs7Padding(plaintext);
+  const samplePlan = createSamplePlan(padded.length, maxSampleSize);
+  const stepSamples: number[][] = Array.from(
+    { length: roundKeys.length },
+    () => [],
+  );
+  const ciphertext: number[] = [];
+  const iv = getIv(mode, options.iv);
+  let previous = iv;
+
+  for (let offset = 0; offset < padded.length; offset += BLOCK_SIZE) {
+    let block: Uint8Array = padded.slice(offset, offset + BLOCK_SIZE);
+    if (mode === AesMode.CBC) {
+      block = xorBlocks(block, previous);
+    }
+
+    const steps = encryptAesWithSteps(block, roundKeys);
+    steps.forEach((step, stepIndex) => {
+      collectStepSample(stepSamples[stepIndex], step, offset, samplePlan);
+    });
+
+    const encrypted = steps.at(-1) as Uint8Array;
+    ciphertext.push(...encrypted);
+    previous = encrypted;
+  }
+
+  return {
+    ciphertext: Uint8Array.from(ciphertext),
+    steps: stepSamples.map((sample) => Uint8Array.from(sample)),
+    sampleSize: samplePlan.size,
+    totalBytes: padded.length,
+  };
+}
+
 export function encryptAesBlock(
   block: Uint8Array,
   key: Uint8Array,
@@ -130,6 +209,46 @@ export function decryptAesBlock(
 ): Uint8Array {
   assertBlock(block, 'Ciphertext block');
   return decryptBlock(block, expandKey(key));
+}
+
+export function encryptAesWithSteps(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+): Uint8Array[];
+export function encryptAesWithSteps(
+  block: Uint8Array,
+  key: Uint8Array,
+): Uint8Array[];
+export function encryptAesWithSteps(
+  block: Uint8Array,
+  keyOrRoundKeys: Uint8Array | Uint8Array[],
+): Uint8Array[] {
+  assertBlock(block, 'Plaintext block');
+  const roundKeys = Array.isArray(keyOrRoundKeys)
+    ? keyOrRoundKeys
+    : expandKey(keyOrRoundKeys);
+  assertRoundKeys(roundKeys);
+
+  const steps: Uint8Array[] = [];
+  const state = block.slice();
+
+  addRoundKey(state, roundKeys[0]);
+  steps.push(state.slice());
+
+  for (let round = 1; round < roundKeys.length - 1; round += 1) {
+    subBytes(state, S_BOX);
+    shiftRows(state);
+    mixColumns(state);
+    addRoundKey(state, roundKeys[round]);
+    steps.push(state.slice());
+  }
+
+  subBytes(state, S_BOX);
+  shiftRows(state);
+  addRoundKey(state, roundKeys.at(-1) as Uint8Array);
+  steps.push(state.slice());
+
+  return steps;
 }
 
 export function parseBytes(
@@ -180,21 +299,7 @@ export function formatBytes(
 }
 
 function encryptBlock(block: Uint8Array, roundKeys: Uint8Array[]): Uint8Array {
-  const state = block.slice();
-  addRoundKey(state, roundKeys[0]);
-
-  for (let round = 1; round < roundKeys.length - 1; round += 1) {
-    subBytes(state, S_BOX);
-    shiftRows(state);
-    mixColumns(state);
-    addRoundKey(state, roundKeys[round]);
-  }
-
-  subBytes(state, S_BOX);
-  shiftRows(state);
-  addRoundKey(state, roundKeys.at(-1) as Uint8Array);
-
-  return state;
+  return encryptAesWithSteps(block, roundKeys).at(-1) as Uint8Array;
 }
 
 function decryptBlock(block: Uint8Array, roundKeys: Uint8Array[]): Uint8Array {
@@ -392,5 +497,58 @@ function assertBlock(block: Uint8Array, label: string): void {
 function assertKey(key: Uint8Array): void {
   if (![16, 24, 32].includes(key.length)) {
     throw new BadRequestException('AES key must be 16, 24, or 32 bytes');
+  }
+}
+
+function assertRoundKeys(roundKeys: Uint8Array[]): void {
+  if (![11, 13, 15].includes(roundKeys.length)) {
+    throw new BadRequestException('AES round keys must match AES-128/192/256');
+  }
+
+  roundKeys.forEach((roundKey, index) => {
+    assertBlock(roundKey, `AES round key ${index}`);
+  });
+}
+
+function createSamplePlan(
+  totalBytes: number,
+  maxSampleSize: number,
+): { size: number; totalBytes: number } {
+  if (maxSampleSize < 1) {
+    throw new BadRequestException('AES step sample size must be positive');
+  }
+
+  if (totalBytes <= maxSampleSize) {
+    return { size: totalBytes, totalBytes };
+  }
+
+  return {
+    size: maxSampleSize,
+    totalBytes,
+  };
+}
+
+function collectStepSample(
+  sample: number[],
+  blockState: Uint8Array,
+  blockOffset: number,
+  samplePlan: { size: number; totalBytes: number },
+): void {
+  if (sample.length >= samplePlan.size) {
+    return;
+  }
+
+  for (let index = 0; index < blockState.length; index += 1) {
+    const globalIndex = blockOffset + index;
+    const targetIndex = Math.floor(
+      (sample.length * samplePlan.totalBytes) / samplePlan.size,
+    );
+
+    if (globalIndex >= targetIndex) {
+      sample.push(blockState[index]);
+      if (sample.length >= samplePlan.size) {
+        return;
+      }
+    }
   }
 }

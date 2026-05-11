@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -50,6 +52,17 @@ export class ClassicalCiphersController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ): Promise<CipherJobResponseDto> {
     return this.ciphersService.findOneJob(id);
+  }
+
+  @Delete('jobs/:id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Stop and delete classical cipher job by id' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Cipher job id' })
+  @ApiNotFoundResponse({ description: 'Cipher job not found' })
+  deleteJob(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<void> {
+    return this.ciphersService.deleteJob(id);
   }
 
   @Post('caesar')

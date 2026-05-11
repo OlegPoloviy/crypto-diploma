@@ -4,6 +4,7 @@ import {
   ComplexCipherJobStatus,
 } from '../complex-ciphers.types';
 import { CipherMetricStatDto } from '../../classical-ciphers/dto/cipher-metric-stat.dto';
+import { CipherStepResponseDto } from '../../classical-ciphers/dto/cipher-step-response.dto';
 
 export class ComplexCipherJobResponseDto {
   @ApiProperty({ example: '0f50273c-4181-4496-9648-e84f355cedee' })
@@ -26,6 +27,9 @@ export class ComplexCipherJobResponseDto {
     nullable: true,
   })
   finalText?: string | null;
+
+  @ApiProperty({ type: CipherStepResponseDto, isArray: true, nullable: true })
+  steps?: CipherStepResponseDto[] | null;
 
   @ApiProperty({ example: { keySize: 128 }, nullable: true })
   metadata?: Record<string, unknown> | null;

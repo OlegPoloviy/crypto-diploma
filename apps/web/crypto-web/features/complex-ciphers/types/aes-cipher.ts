@@ -50,6 +50,7 @@ export interface ComplexCipherJob {
   status: ComplexCipherJobStatus;
   parameters: Record<string, unknown>;
   finalText?: string | null;
+  steps?: CipherStep[] | null;
   metadata?: Record<string, unknown> | null;
   metricStats?: CipherMetricStat[] | null;
   errorMessage?: string | null;
@@ -70,6 +71,16 @@ export interface CipherMetricStat {
   standardDeviation: number;
   min: number;
   max: number;
+}
+
+export interface CipherStep {
+  step: number;
+  description: string;
+  keyLength?: number;
+  text: string;
+  hurstExponent: number;
+  dfaAlpha: number;
+  wordFrequencyEntropy: number;
 }
 
 export interface CreateAesJobInput {

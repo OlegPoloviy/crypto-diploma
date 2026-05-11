@@ -56,6 +56,14 @@ export async function createAesJob(
   return parseResponse<ComplexCipherJob>(response);
 }
 
+export async function deleteComplexCipherJob(id: string): Promise<void> {
+  const response = await fetch(`/api/complex-ciphers/jobs/${id}`, {
+    method: "DELETE",
+  });
+
+  await parseResponse<void>(response);
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
 

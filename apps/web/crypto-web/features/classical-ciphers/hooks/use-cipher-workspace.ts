@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listParsedTexts } from "@/features/text-parser/lib/api";
 import { ParsedText } from "@/features/text-parser/types/parsed-text";
 
-import { createCipherJob, listCipherJobs } from "../lib/api";
+import { createCipherJob, deleteCipherJob, listCipherJobs } from "../lib/api";
 import {
   CipherMode,
   ClassicalCipherJob,
@@ -175,6 +175,25 @@ export function useCipherWorkspace() {
     }
   }
 
+  async function deleteJob(id: string) {
+    setMessage(null);
+
+    try {
+      await deleteCipherJob(id);
+      const remainingJobs = jobsRef.current.filter((job) => job.id !== id);
+      setJobs(remainingJobs);
+      if (selectedJobIdRef.current === id) {
+        selectJob(remainingJobs[0]?.id ?? null);
+      }
+      setMessage("Cipher job stopped and deleted.");
+      await refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to delete cipher job",
+      );
+    }
+  }
+
   return {
     parsedTexts,
     completedParsedTexts,
@@ -199,6 +218,7 @@ export function useCipherWorkspace() {
     hasActiveJobs,
     refresh,
     submitJob,
+    deleteJob,
   };
 }
 

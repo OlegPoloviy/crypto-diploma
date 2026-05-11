@@ -39,6 +39,9 @@ interface QueuedCipherJob {
 export class ClassicalCiphersService {
   private readonly logger = new Logger(ClassicalCiphersService.name);
   private readonly queue: QueuedCipherJob[] = [];
+  private readonly deletedJobIds = new Set<string>();
+  private currentJobId: string | null = null;
+  private currentWorker: Worker | null = null;
   private isProcessing = false;
 
   constructor(
@@ -115,6 +118,25 @@ export class ClassicalCiphersService {
     return this.toJobResponse(job);
   }
 
+  async deleteJob(id: string): Promise<void> {
+    const queuedIndex = this.queue.findIndex((job) => job.id === id);
+    const removedFromQueue = queuedIndex >= 0;
+    if (removedFromQueue) {
+      this.queue.splice(queuedIndex, 1);
+    }
+
+    const isActiveJob = this.currentJobId === id;
+    if (isActiveJob) {
+      this.deletedJobIds.add(id);
+      await this.currentWorker?.terminate();
+    }
+
+    const result = await this.cipherJobsRepo.delete(id);
+    if (!result.affected && !removedFromQueue && !isActiveJob) {
+      throw new NotFoundException(`Classical cipher job ${id} not found`);
+    }
+  }
+
   private async createJob(
     parsedTextId: string,
     algorithm: ClassicalCipherAlgorithm,
@@ -188,17 +210,28 @@ export class ClassicalCiphersService {
   }
 
   private async processJob(job: QueuedCipherJob): Promise<void> {
+    if (this.deletedJobIds.has(job.id)) {
+      return;
+    }
+
     await this.cipherJobsRepo.update(job.id, {
       status: ClassicalCipherJobStatus.PROCESSING,
       errorMessage: null,
     });
 
     try {
-      const result = await this.runCipherWorker({
-        text: job.text,
-        algorithm: job.algorithm,
-        parameters: job.parameters,
-      });
+      const result = await this.runCipherWorker(
+        {
+          text: job.text,
+          algorithm: job.algorithm,
+          parameters: job.parameters,
+        },
+        job.id,
+      );
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       await this.cipherJobsRepo.update(job.id, {
         finalText: result.finalText,
         steps: result.steps,
@@ -206,6 +239,10 @@ export class ClassicalCiphersService {
         status: ClassicalCipherJobStatus.COMPLETED,
       });
     } catch (error) {
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : 'Failed to run cipher job';
       this.logger.error(
@@ -216,11 +253,14 @@ export class ClassicalCiphersService {
         status: ClassicalCipherJobStatus.FAILED,
         errorMessage: message,
       });
+    } finally {
+      this.deletedJobIds.delete(job.id);
     }
   }
 
   private runCipherWorker(
     data: ClassicalCipherWorkerData,
+    jobId: string,
   ): Promise<CipherResponseDto> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(
@@ -229,8 +269,21 @@ export class ClassicalCiphersService {
           workerData: data,
         },
       );
+      let settled = false;
+
+      this.currentJobId = jobId;
+      this.currentWorker = worker;
+
+      const cleanup = (): void => {
+        if (this.currentWorker === worker) {
+          this.currentWorker = null;
+          this.currentJobId = null;
+        }
+      };
 
       worker.once('message', (message: ClassicalCipherWorkerResult) => {
+        settled = true;
+        cleanup();
         if ('error' in message) {
           reject(new Error(message.error));
           return;
@@ -238,9 +291,14 @@ export class ClassicalCiphersService {
 
         resolve(message);
       });
-      worker.once('error', reject);
+      worker.once('error', (error) => {
+        settled = true;
+        cleanup();
+        reject(error);
+      });
       worker.once('exit', (code) => {
-        if (code !== 0) {
+        cleanup();
+        if (!settled && code !== 0) {
           reject(new Error(`Cipher worker stopped with exit code ${code}`));
         }
       });

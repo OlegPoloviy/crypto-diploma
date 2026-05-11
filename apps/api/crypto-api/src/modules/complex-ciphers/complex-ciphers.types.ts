@@ -1,4 +1,5 @@
 import { CipherMetricStatDto } from '../classical-ciphers/dto/cipher-metric-stat.dto';
+import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
 
 export enum AesMode {
   ECB = 'ecb',
@@ -46,6 +47,7 @@ export interface ComplexCipherWorkerData {
 
 export interface ComplexCipherWorkerResult {
   finalText: string;
+  steps?: CipherStepResponseDto[];
   metricStats: CipherMetricStatDto[];
   metadata: Record<string, unknown>;
 }

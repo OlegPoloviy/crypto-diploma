@@ -3,8 +3,13 @@ import {
   CipherMetricKey,
   CipherMetricStatDto,
 } from '../classical-ciphers/dto/cipher-metric-stat.dto';
-import { calculateTextMetrics } from '../classical-ciphers/classical-ciphers.metrics';
-import { encryptAes, formatBytes, parseBytes } from './aes.engine';
+import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
+import { calculateByteMetrics } from '../classical-ciphers/classical-ciphers.metrics';
+import {
+  encryptAesCorpusWithSampledSteps,
+  formatBytes,
+  parseBytes,
+} from './aes.engine';
 import {
   AesMode,
   BinaryEncoding,
@@ -43,29 +48,23 @@ function encryptTextWithAes(
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
     : undefined;
-  const result = encryptAes(plaintext, key, { mode, iv });
-  const encodedIv = result.iv
-    ? formatBytes(result.iv, BinaryEncoding.HEX)
-    : undefined;
-  const finalText = formatBytes(result.ciphertext, outputEncoding);
-  const textMetrics = calculateTextMetrics(finalText);
-  const byteEntropy = calculateByteEntropy(result.ciphertext);
+  const result = encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv });
+  const ciphertext = result.ciphertext;
+  const encodedIv =
+    mode === AesMode.CBC && iv ? formatBytes(iv, BinaryEncoding.HEX) : undefined;
+  const finalText = formatBytes(ciphertext, outputEncoding);
+  const stepResponses = result.steps.map((bytes, index) =>
+    createAesStep(index, result.steps.length, bytes, outputEncoding),
+  );
+  const finalMetrics = calculateByteMetrics(
+    result.steps.at(-1) ?? new Uint8Array(),
+  );
+  const byteEntropy = finalMetrics.wordFrequencyEntropy;
 
   return {
     finalText,
-    metricStats: [
-      createSingleValueMetric(
-        'hurstExponent',
-        'Hurst',
-        textMetrics.hurstExponent,
-      ),
-      createSingleValueMetric('dfaAlpha', 'DFA', textMetrics.dfaAlpha),
-      createSingleValueMetric(
-        'wordFrequencyEntropy',
-        'Entropy',
-        textMetrics.wordFrequencyEntropy,
-      ),
-    ],
+    steps: stepResponses,
+    metricStats: calculateStepMetricStats(stepResponses),
     metadata: {
       mode,
       keySize: key.length * 8,
@@ -73,43 +72,85 @@ function encryptTextWithAes(
       outputEncoding,
       iv: encodedIv,
       plaintextLength: plaintext.length,
-      ciphertextLength: result.ciphertext.length,
+      ciphertextLength: ciphertext.length,
+      stepSampleSize: result.sampleSize,
+      stepSampled: result.sampleSize < result.totalBytes,
+      stepSampleSourceBytes: result.totalBytes,
       byteEntropy,
     },
   };
 }
 
-function createSingleValueMetric(
-  key: CipherMetricKey,
-  label: string,
-  value: number,
-): CipherMetricStatDto {
+function createAesStep(
+  index: number,
+  totalSteps: number,
+  bytes: Uint8Array,
+  outputEncoding: BinaryEncoding,
+): CipherStepResponseDto {
+  const metrics = calculateByteMetrics(bytes);
+
   return {
-    key,
-    label,
-    final: value,
-    mean: value,
-    standardDeviation: 0,
-    min: value,
-    max: value,
+    step: index + 1,
+    description: createAesStepDescription(index, totalSteps),
+    text: formatBytes(bytes, outputEncoding),
+    hurstExponent: metrics.hurstExponent,
+    dfaAlpha: metrics.dfaAlpha,
+    wordFrequencyEntropy: metrics.wordFrequencyEntropy,
   };
 }
 
-function calculateByteEntropy(bytes: Uint8Array): number {
-  if (bytes.length === 0) {
+function createAesStepDescription(index: number, totalSteps: number): string {
+  if (index === 0) {
+    return 'AES initial AddRoundKey (whitening)';
+  }
+
+  const round = index;
+  const lastRound = totalSteps - 1;
+  if (round === lastRound) {
+    return `AES final round ${round} of ${lastRound}`;
+  }
+
+  return `AES round ${round} of ${lastRound}`;
+}
+
+function calculateStepMetricStats(
+  steps: CipherStepResponseDto[],
+): CipherMetricStatDto[] {
+  const metricLabels: Array<{ key: CipherMetricKey; label: string }> = [
+    { key: 'hurstExponent', label: 'Hurst' },
+    { key: 'dfaAlpha', label: 'DFA' },
+    { key: 'wordFrequencyEntropy', label: 'Byte entropy' },
+  ];
+
+  return metricLabels.map((metric) => {
+    const values = steps.map((step) => step[metric.key]);
+    const mean = average(values);
+    const variance = average(values.map((value) => (value - mean) ** 2));
+
+    return {
+      key: metric.key,
+      label: metric.label,
+      final: values.at(-1) ?? 0,
+      mean: roundMetric(mean),
+      standardDeviation: roundMetric(Math.sqrt(variance)),
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  });
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) {
     return 0;
   }
 
-  const counts = new Map<number, number>();
-  for (const byte of bytes) {
-    counts.set(byte, (counts.get(byte) ?? 0) + 1);
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundMetric(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
   }
 
-  let entropy = 0;
-  for (const count of counts.values()) {
-    const probability = count / bytes.length;
-    entropy -= probability * Math.log2(probability);
-  }
-
-  return Math.round(entropy * 10000) / 10000;
+  return Math.round(value * 10000) / 10000;
 }

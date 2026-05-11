@@ -17,6 +17,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sigma,
+  Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -162,11 +163,15 @@ export function CipherWorkspace() {
                 jobs={workspace.jobs}
                 selectedJobId={workspace.selectedJobId ?? undefined}
                 onSelect={workspace.setSelectedJobId}
+                onDelete={workspace.deleteJob}
               />
             </div>
 
             <div className="min-w-0 xl:col-span-2">
-              <CipherJobDetails job={workspace.selectedJob} />
+              <CipherJobDetails
+                job={workspace.selectedJob}
+                onDelete={workspace.deleteJob}
+              />
             </div>
           </section>
         </div>
@@ -449,10 +454,12 @@ function CipherJobsTable({
   jobs,
   selectedJobId,
   onSelect,
+  onDelete,
 }: {
   jobs: ClassicalCipherJob[];
   selectedJobId?: string;
   onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <Card className="overflow-hidden border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -474,6 +481,7 @@ function CipherJobsTable({
                 <th className="px-4 py-3 font-medium">Parameters</th>
                 <th className="px-4 py-3 font-medium">Steps</th>
                 <th className="px-4 py-3 font-medium">Updated</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -506,11 +514,25 @@ function CipherJobsTable({
                   <td className="px-4 py-4 text-slate-500 dark:text-slate-400">
                     {formatTime(job.updatedAt)}
                   </td>
+                  <td className="px-4 py-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onDelete(job.id);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  </td>
                 </tr>
               ))}
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-14 text-center">
+                  <td colSpan={6} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Binary className="size-8" />
                       <p>No cipher jobs yet.</p>
@@ -526,7 +548,13 @@ function CipherJobsTable({
   );
 }
 
-function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
+function CipherJobDetails({
+  job,
+  onDelete,
+}: {
+  job: ClassicalCipherJob | null;
+  onDelete: (id: string) => void;
+}) {
   if (!job) {
     return (
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -596,6 +624,15 @@ function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
             <div className="flex flex-wrap gap-2">
               <Badge variant="teal">{algorithmLabel[job.algorithm]}</Badge>
               <Badge variant="outline">{formatParameters(job.parameters)}</Badge>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                onClick={() => void onDelete(job.id)}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
             </div>
             {job.errorMessage ? (
               <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
