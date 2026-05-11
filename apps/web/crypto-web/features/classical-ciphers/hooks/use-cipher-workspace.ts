@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listParsedTexts } from "@/features/text-parser/lib/api";
 import { ParsedText } from "@/features/text-parser/types/parsed-text";
 
-import { createCipherJob, listCipherJobs } from "../lib/api";
+import { createCipherJob, deleteCipherJob, listCipherJobs } from "../lib/api";
 import {
   CipherMode,
   ClassicalCipherJob,
@@ -27,6 +27,8 @@ export function useCipherWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const selectedJobIdRef = useRef<string | null>(null);
   const selectedParsedTextIdRef = useRef<string | null>(null);
+  const parsedTextsRef = useRef<ParsedText[]>([]);
+  const jobsRef = useRef<ClassicalCipherJob[]>([]);
 
   const completedParsedTexts = useMemo(
     () => parsedTexts.filter((item) => item.status === "completed"),
@@ -57,6 +59,14 @@ export function useCipherWorkspace() {
     selectedParsedTextIdRef.current = selectedParsedTextId;
   }, [selectedParsedTextId]);
 
+  useEffect(() => {
+    parsedTextsRef.current = parsedTexts;
+  }, [parsedTexts]);
+
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+
   const selectJob = useCallback((id: string | null) => {
     selectedJobIdRef.current = id;
     setSelectedJobId(id);
@@ -73,10 +83,18 @@ export function useCipherWorkspace() {
       }
 
       try {
-        const [texts, cipherJobs] = await Promise.all([
+        const [textsResult, jobsResult] = await Promise.allSettled([
           listParsedTexts(),
           listCipherJobs(),
         ]);
+
+        const texts =
+          textsResult.status === "fulfilled"
+            ? textsResult.value
+            : parsedTextsRef.current;
+        const cipherJobs =
+          jobsResult.status === "fulfilled" ? jobsResult.value : jobsRef.current;
+
         setParsedTexts(texts);
         setJobs(cipherJobs);
 
@@ -86,6 +104,16 @@ export function useCipherWorkspace() {
         }
         if (!selectedJobIdRef.current && cipherJobs.length > 0) {
           selectJob(cipherJobs[0].id);
+        }
+
+        if (textsResult.status === "rejected" || jobsResult.status === "rejected") {
+          const failed = [
+            textsResult.status === "rejected" ? "parsed texts" : null,
+            jobsResult.status === "rejected" ? "cipher jobs" : null,
+          ]
+            .filter(Boolean)
+            .join(" and ");
+          setMessage(`Failed to load ${failed}. Check API deployment.`);
         }
       } catch (error) {
         setMessage(
@@ -147,6 +175,25 @@ export function useCipherWorkspace() {
     }
   }
 
+  async function deleteJob(id: string) {
+    setMessage(null);
+
+    try {
+      await deleteCipherJob(id);
+      const remainingJobs = jobsRef.current.filter((job) => job.id !== id);
+      setJobs(remainingJobs);
+      if (selectedJobIdRef.current === id) {
+        selectJob(remainingJobs[0]?.id ?? null);
+      }
+      setMessage("Cipher job stopped and deleted.");
+      await refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to delete cipher job",
+      );
+    }
+  }
+
   return {
     parsedTexts,
     completedParsedTexts,
@@ -171,6 +218,7 @@ export function useCipherWorkspace() {
     hasActiveJobs,
     refresh,
     submitJob,
+    deleteJob,
   };
 }
 

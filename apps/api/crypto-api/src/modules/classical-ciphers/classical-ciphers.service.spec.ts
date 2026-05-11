@@ -17,6 +17,7 @@ describe('ClassicalCiphersService', () => {
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    delete: jest.Mock;
     find: jest.Mock;
     findOne: jest.Mock;
   };
@@ -34,6 +35,7 @@ describe('ClassicalCiphersService', () => {
         ...value,
       })),
       update: jest.fn(),
+      delete: jest.fn(async () => ({ affected: 1 })),
       find: jest.fn(),
       findOne: jest.fn(),
     };
@@ -60,6 +62,15 @@ describe('ClassicalCiphersService', () => {
     expect(result.steps[0].hurstExponent).toEqual(expect.any(Number));
     expect(result.steps[0].dfaAlpha).toEqual(expect.any(Number));
     expect(result.steps[0].wordFrequencyEntropy).toEqual(expect.any(Number));
+    expect(result.metricStats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'hurstExponent',
+          mean: expect.any(Number),
+          standardDeviation: expect.any(Number),
+        }),
+      ]),
+    );
   });
 
   it('encrypts Vigenere cipher progressively by key symbols', () => {
@@ -122,6 +133,7 @@ describe('ClassicalCiphersService', () => {
     jest.spyOn(service as never, 'runCipherWorker').mockResolvedValue({
       finalText: 'khoor zruog',
       steps: [],
+      metricStats: [],
     } as never);
     parsedTextsRepo.findOne.mockResolvedValue({
       id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
@@ -154,7 +166,16 @@ describe('ClassicalCiphersService', () => {
       expect.objectContaining({
         status: ClassicalCipherJobStatus.COMPLETED,
         finalText: 'khoor zruog',
+        metricStats: [],
       }),
+    );
+  });
+
+  it('deletes a classical cipher job', async () => {
+    await service.deleteJob('0f50273c-4181-4496-9648-e84f355cedee');
+
+    expect(cipherJobsRepo.delete).toHaveBeenCalledWith(
+      '0f50273c-4181-4496-9648-e84f355cedee',
     );
   });
 

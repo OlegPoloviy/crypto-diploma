@@ -9,15 +9,15 @@ import {
 } from 'typeorm';
 import { ParsedTextEntity } from '../text-parser/parsed-text.entity';
 import {
-  ClassicalCipherAlgorithm,
-  ClassicalCipherJobStatus,
-  ClassicalCipherParameters,
-} from './classical-ciphers.types';
-import { CipherMetricStatDto } from './dto/cipher-metric-stat.dto';
-import { CipherStepResponseDto } from './dto/cipher-step-response.dto';
+  ComplexCipherAlgorithm,
+  ComplexCipherJobStatus,
+  ComplexCipherParameters,
+} from './complex-ciphers.types';
+import { CipherMetricStatDto } from '../classical-ciphers/dto/cipher-metric-stat.dto';
+import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
 
-@Entity('classical_cipher_jobs')
-export class ClassicalCipherJobEntity {
+@Entity('complex_cipher_jobs')
+export class ComplexCipherJobEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -30,25 +30,28 @@ export class ClassicalCipherJobEntity {
 
   @Column({
     type: 'enum',
-    enum: ClassicalCipherAlgorithm,
+    enum: ComplexCipherAlgorithm,
   })
-  algorithm: ClassicalCipherAlgorithm;
+  algorithm: ComplexCipherAlgorithm;
 
   @Column({ type: 'jsonb' })
-  parameters: ClassicalCipherParameters;
+  parameters: ComplexCipherParameters;
 
   @Column({
     type: 'enum',
-    enum: ClassicalCipherJobStatus,
-    default: ClassicalCipherJobStatus.QUEUED,
+    enum: ComplexCipherJobStatus,
+    default: ComplexCipherJobStatus.QUEUED,
   })
-  status: ClassicalCipherJobStatus;
+  status: ComplexCipherJobStatus;
 
   @Column({ type: 'text', nullable: true })
   finalText?: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   steps?: CipherStepResponseDto[] | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, unknown> | null;
 
   @Column({ type: 'jsonb', nullable: true })
   metricStats?: CipherMetricStatDto[] | null;

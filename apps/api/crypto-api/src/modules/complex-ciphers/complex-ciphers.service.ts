@@ -12,33 +12,36 @@ import {
   ParsedTextEntity,
   ParsedTextStatus,
 } from '../text-parser/parsed-text.entity';
+import { decryptAes, encryptAes, formatBytes, parseBytes } from './aes.engine';
+import { ComplexCipherJobEntity } from './complex-cipher-job.entity';
+import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
+import { AesResponseDto } from './dto/aes-response.dto';
+import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.dto';
+import { CreateAesCipherJobDto } from './dto/create-complex-cipher-job.dto';
 import {
-  encryptCaesar,
-  encryptVigenereByKeyLengths,
-  encryptVigenereByKeySymbols,
-} from './classical-ciphers.engine';
-import { ClassicalCipherJobEntity } from './classical-cipher-job.entity';
-import {
-  ClassicalCipherAlgorithm,
-  ClassicalCipherJobStatus,
-  ClassicalCipherParameters,
-  ClassicalCipherWorkerData,
-  ClassicalCipherWorkerResult,
-} from './classical-ciphers.types';
-import { CipherJobResponseDto } from './dto/cipher-job-response.dto';
-import { CipherResponseDto } from './dto/cipher-response.dto';
+  AesJobParameters,
+  AesMode,
+  AesOperation,
+  BinaryEncoding,
+  ComplexCipherAlgorithm,
+  ComplexCipherJobStatus,
+  ComplexCipherParameters,
+  ComplexCipherWorkerData,
+  ComplexCipherWorkerResult,
+  ComplexCipherWorkerMessage,
+} from './complex-ciphers.types';
 
-interface QueuedCipherJob {
+interface QueuedComplexCipherJob {
   id: string;
   text: string;
-  algorithm: ClassicalCipherAlgorithm;
-  parameters: ClassicalCipherParameters;
+  algorithm: ComplexCipherAlgorithm;
+  parameters: ComplexCipherParameters;
 }
 
 @Injectable()
-export class ClassicalCiphersService {
-  private readonly logger = new Logger(ClassicalCiphersService.name);
-  private readonly queue: QueuedCipherJob[] = [];
+export class ComplexCiphersService {
+  private readonly logger = new Logger(ComplexCiphersService.name);
+  private readonly queue: QueuedComplexCipherJob[] = [];
   private readonly deletedJobIds = new Set<string>();
   private currentJobId: string | null = null;
   private currentWorker: Worker | null = null;
@@ -47,61 +50,74 @@ export class ClassicalCiphersService {
   constructor(
     @InjectRepository(ParsedTextEntity)
     private readonly parsedTextsRepo: Repository<ParsedTextEntity>,
-    @InjectRepository(ClassicalCipherJobEntity)
-    private readonly cipherJobsRepo: Repository<ClassicalCipherJobEntity>,
+    @InjectRepository(ComplexCipherJobEntity)
+    private readonly cipherJobsRepo: Repository<ComplexCipherJobEntity>,
   ) {}
 
-  encryptCaesar(text: string, shift: number): CipherResponseDto {
-    return encryptCaesar(text, shift);
+  encryptAes(body: AesEncryptDto): AesResponseDto {
+    const mode = body.mode ?? AesMode.CBC;
+    const inputEncoding = body.inputEncoding ?? BinaryEncoding.UTF8;
+    const keyEncoding = body.keyEncoding ?? BinaryEncoding.HEX;
+    const outputEncoding = body.outputEncoding ?? BinaryEncoding.HEX;
+    const ivEncoding = body.ivEncoding ?? BinaryEncoding.HEX;
+
+    const plaintext = parseBytes(body.plaintext, inputEncoding, 'plaintext');
+    const key = parseBytes(body.key, keyEncoding, 'key');
+    const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
+    const result = encryptAes(plaintext, key, { mode, iv });
+
+    return {
+      operation: AesOperation.ENCRYPT,
+      mode,
+      keySize: key.length * 8,
+      outputEncoding,
+      result: formatBytes(result.ciphertext, outputEncoding),
+      iv: result.iv ? formatBytes(result.iv, BinaryEncoding.HEX) : undefined,
+    };
   }
 
-  encryptVigenereByKeySymbols(text: string, key: string): CipherResponseDto {
-    return encryptVigenereByKeySymbols(text, key);
+  decryptAes(body: AesDecryptDto): AesResponseDto {
+    const mode = body.mode ?? AesMode.CBC;
+    const inputEncoding = body.inputEncoding ?? BinaryEncoding.HEX;
+    const keyEncoding = body.keyEncoding ?? BinaryEncoding.HEX;
+    const outputEncoding = body.outputEncoding ?? BinaryEncoding.UTF8;
+    const ivEncoding = body.ivEncoding ?? BinaryEncoding.HEX;
+
+    const ciphertext = parseBytes(body.ciphertext, inputEncoding, 'ciphertext');
+    const key = parseBytes(body.key, keyEncoding, 'key');
+    const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
+    const result = decryptAes(ciphertext, key, { mode, iv });
+
+    return {
+      operation: AesOperation.DECRYPT,
+      mode,
+      keySize: key.length * 8,
+      outputEncoding,
+      result: formatBytes(result.plaintext, outputEncoding),
+      iv: result.iv ? formatBytes(result.iv, BinaryEncoding.HEX) : undefined,
+    };
   }
 
-  encryptVigenereByKeyLengths(
-    text: string,
-    key: string,
-    keyLengths = [1, 3, 5, 10, 20],
-  ): CipherResponseDto {
-    return encryptVigenereByKeyLengths(text, key, keyLengths);
-  }
+  async createAesJob(
+    body: CreateAesCipherJobDto,
+  ): Promise<ComplexCipherJobResponseDto> {
+    const parameters: AesJobParameters = {
+      key: body.key,
+      keyEncoding: body.keyEncoding,
+      outputEncoding: body.outputEncoding,
+      mode: body.mode,
+      iv: body.iv,
+      ivEncoding: body.ivEncoding,
+    };
 
-  async createCaesarJob(
-    parsedTextId: string,
-    shift: number,
-    maxSteps?: number,
-  ): Promise<CipherJobResponseDto> {
-    return this.createJob(parsedTextId, ClassicalCipherAlgorithm.CAESAR, {
-      shift,
-      maxSteps,
-    });
-  }
-
-  async createVigenereKeySymbolsJob(
-    parsedTextId: string,
-    key: string,
-  ): Promise<CipherJobResponseDto> {
     return this.createJob(
-      parsedTextId,
-      ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
-      { key },
+      body.parsedTextId,
+      ComplexCipherAlgorithm.AES,
+      parameters,
     );
   }
 
-  async createVigenereKeyLengthsJob(
-    parsedTextId: string,
-    key: string,
-    keyLengths?: number[],
-  ): Promise<CipherJobResponseDto> {
-    return this.createJob(
-      parsedTextId,
-      ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
-      { key, keyLengths },
-    );
-  }
-
-  async findAllJobs(): Promise<CipherJobResponseDto[]> {
+  async findAllJobs(): Promise<ComplexCipherJobResponseDto[]> {
     const jobs = await this.cipherJobsRepo.find({
       order: { createdAt: 'DESC' },
     });
@@ -109,10 +125,10 @@ export class ClassicalCiphersService {
     return jobs.map((job) => this.toJobResponse(job));
   }
 
-  async findOneJob(id: string): Promise<CipherJobResponseDto> {
+  async findOneJob(id: string): Promise<ComplexCipherJobResponseDto> {
     const job = await this.cipherJobsRepo.findOne({ where: { id } });
     if (!job) {
-      throw new NotFoundException(`Classical cipher job ${id} not found`);
+      throw new NotFoundException(`Complex cipher job ${id} not found`);
     }
 
     return this.toJobResponse(job);
@@ -133,15 +149,15 @@ export class ClassicalCiphersService {
 
     const result = await this.cipherJobsRepo.delete(id);
     if (!result.affected && !removedFromQueue && !isActiveJob) {
-      throw new NotFoundException(`Classical cipher job ${id} not found`);
+      throw new NotFoundException(`Complex cipher job ${id} not found`);
     }
   }
 
   private async createJob(
     parsedTextId: string,
-    algorithm: ClassicalCipherAlgorithm,
-    parameters: ClassicalCipherParameters,
-  ): Promise<CipherJobResponseDto> {
+    algorithm: ComplexCipherAlgorithm,
+    parameters: ComplexCipherParameters,
+  ): Promise<ComplexCipherJobResponseDto> {
     const parsedText = await this.parsedTextsRepo.findOne({
       where: { id: parsedTextId },
       select: {
@@ -171,7 +187,7 @@ export class ClassicalCiphersService {
         parsedTextId,
         algorithm,
         parameters,
-        status: ClassicalCipherJobStatus.QUEUED,
+        status: ComplexCipherJobStatus.QUEUED,
       }),
     );
 
@@ -185,7 +201,7 @@ export class ClassicalCiphersService {
     return this.toJobResponse(job);
   }
 
-  private enqueue(job: QueuedCipherJob): void {
+  private enqueue(job: QueuedComplexCipherJob): void {
     this.queue.push(job);
     void this.processQueue();
   }
@@ -209,13 +225,13 @@ export class ClassicalCiphersService {
     this.isProcessing = false;
   }
 
-  private async processJob(job: QueuedCipherJob): Promise<void> {
+  private async processJob(job: QueuedComplexCipherJob): Promise<void> {
     if (this.deletedJobIds.has(job.id)) {
       return;
     }
 
     await this.cipherJobsRepo.update(job.id, {
-      status: ClassicalCipherJobStatus.PROCESSING,
+      status: ComplexCipherJobStatus.PROCESSING,
       errorMessage: null,
     });
 
@@ -235,8 +251,9 @@ export class ClassicalCiphersService {
       await this.cipherJobsRepo.update(job.id, {
         finalText: result.finalText,
         steps: result.steps,
+        metadata: result.metadata,
         metricStats: result.metricStats,
-        status: ClassicalCipherJobStatus.COMPLETED,
+        status: ComplexCipherJobStatus.COMPLETED,
       });
     } catch (error) {
       if (this.deletedJobIds.has(job.id)) {
@@ -246,11 +263,11 @@ export class ClassicalCiphersService {
       const message =
         error instanceof Error ? error.message : 'Failed to run cipher job';
       this.logger.error(
-        `Failed to run classical cipher job ${job.id}: ${message}`,
+        `Failed to run complex cipher job ${job.id}: ${message}`,
       );
 
       await this.cipherJobsRepo.update(job.id, {
-        status: ClassicalCipherJobStatus.FAILED,
+        status: ComplexCipherJobStatus.FAILED,
         errorMessage: message,
       });
     } finally {
@@ -259,16 +276,13 @@ export class ClassicalCiphersService {
   }
 
   private runCipherWorker(
-    data: ClassicalCipherWorkerData,
+    data: ComplexCipherWorkerData,
     jobId: string,
-  ): Promise<CipherResponseDto> {
+  ): Promise<ComplexCipherWorkerResult> {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(
-        join(__dirname, 'classical-ciphers.worker.js'),
-        {
-          workerData: data,
-        },
-      );
+      const worker = new Worker(join(__dirname, 'complex-ciphers.worker.js'), {
+        workerData: data,
+      });
       let settled = false;
 
       this.currentJobId = jobId;
@@ -281,7 +295,7 @@ export class ClassicalCiphersService {
         }
       };
 
-      worker.once('message', (message: ClassicalCipherWorkerResult) => {
+      worker.once('message', (message: ComplexCipherWorkerMessage) => {
         settled = true;
         cleanup();
         if ('error' in message) {
@@ -305,7 +319,9 @@ export class ClassicalCiphersService {
     });
   }
 
-  private toJobResponse(job: ClassicalCipherJobEntity): CipherJobResponseDto {
+  private toJobResponse(
+    job: ComplexCipherJobEntity,
+  ): ComplexCipherJobResponseDto {
     return {
       id: job.id,
       parsedTextId: job.parsedTextId,
@@ -314,6 +330,7 @@ export class ClassicalCiphersService {
       status: job.status,
       finalText: job.finalText,
       steps: job.steps,
+      metadata: job.metadata,
       metricStats: job.metricStats,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,

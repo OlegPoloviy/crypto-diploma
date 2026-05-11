@@ -15,7 +15,9 @@ import {
   Loader2,
   Play,
   RefreshCw,
+  ShieldCheck,
   Sigma,
+  Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,8 @@ import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
 
 import { useCipherWorkspace } from "../hooks/use-cipher-workspace";
 import {
+  CipherMetricKey,
+  CipherMetricStat,
   CipherMode,
   CipherStep,
   ClassicalCipherAlgorithm,
@@ -47,6 +51,38 @@ const algorithmLabel: Record<ClassicalCipherAlgorithm, string> = {
   vigenere_key_symbols: "Vigenere symbols",
   vigenere_key_lengths: "Vigenere lengths",
 };
+
+interface MetricDescriptor {
+  key: CipherMetricKey;
+  label: string;
+  shortLabel: string;
+  stroke: string;
+  textClass: string;
+}
+
+const metricDescriptors: MetricDescriptor[] = [
+  {
+    key: "hurstExponent",
+    label: "Hurst exponent",
+    shortLabel: "Hurst",
+    stroke: "#22d3ee",
+    textClass: "text-cyan-700 dark:text-cyan-200",
+  },
+  {
+    key: "dfaAlpha",
+    label: "DFA alpha",
+    shortLabel: "DFA",
+    stroke: "#cbd5e1",
+    textClass: "text-slate-700 dark:text-slate-300",
+  },
+  {
+    key: "wordFrequencyEntropy",
+    label: "Word entropy",
+    shortLabel: "Entropy",
+    stroke: "#34d399",
+    textClass: "text-emerald-700 dark:text-emerald-200",
+  },
+];
 
 export function CipherWorkspace() {
   const workspace = useCipherWorkspace();
@@ -62,7 +98,7 @@ export function CipherWorkspace() {
 
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
-      <div className="mx-auto grid w-full max-w-[min(1440px,100%)] min-w-0 grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid w-full max-w-none min-w-0 grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
         <CipherSidebar />
 
         <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-clip">
@@ -98,8 +134,8 @@ export function CipherWorkspace() {
             />
           </section>
 
-          <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-12">
-            <div className="min-w-0 xl:col-span-4">
+          <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="min-w-0 self-stretch">
               <CipherJobForm
                 completedParsedTexts={workspace.completedParsedTexts}
                 selectedParsedTextId={
@@ -122,13 +158,20 @@ export function CipherWorkspace() {
               />
             </div>
 
-            <div className="min-w-0 space-y-5 xl:col-span-8">
+            <div className="min-w-0">
               <CipherJobsTable
                 jobs={workspace.jobs}
                 selectedJobId={workspace.selectedJobId ?? undefined}
                 onSelect={workspace.setSelectedJobId}
+                onDelete={workspace.deleteJob}
               />
-              <CipherJobDetails job={workspace.selectedJob} />
+            </div>
+
+            <div className="min-w-0 xl:col-span-2">
+              <CipherJobDetails
+                job={workspace.selectedJob}
+                onDelete={workspace.deleteJob}
+              />
             </div>
           </section>
         </div>
@@ -169,6 +212,16 @@ function CipherSidebar() {
           <Binary className="size-4" />
           Classical Ciphers
         </div>
+        <Button
+          asChild
+          variant="ghost"
+          className="h-10 w-full justify-start rounded-md text-slate-500 dark:text-slate-400"
+        >
+          <Link href="/complex-ciphers">
+            <ShieldCheck className="size-4" />
+            Complex Ciphers
+          </Link>
+        </Button>
       </nav>
 
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
@@ -238,7 +291,7 @@ function MetricTile({
   caption: string;
 }) {
   return (
-    <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
+    <Card className="flex h-full flex-col border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
@@ -298,7 +351,7 @@ function CipherJobForm({
           Queue cipher job
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5 p-5">
+      <CardContent className="flex flex-1 flex-col gap-5 p-5">
         <div className="space-y-2">
           <Label htmlFor="parsedTextId">Parsed corpus</Label>
           <select
@@ -381,7 +434,7 @@ function CipherJobForm({
 
         <Button
           type="button"
-          className="h-10 w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-500"
+          className="mt-auto h-10 w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-500"
           onClick={onSubmit}
           disabled={isSubmitting || completedParsedTexts.length === 0}
         >
@@ -401,10 +454,12 @@ function CipherJobsTable({
   jobs,
   selectedJobId,
   onSelect,
+  onDelete,
 }: {
   jobs: ClassicalCipherJob[];
   selectedJobId?: string;
   onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <Card className="overflow-hidden border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -426,6 +481,7 @@ function CipherJobsTable({
                 <th className="px-4 py-3 font-medium">Parameters</th>
                 <th className="px-4 py-3 font-medium">Steps</th>
                 <th className="px-4 py-3 font-medium">Updated</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -458,11 +514,25 @@ function CipherJobsTable({
                   <td className="px-4 py-4 text-slate-500 dark:text-slate-400">
                     {formatTime(job.updatedAt)}
                   </td>
+                  <td className="px-4 py-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onDelete(job.id);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  </td>
                 </tr>
               ))}
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-14 text-center">
+                  <td colSpan={6} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Binary className="size-8" />
                       <p>No cipher jobs yet.</p>
@@ -478,7 +548,13 @@ function CipherJobsTable({
   );
 }
 
-function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
+function CipherJobDetails({
+  job,
+  onDelete,
+}: {
+  job: ClassicalCipherJob | null;
+  onDelete: (id: string) => void;
+}) {
   if (!job) {
     return (
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -494,11 +570,12 @@ function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
 
   const steps = job.steps ?? [];
   const lastStep = steps.at(-1);
+  const stepStats = job.metricStats ?? calculateStepMetricStats(steps);
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+    <div className="grid min-w-0 grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.42fr)]">
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
-        <CardHeader className="border-b border-slate-200 dark:border-white/10">
+        <CardHeader className="border-b border-slate-200 py-4 dark:border-white/10">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
@@ -511,26 +588,30 @@ function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
             <CipherStatusBadge status={job.status} />
           </div>
         </CardHeader>
-        <CardContent className="space-y-5 p-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <MiniMetric
-              label="Hurst"
-              value={lastStep?.hurstExponent ?? 0}
-              accent="cyan"
-            />
-            <MiniMetric label="DFA alpha" value={lastStep?.dfaAlpha ?? 0} />
-            <MiniMetric
-              label="Entropy"
-              value={lastStep?.wordFrequencyEntropy ?? 0}
-              accent="emerald"
-            />
+        <CardContent className="space-y-3 p-4">
+          <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(300px,0.72fr)_minmax(360px,1.28fr)]">
+            <div className="grid grid-cols-3 gap-2">
+              <MiniMetric
+                label="Hurst"
+                value={lastStep?.hurstExponent ?? 0}
+                accent="cyan"
+              />
+              <MiniMetric label="DFA alpha" value={lastStep?.dfaAlpha ?? 0} />
+              <MiniMetric
+                label="Entropy"
+                value={lastStep?.wordFrequencyEntropy ?? 0}
+                accent="emerald"
+              />
+            </div>
+            <StepStatistics stats={stepStats} />
           </div>
           <MetricsChart job={job} />
+          <MetricSmallMultiples job={job} stats={stepStats} />
         </CardContent>
       </Card>
 
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
-        <CardHeader className="border-b border-slate-200 dark:border-white/10">
+        <CardHeader className="border-b border-slate-200 py-4 dark:border-white/10">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
             Output
           </p>
@@ -538,34 +619,47 @@ function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
             Final state
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 p-5">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="teal">{algorithmLabel[job.algorithm]}</Badge>
-            <Badge variant="outline">{formatParameters(job.parameters)}</Badge>
-          </div>
-          {job.errorMessage ? (
-            <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
-              {job.errorMessage}
+        <CardContent className="grid grid-cols-1 gap-4 p-4">
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="teal">{algorithmLabel[job.algorithm]}</Badge>
+              <Badge variant="outline">{formatParameters(job.parameters)}</Badge>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-md border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+                onClick={() => void onDelete(job.id)}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
             </div>
-          ) : null}
-          <pre className="max-h-64 min-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-            {job.finalText ?? "Waiting for worker result..."}
-          </pre>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
-            disabled={!job.finalText}
-            onClick={() => downloadEncryptedText(job)}
-          >
-            <Download className="size-4" />
-            Download encrypted text
-          </Button>
+            {job.errorMessage ? (
+              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
+                {job.errorMessage}
+              </div>
+            ) : null}
+            <pre className="max-h-60 min-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
+              {job.finalText ?? "Waiting for worker result..."}
+            </pre>
+          </div>
+          <div className="flex min-w-0 flex-col gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+              disabled={!job.finalText}
+              onClick={() => downloadEncryptedText(job)}
+            >
+              <Download className="size-4" />
+              Download encrypted text
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424] 2xl:col-span-2">
-        <CardHeader className="border-b border-slate-200 dark:border-white/10">
+        <CardHeader className="border-b border-slate-200 py-4 dark:border-white/10">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
             Step log
           </p>
@@ -577,6 +671,44 @@ function CipherJobDetails({ job }: { job: ClassicalCipherJob | null }) {
           <StepTable steps={steps} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function StepStatistics({ stats }: { stats: CipherMetricStat[] }) {
+  if (stats.length === 0) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
+        Step statistics will appear after the worker records metric values.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            Step statistics
+          </p>
+        </div>
+        <Badge variant="outline">mean +/- SD</Badge>
+      </div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+        {stats.map((metric) => (
+          <div
+            key={metric.key}
+            className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5"
+          >
+            <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+              {metric.label}
+            </p>
+            <p className="truncate text-sm font-semibold tabular-nums text-slate-950 dark:text-slate-50">
+              {metric.mean.toFixed(4)} +/- {metric.standardDeviation.toFixed(4)}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -598,20 +730,189 @@ function MiniMetric({
         : "text-slate-950 dark:text-slate-50";
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
       <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-      <p className={cn("mt-2 text-2xl font-semibold tabular-nums", color)}>
+      <p className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>
         {value.toFixed(4)}
       </p>
     </div>
   );
 }
 
+function MetricSmallMultiples({
+  job,
+  stats,
+}: {
+  job: ClassicalCipherJob;
+  stats: CipherMetricStat[];
+}) {
+  const steps = job.steps ?? [];
+
+  if (steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      {metricDescriptors.map((metric) => (
+        <SingleMetricChart
+          key={metric.key}
+          job={job}
+          metric={metric}
+          stats={stats.find((item) => item.key === metric.key)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SingleMetricChart({
+  job,
+  metric,
+  stats,
+}: {
+  job: ClassicalCipherJob;
+  metric: MetricDescriptor;
+  stats?: CipherMetricStat;
+}) {
+  const steps = job.steps ?? [];
+  const width = 520;
+  const height = 145;
+  const padding = 24;
+  const isKeyLengthChart = job.algorithm === "vigenere_key_lengths";
+  const xValues = steps.map((step) =>
+    isKeyLengthChart ? (step.keyLength ?? step.step) : step.step,
+  );
+  const minX = Math.min(...xValues, 0);
+  const maxX = Math.max(...xValues, 1);
+  const xSpan = Math.max(1, maxX - minX);
+  const values = steps.map((step) => step[metric.key]);
+  const minValue = Math.min(...values, stats?.mean ?? 0);
+  const maxValue = Math.max(...values, stats?.mean ?? 1);
+  const valuePadding = Math.max((maxValue - minValue) * 0.12, 0.02);
+  const chartMin = minValue - valuePadding;
+  const chartMax = maxValue + valuePadding;
+  const span = Math.max(0.001, chartMax - chartMin);
+
+  const pointFor = (step: CipherStep, index: number) => {
+    const xValue = xValues[index] ?? step.step;
+    const x =
+      padding +
+      (isKeyLengthChart
+        ? ((xValue - minX) / xSpan) * (width - padding * 2)
+        : steps.length <= 1
+          ? 0
+          : (index / (steps.length - 1)) * (width - padding * 2));
+    const y =
+      height -
+      padding -
+      ((step[metric.key] - chartMin) / span) * (height - padding * 2);
+
+    return { x, y, xValue };
+  };
+
+  const path = steps
+    .map((step, index) => {
+      const point = pointFor(step, index);
+      return `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+    })
+    .join(" ");
+  const meanY =
+    stats === undefined
+      ? null
+      : height -
+        padding -
+        ((stats.mean - chartMin) / span) * (height - padding * 2);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            {metric.label}
+          </p>
+          <p className={cn("mt-1 text-base font-semibold tabular-nums", metric.textClass)}>
+            {stats ? stats.final.toFixed(4) : "0.0000"}
+          </p>
+        </div>
+        <Badge variant="outline">
+          SD {stats?.standardDeviation.toFixed(4) ?? "0.0000"}
+        </Badge>
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`${metric.label} by ${isKeyLengthChart ? "key length" : "step"}`}
+        className="h-36 w-full overflow-visible"
+      >
+        {[0, 0.5, 1].map((ratio) => {
+          const y = padding + ratio * (height - padding * 2);
+          return (
+            <line
+              key={ratio}
+              x1={padding}
+              x2={width - padding}
+              y1={y}
+              y2={y}
+              stroke="currentColor"
+              className="text-slate-200 dark:text-white/10"
+            />
+          );
+        })}
+        {meanY === null ? null : (
+          <line
+            x1={padding}
+            x2={width - padding}
+            y1={meanY}
+            y2={meanY}
+            stroke="currentColor"
+            strokeDasharray="5 5"
+            className="text-slate-400 dark:text-slate-500"
+          />
+        )}
+        <path
+          d={path}
+          fill="none"
+          stroke={metric.stroke}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {steps.map((step, index) => {
+          const point = pointFor(step, index);
+
+          return (
+            <g key={`${metric.key}-${step.step}-${point.xValue}`}>
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r="3.5"
+                fill="#0f172a"
+                stroke={metric.stroke}
+                strokeWidth="2"
+                className="dark:fill-[#080b16]"
+              />
+              <text
+                x={point.x}
+                y={height - 7}
+                textAnchor="middle"
+                className="fill-slate-500 text-[10px] dark:fill-slate-400"
+              >
+                {point.xValue}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 function MetricsChart({ job }: { job: ClassicalCipherJob }) {
   const steps = job.steps ?? [];
-  const width = 760;
-  const height = 260;
-  const padding = 34;
+  const width = 980;
+  const height = 230;
+  const padding = 30;
   const isKeyLengthChart = job.algorithm === "vigenere_key_lengths";
   const xValues = steps.map((step) =>
     isKeyLengthChart ? (step.keyLength ?? step.step) : step.step,
@@ -649,7 +950,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
 
   if (steps.length === 0) {
     return (
-      <div className="grid min-h-72 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="grid min-h-56 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-[#080b16]">
         <div className="text-center">
           <Activity className="mx-auto size-8" />
           <p className="mt-3 text-sm">Metrics will appear after completion.</p>
@@ -659,8 +960,8 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
-      <div className="mb-4 flex flex-wrap items-center gap-4 text-sm">
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
         <Legend swatch="bg-cyan-400" label="Hurst" />
         <Legend swatch="bg-slate-300" label="DFA alpha" />
         <Legend swatch="bg-emerald-400" label="Entropy" />
@@ -672,7 +973,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Cipher metrics chart"
-        className="h-72 w-full overflow-visible"
+        className="h-64 w-full overflow-visible"
       >
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
           const y = padding + ratio * (height - padding * 2);
@@ -759,6 +1060,30 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
       </svg>
     </div>
   );
+}
+
+function calculateStepMetricStats(steps: CipherStep[]): CipherMetricStat[] {
+  if (steps.length === 0) {
+    return [];
+  }
+
+  return metricDescriptors.map((metric) => {
+    const values = steps.map((step) => step[metric.key]);
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance =
+      values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+      values.length;
+
+    return {
+      key: metric.key,
+      label: metric.shortLabel,
+      final: values.at(-1) ?? 0,
+      mean,
+      standardDeviation: Math.sqrt(variance),
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  });
 }
 
 function Legend({ swatch, label }: { swatch: string; label: string }) {

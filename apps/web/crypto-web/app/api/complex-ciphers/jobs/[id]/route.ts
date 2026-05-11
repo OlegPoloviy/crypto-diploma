@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const response = await fetch(`${API_URL}/classical-ciphers/jobs/${id}`, {
+  const response = await fetch(`${API_URL}/complex-ciphers/jobs/${id}`, {
     cache: "no-store",
   });
 
@@ -19,7 +19,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const response = await fetch(`${API_URL}/classical-ciphers/jobs/${id}`, {
+  const response = await fetch(`${API_URL}/complex-ciphers/jobs/${id}`, {
     method: "DELETE",
   });
 
