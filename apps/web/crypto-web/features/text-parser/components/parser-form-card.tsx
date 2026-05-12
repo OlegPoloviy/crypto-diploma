@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { FileUp, Send, Upload } from "lucide-react";
+import { FileStack, FileUp, Send, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { TextFileType } from "../lib/api";
+
+const FILE_TYPE_OPTIONS: {
+  value: TextFileType;
+  label: string;
+  accept: string;
+}[] = [
+  { value: "plain-text", label: "Plain text", accept: ".txt,.text,text/plain" },
+  { value: "markdown", label: "Markdown", accept: ".md,.markdown,text/markdown" },
+  { value: "csv", label: "CSV", accept: ".csv,text/csv" },
+  { value: "json", label: "JSON", accept: ".json,application/json" },
+  { value: "binary", label: "Binary", accept: "" },
+];
 
 export function ParserFormCard({
   isSubmitting,
@@ -20,7 +33,8 @@ export function ParserFormCard({
   message: string | null;
   onCreateFromFile: (input: {
     title: string;
-    file: File | null;
+    files: File[];
+    fileType: TextFileType;
   }) => Promise<unknown>;
   onCreateFromText: (input: {
     title: string;
@@ -30,20 +44,30 @@ export function ParserFormCard({
   const [mode, setMode] = useState<"file" | "text">("file");
   const [title, setTitle] = useState("");
   const [rawText, setRawText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileType, setFileType] = useState<TextFileType>("plain-text");
+  const selectedFileType = FILE_TYPE_OPTIONS.find(
+    (option) => option.value === fileType,
+  );
+  const fileLabel =
+    files.length === 0
+      ? "No files selected."
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} files selected`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const created =
       mode === "file"
-        ? await onCreateFromFile({ title, file })
+        ? await onCreateFromFile({ title, files, fileType })
         : await onCreateFromText({ title, text: rawText });
 
     if (created) {
       setTitle("");
       setRawText("");
-      setFile(null);
+      setFiles([]);
       event.currentTarget.reset();
     }
   }
@@ -91,29 +115,61 @@ export function ParserFormCard({
           </div>
 
           {mode === "file" ? (
-            <div className="space-y-2">
-              <Label className="text-slate-700 dark:text-slate-300">
-                Input file
-              </Label>
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
-                <label className="flex h-12 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
-                  <span className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
-                    <Upload className="size-4" />
-                    Browse...
-                  </span>
-                  <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
-                    {file?.name ?? "No file selected."}
-                  </span>
-                  <Input
-                    type="file"
-                    accept=".txt,text/plain"
-                    required={mode === "file"}
-                    onChange={(event) =>
-                      setFile(event.target.files?.[0] ?? null)
-                    }
-                    className="sr-only"
-                  />
-                </label>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-slate-700 dark:text-slate-300">
+                  File type
+                </Label>
+                <select
+                  value={fileType}
+                  onChange={(event) =>
+                    setFileType(event.target.value as TextFileType)
+                  }
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+                >
+                  {FILE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-700 dark:text-slate-300">
+                  Input files
+                </Label>
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+                  <label className="flex h-12 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
+                    <span className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
+                      <Upload className="size-4" />
+                      Browse...
+                    </span>
+                    <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                      {fileLabel}
+                    </span>
+                    <Input
+                      type="file"
+                      accept={selectedFileType?.accept}
+                      multiple
+                      required={mode === "file"}
+                      onChange={(event) =>
+                        setFiles(Array.from(event.target.files ?? []))
+                      }
+                      className="sr-only"
+                    />
+                  </label>
+                  {files.length > 1 ? (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <FileStack className="size-3.5" />
+                      <span className="truncate">
+                        {files
+                          .map((selectedFile) => selectedFile.name)
+                          .join(", ")}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : (

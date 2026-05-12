@@ -7,9 +7,14 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBody,
   ApiBadRequestResponse,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOperation,
@@ -17,11 +22,55 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { TextFileType } from '../text-parser/text-parser.service';
 import { ComplexCiphersService } from './complex-ciphers.service';
 import { CreateAesCipherJobDto } from './dto/create-complex-cipher-job.dto';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
 import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.dto';
+import { AesMode, BinaryEncoding } from './complex-ciphers.types';
+
+class BatchAesFileDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  title: string;
+
+  @IsEnum(TextFileType)
+  @IsOptional()
+  fileType?: TextFileType;
+
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  keyEncoding?: BinaryEncoding;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  outputEncoding?: BinaryEncoding;
+
+  @IsEnum(AesMode)
+  @IsOptional()
+  mode?: AesMode;
+
+  @IsString()
+  @IsOptional()
+  iv?: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  ivEncoding?: BinaryEncoding;
+}
 
 @ApiTags('complex-ciphers')
 @Controller('complex-ciphers')
@@ -88,5 +137,76 @@ export class ComplexCiphersController {
     @Body() body: CreateAesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     return this.complexCiphersService.createAesJob(body);
+  }
+
+  @Post('jobs/aes/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Upload multiple files and queue AES jobs' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'AES file batch' },
+        fileType: {
+          type: 'string',
+          enum: Object.values(TextFileType),
+          default: TextFileType.BINARY,
+        },
+        key: {
+          type: 'string',
+          example: '000102030405060708090a0b0c0d0e0f',
+        },
+        keyEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        outputEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        mode: {
+          type: 'string',
+          enum: Object.values(AesMode),
+          default: AesMode.CBC,
+        },
+        iv: {
+          type: 'string',
+          example: '101112131415161718191a1b1c1d1e1f',
+        },
+        ivEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+      required: ['title', 'files', 'key'],
+    },
+  })
+  @ApiCreatedResponse({ type: ComplexCipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createAesJobsFromFiles(
+    @Body() body: BatchAesFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<ComplexCipherJobResponseDto[]> {
+    return this.complexCiphersService.createAesJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      {
+        key: body.key,
+        keyEncoding: body.keyEncoding,
+        outputEncoding: body.outputEncoding,
+        mode: body.mode,
+        iv: body.mode === AesMode.ECB ? undefined : body.iv,
+        ivEncoding: body.ivEncoding,
+      },
+    );
   }
 }

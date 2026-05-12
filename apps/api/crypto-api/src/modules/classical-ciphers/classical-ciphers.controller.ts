@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,9 +8,14 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -17,6 +23,14 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { TextFileType } from '../text-parser/text-parser.service';
 import { ClassicalCiphersService } from './classical-ciphers.service';
 import { CaesarCipherDto } from './dto/caesar-cipher.dto';
 import { CipherJobResponseDto } from './dto/cipher-job-response.dto';
@@ -30,6 +44,50 @@ import {
   VigenereCipherDto,
   VigenereKeyLengthsDto,
 } from './dto/vigenere-cipher.dto';
+
+class BatchCipherFileDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  title: string;
+
+  @IsEnum(TextFileType)
+  @IsOptional()
+  fileType?: TextFileType;
+
+  @IsString()
+  @IsOptional()
+  shift?: string;
+
+  @IsString()
+  @IsOptional()
+  maxSteps?: string;
+
+  @IsString()
+  @IsOptional()
+  key?: string;
+
+  @IsString()
+  @IsOptional()
+  keyLengths?: string;
+}
+
+const batchFilesSchema = {
+  type: 'object',
+  properties: {
+    title: { type: 'string', example: 'Cipher batch' },
+    fileType: {
+      type: 'string',
+      enum: Object.values(TextFileType),
+      default: TextFileType.BINARY,
+    },
+    files: {
+      type: 'array',
+      items: { type: 'string', format: 'binary' },
+    },
+  },
+  required: ['title', 'files'],
+};
 
 @ApiTags('classical-ciphers')
 @Controller('classical-ciphers')
@@ -120,6 +178,36 @@ export class ClassicalCiphersController {
     );
   }
 
+  @Post('jobs/caesar/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Upload multiple files and queue Caesar jobs' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      ...batchFilesSchema,
+      properties: {
+        ...batchFilesSchema.properties,
+        shift: { type: 'number', example: 3 },
+        maxSteps: { type: 'number', example: 40 },
+      },
+      required: ['title', 'files', 'shift'],
+    },
+  })
+  @ApiCreatedResponse({ type: CipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createCaesarJobsFromFiles(
+    @Body() body: BatchCipherFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<CipherJobResponseDto[]> {
+    return this.ciphersService.createCaesarJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      parseRequiredInteger(body.shift, 'shift'),
+      body.maxSteps ? Number.parseInt(body.maxSteps, 10) : undefined,
+    );
+  }
+
   @Post('jobs/vigenere/key-symbols')
   @ApiOperation({
     summary: 'Queue Vigenere key-symbol steps for an existing parsed text',
@@ -133,6 +221,36 @@ export class ClassicalCiphersController {
     return this.ciphersService.createVigenereKeySymbolsJob(
       body.parsedTextId,
       body.key,
+    );
+  }
+
+  @Post('jobs/vigenere/key-symbols/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({
+    summary: 'Upload multiple files and queue Vigenere key-symbol jobs',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      ...batchFilesSchema,
+      properties: {
+        ...batchFilesSchema.properties,
+        key: { type: 'string', example: 'KEY' },
+      },
+      required: ['title', 'files', 'key'],
+    },
+  })
+  @ApiCreatedResponse({ type: CipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createVigenereKeySymbolsJobsFromFiles(
+    @Body() body: BatchCipherFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<CipherJobResponseDto[]> {
+    return this.ciphersService.createVigenereKeySymbolsJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      body.key ?? '',
     );
   }
 
@@ -152,4 +270,63 @@ export class ClassicalCiphersController {
       body.keyLengths,
     );
   }
+
+  @Post('jobs/vigenere/key-lengths/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({
+    summary: 'Upload multiple files and queue Vigenere key-length jobs',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      ...batchFilesSchema,
+      properties: {
+        ...batchFilesSchema.properties,
+        key: { type: 'string', example: 'KEY' },
+        keyLengths: { type: 'string', example: '1,3,5,10,20' },
+      },
+      required: ['title', 'files', 'key'],
+    },
+  })
+  @ApiCreatedResponse({ type: CipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createVigenereKeyLengthsJobsFromFiles(
+    @Body() body: BatchCipherFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<CipherJobResponseDto[]> {
+    return this.ciphersService.createVigenereKeyLengthsJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      body.key ?? '',
+      parseKeyLengths(body.keyLengths),
+    );
+  }
+}
+
+function parseKeyLengths(value?: string): number[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((item) => Number.parseInt(item.trim(), 10))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ),
+  ).sort((a, b) => a - b);
+}
+
+function parseRequiredInteger(
+  value: string | undefined,
+  fieldName: string,
+): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed)) {
+    throw new BadRequestException(`${fieldName} is required`);
+  }
+
+  return parsed;
 }

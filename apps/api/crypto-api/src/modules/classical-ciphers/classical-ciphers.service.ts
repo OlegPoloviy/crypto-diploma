@@ -9,9 +9,14 @@ import { join } from 'path';
 import { Worker } from 'worker_threads';
 import { Repository } from 'typeorm';
 import {
+  ParsedTextContentEncoding,
   ParsedTextEntity,
   ParsedTextStatus,
 } from '../text-parser/parsed-text.entity';
+import {
+  TextFileType,
+  TextParserService,
+} from '../text-parser/text-parser.service';
 import {
   encryptCaesar,
   encryptVigenereByKeyLengths,
@@ -49,6 +54,7 @@ export class ClassicalCiphersService {
     private readonly parsedTextsRepo: Repository<ParsedTextEntity>,
     @InjectRepository(ClassicalCipherJobEntity)
     private readonly cipherJobsRepo: Repository<ClassicalCipherJobEntity>,
+    private readonly textParserService: TextParserService,
   ) {}
 
   encryptCaesar(text: string, shift: number): CipherResponseDto {
@@ -78,6 +84,26 @@ export class ClassicalCiphersService {
     });
   }
 
+  async createCaesarJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    shift: number,
+    maxSteps?: number,
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createCaesarJob(parsedText.id, shift, maxSteps),
+      ),
+    );
+  }
+
   async createVigenereKeySymbolsJob(
     parsedTextId: string,
     key: string,
@@ -86,6 +112,25 @@ export class ClassicalCiphersService {
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
       { key },
+    );
+  }
+
+  async createVigenereKeySymbolsJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    key: string,
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createVigenereKeySymbolsJob(parsedText.id, key),
+      ),
     );
   }
 
@@ -98,6 +143,26 @@ export class ClassicalCiphersService {
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
       { key, keyLengths },
+    );
+  }
+
+  async createVigenereKeyLengthsJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    key: string,
+    keyLengths?: number[],
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createVigenereKeyLengthsJob(parsedText.id, key, keyLengths),
+      ),
     );
   }
 
@@ -148,6 +213,8 @@ export class ClassicalCiphersService {
         id: true,
         status: true,
         words: true,
+        content: true,
+        contentEncoding: true,
       },
     });
 
@@ -161,16 +228,26 @@ export class ClassicalCiphersService {
       );
     }
 
-    const text = parsedText.words?.join(' ') ?? '';
+    const text = parsedText.content ?? parsedText.words?.join(' ') ?? '';
     if (!text.trim()) {
-      throw new BadRequestException(`Parsed text ${parsedTextId} has no words`);
+      throw new BadRequestException(
+        `Parsed text ${parsedTextId} has no content`,
+      );
     }
+
+    const jobParameters: ClassicalCipherParameters = {
+      ...parameters,
+      inputEncoding:
+        parsedText.contentEncoding === ParsedTextContentEncoding.HEX
+          ? 'hex'
+          : 'utf8',
+    };
 
     const job = await this.cipherJobsRepo.save(
       this.cipherJobsRepo.create({
         parsedTextId,
         algorithm,
-        parameters,
+        parameters: jobParameters,
         status: ClassicalCipherJobStatus.QUEUED,
       }),
     );
@@ -179,7 +256,7 @@ export class ClassicalCiphersService {
       id: job.id,
       text,
       algorithm,
-      parameters,
+      parameters: jobParameters,
     });
 
     return this.toJobResponse(job);

@@ -9,9 +9,14 @@ import { join } from 'path';
 import { Worker } from 'worker_threads';
 import { Repository } from 'typeorm';
 import {
+  ParsedTextContentEncoding,
   ParsedTextEntity,
   ParsedTextStatus,
 } from '../text-parser/parsed-text.entity';
+import {
+  TextFileType,
+  TextParserService,
+} from '../text-parser/text-parser.service';
 import { decryptAes, encryptAes, formatBytes, parseBytes } from './aes.engine';
 import { ComplexCipherJobEntity } from './complex-cipher-job.entity';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
@@ -52,6 +57,7 @@ export class ComplexCiphersService {
     private readonly parsedTextsRepo: Repository<ParsedTextEntity>,
     @InjectRepository(ComplexCipherJobEntity)
     private readonly cipherJobsRepo: Repository<ComplexCipherJobEntity>,
+    private readonly textParserService: TextParserService,
   ) {}
 
   encryptAes(body: AesEncryptDto): AesResponseDto {
@@ -117,6 +123,28 @@ export class ComplexCiphersService {
     );
   }
 
+  async createAesJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    body: Omit<CreateAesCipherJobDto, 'parsedTextId'>,
+  ): Promise<ComplexCipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createAesJob({
+          parsedTextId: parsedText.id,
+          ...body,
+        }),
+      ),
+    );
+  }
+
   async findAllJobs(): Promise<ComplexCipherJobResponseDto[]> {
     const jobs = await this.cipherJobsRepo.find({
       order: { createdAt: 'DESC' },
@@ -164,6 +192,8 @@ export class ComplexCiphersService {
         id: true,
         status: true,
         words: true,
+        content: true,
+        contentEncoding: true,
       },
     });
 
@@ -177,16 +207,29 @@ export class ComplexCiphersService {
       );
     }
 
-    const text = parsedText.words?.join(' ') ?? '';
+    const text = parsedText.content ?? parsedText.words?.join(' ') ?? '';
     if (!text.trim()) {
-      throw new BadRequestException(`Parsed text ${parsedTextId} has no words`);
+      throw new BadRequestException(
+        `Parsed text ${parsedTextId} has no content`,
+      );
     }
+
+    const jobParameters =
+      algorithm === ComplexCipherAlgorithm.AES
+        ? {
+            ...parameters,
+            inputEncoding:
+              parsedText.contentEncoding === ParsedTextContentEncoding.HEX
+                ? BinaryEncoding.HEX
+                : BinaryEncoding.UTF8,
+          }
+        : parameters;
 
     const job = await this.cipherJobsRepo.save(
       this.cipherJobsRepo.create({
         parsedTextId,
         algorithm,
-        parameters,
+        parameters: jobParameters,
         status: ComplexCipherJobStatus.QUEUED,
       }),
     );
@@ -195,7 +238,7 @@ export class ComplexCiphersService {
       id: job.id,
       text,
       algorithm,
-      parameters,
+      parameters: jobParameters,
     });
 
     return this.toJobResponse(job);

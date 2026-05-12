@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ParsedTextSource, ParsedTextStatus } from '../parsed-text.entity';
+import {
+  ParsedTextContentEncoding,
+  ParsedTextSource,
+  ParsedTextStatus,
+} from '../parsed-text.entity';
 
 export class CreateParsedTextResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -37,6 +41,12 @@ export class CreateParsedTextResponseDto {
 
   @ApiProperty({ example: 'book.txt', required: false })
   originalFileName?: string;
+
+  @ApiProperty({
+    enum: ParsedTextContentEncoding,
+    example: ParsedTextContentEncoding.UTF8,
+  })
+  contentEncoding: ParsedTextContentEncoding;
 
   @ApiProperty({ required: false })
   errorMessage?: string;

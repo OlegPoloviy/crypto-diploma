@@ -2,6 +2,8 @@ export type ParsedTextStatus = "queued" | "processing" | "completed" | "failed";
 
 export type ParsedTextSource = "manual" | "upload";
 
+export type ParsedTextContentEncoding = "utf8" | "hex";
+
 export interface ParsedText {
   id: string;
   title: string;
@@ -10,6 +12,7 @@ export interface ParsedText {
   totalWords: number;
   totalChars: number;
   uniqueWords: number;
+  contentEncoding: ParsedTextContentEncoding;
   hurstExponent?: number | null;
   dfaAlpha?: number | null;
   wordFrequencyEntropy?: number | null;

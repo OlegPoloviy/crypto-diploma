@@ -19,7 +19,7 @@ const navItems = [
   { label: "History", icon: History },
   { label: "Compare Runs", icon: BarChart3 },
   { label: "Datasets", icon: Database },
-  { label: "Documentation", icon: BookOpenText },
+  { label: "Documentation", icon: BookOpenText, href: "/documentation" },
 ];
 
 export function ParserSidebar() {

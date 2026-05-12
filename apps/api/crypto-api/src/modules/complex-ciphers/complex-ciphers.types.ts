@@ -30,6 +30,7 @@ export enum ComplexCipherJobStatus {
 
 export interface AesJobParameters {
   key: string;
+  inputEncoding?: BinaryEncoding;
   keyEncoding?: BinaryEncoding;
   outputEncoding?: BinaryEncoding;
   mode?: AesMode;
