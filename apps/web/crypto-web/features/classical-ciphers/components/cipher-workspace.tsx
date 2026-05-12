@@ -496,7 +496,7 @@ function CipherJobForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 w-full rounded-md border-slate-200 bg-white dark:border-white/10 dark:bg-white/5"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md border-slate-200 bg-white px-3 py-2 text-center leading-5 dark:border-white/10 dark:bg-white/5"
               onClick={() => void submitFiles()}
               disabled={isSubmitting || files.length === 0 || !fileBatchTitle}
             >
@@ -514,10 +514,22 @@ function CipherJobForm({
           value={mode}
           onValueChange={(value) => onModeChange(value as CipherMode)}
         >
-          <TabsList className="grid-cols-3">
-            <TabsTrigger value="caesar">Caesar</TabsTrigger>
-            <TabsTrigger value="vigenere-key-symbols">{t("Symbols")}</TabsTrigger>
-            <TabsTrigger value="vigenere-key-lengths">{t("Lengths")}</TabsTrigger>
+          <TabsList className="h-auto min-h-10 grid-cols-3">
+            <TabsTrigger value="caesar" className="min-h-8 px-2 text-xs sm:text-sm">
+              Caesar
+            </TabsTrigger>
+            <TabsTrigger
+              value="vigenere-key-symbols"
+              className="min-h-8 px-2 text-xs sm:text-sm"
+            >
+              {t("Symbols")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="vigenere-key-lengths"
+              className="min-h-8 px-2 text-xs sm:text-sm"
+            >
+              {t("Lengths")}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -578,7 +590,7 @@ function CipherJobForm({
 
         <Button
           type="button"
-          className="mt-auto h-10 w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-500"
+          className="mt-auto min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-500"
           onClick={onSubmit}
           disabled={isSubmitting || completedParsedTexts.length === 0}
         >

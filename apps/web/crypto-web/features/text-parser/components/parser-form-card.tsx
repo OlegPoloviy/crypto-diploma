@@ -96,9 +96,19 @@ export function ParserFormCard({
             value={mode}
             onValueChange={(value) => setMode(value as "file" | "text")}
           >
-            <TabsList className="border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#080b16]">
-              <TabsTrigger value="file">{t("File upload")}</TabsTrigger>
-              <TabsTrigger value="text">{t("Raw text")}</TabsTrigger>
+            <TabsList className="h-auto min-h-10 border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#080b16]">
+              <TabsTrigger
+                value="file"
+                className="min-h-8 whitespace-normal px-2 text-center leading-4"
+              >
+                {t("File upload")}
+              </TabsTrigger>
+              <TabsTrigger
+                value="text"
+                className="min-h-8 whitespace-normal px-2 text-center leading-4"
+              >
+                {t("Raw text")}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -142,12 +152,12 @@ export function ParserFormCard({
                   {t("Input files")}
                 </Label>
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
-                  <label className="flex h-12 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
-                    <span className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
+                  <label className="flex min-h-12 cursor-pointer flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
+                    <span className="inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 py-1 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
                       <Upload className="size-4" />
                       {t("Browse...")}
                     </span>
-                    <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                    <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">
                       {fileLabel}
                     </span>
                     <Input
@@ -189,11 +199,11 @@ export function ParserFormCard({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid gap-3">
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-100 dark:hover:bg-cyan-400/30"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-100 dark:hover:bg-cyan-400/30"
             >
               {mode === "file" ? <FileUp /> : <Send />}
               {isSubmitting ? t("Queueing...") : t("Save & queue")}
@@ -201,7 +211,7 @@ export function ParserFormCard({
             <Button
               type="button"
               variant="outline"
-              className="w-full rounded-md border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md border-slate-200 bg-white px-3 py-2 text-center leading-5 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             >
               {t("Compare preset")}
             </Button>
