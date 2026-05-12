@@ -6,9 +6,10 @@ import {
   ParseUUIDPipe,
   Post,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -21,10 +22,16 @@ import {
   ApiProperty,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
 import { ParseTextDto } from './dto/parse-text.dto';
-import { TextParserService } from './text-parser.service';
+import { TextFileType, TextParserService } from './text-parser.service';
 
 class ParseFileDto {
   @ApiProperty({
@@ -36,6 +43,15 @@ class ParseFileDto {
   @IsNotEmpty()
   @MaxLength(150)
   title: string;
+
+  @ApiProperty({
+    enum: TextFileType,
+    default: TextFileType.PLAIN_TEXT,
+    description: 'Declared text file type. Binary support will be added later.',
+  })
+  @IsEnum(TextFileType)
+  @IsOptional()
+  fileType?: TextFileType;
 }
 
 @ApiTags('text-parser')
@@ -110,6 +126,57 @@ export class TextParserController {
     @Body() body: ParseFileDto,
     @UploadedFile() file?: { buffer: Buffer; originalname?: string },
   ): Promise<CreateParsedTextResponseDto> {
-    return this.textParserService.createFromFile(body.title, file);
+    return this.textParserService.createFromFile(
+      body.title,
+      file,
+      body.fileType,
+    );
+  }
+
+  @Post('files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Upload and queue multiple text files for parsing' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          example: 'Gutenberg batch',
+        },
+        fileType: {
+          type: 'string',
+          enum: Object.values(TextFileType),
+          default: TextFileType.PLAIN_TEXT,
+          description:
+            'Declared text file type. Binary support will be added later.',
+        },
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+      required: ['title', 'files'],
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'File parsing jobs queued',
+    type: CreateParsedTextResponseDto,
+    isArray: true,
+  })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  parseFiles(
+    @Body() body: ParseFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<CreateParsedTextResponseDto[]> {
+    return this.textParserService.createFromFiles(
+      body.title,
+      files,
+      body.fileType,
+    );
   }
 }

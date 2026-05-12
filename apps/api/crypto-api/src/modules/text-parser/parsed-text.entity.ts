@@ -18,6 +18,11 @@ export enum ParsedTextStatus {
   FAILED = 'failed',
 }
 
+export enum ParsedTextContentEncoding {
+  UTF8 = 'utf8',
+  HEX = 'hex',
+}
+
 @Entity('parsed_texts')
 export class ParsedTextEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -44,6 +49,16 @@ export class ParsedTextEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   words?: string[];
+
+  @Column({ type: 'text', nullable: true })
+  content?: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ParsedTextContentEncoding,
+    default: ParsedTextContentEncoding.UTF8,
+  })
+  contentEncoding: ParsedTextContentEncoding;
 
   @Column({ default: 0 })
   totalWords: number;

@@ -1,5 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
-import { calculateTextMetrics } from './classical-ciphers.metrics';
+import {
+  calculateByteMetrics,
+  calculateTextMetrics,
+} from './classical-ciphers.metrics';
+import {
+  CipherMetricKey,
+  CipherMetricStatDto,
+} from './dto/cipher-metric-stat.dto';
 import { CipherResponseDto } from './dto/cipher-response.dto';
 import { CipherStepResponseDto } from './dto/cipher-step-response.dto';
 import {
@@ -9,6 +16,12 @@ import {
 
 const DEFAULT_CAESAR_JOB_MAX_STEPS = 40;
 const MAX_STORED_STEP_TEXT_LENGTH = 8000;
+
+const METRIC_DESCRIPTORS: Array<{ key: CipherMetricKey; label: string }> = [
+  { key: 'hurstExponent', label: 'Hurst' },
+  { key: 'dfaAlpha', label: 'DFA' },
+  { key: 'wordFrequencyEntropy', label: 'Entropy' },
+];
 
 interface Alphabet {
   lower: string;
@@ -33,6 +46,10 @@ export function runClassicalCipher(
   algorithm: ClassicalCipherAlgorithm,
   parameters: ClassicalCipherParameters,
 ): CipherResponseDto {
+  if (getInputEncoding(parameters) === 'hex') {
+    return runClassicalByteCipher(text, algorithm, parameters);
+  }
+
   switch (algorithm) {
     case ClassicalCipherAlgorithm.CAESAR:
       return encryptCaesarCheckpoints(
@@ -51,6 +68,120 @@ export function runClassicalCipher(
     default:
       throw new BadRequestException('Unsupported classical cipher algorithm');
   }
+}
+
+function runClassicalByteCipher(
+  text: string,
+  algorithm: ClassicalCipherAlgorithm,
+  parameters: ClassicalCipherParameters,
+): CipherResponseDto {
+  const bytes = parseHexBytes(text);
+
+  switch (algorithm) {
+    case ClassicalCipherAlgorithm.CAESAR:
+      return encryptCaesarBytes(
+        bytes,
+        getShift(parameters),
+        getMaxSteps(parameters),
+      );
+    case ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS:
+      return encryptVigenereBytesByKeySymbols(bytes, getKey(parameters));
+    case ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS:
+      return encryptVigenereBytesByKeyLengths(
+        bytes,
+        getKey(parameters),
+        'keyLengths' in parameters ? parameters.keyLengths : undefined,
+      );
+    default:
+      throw new BadRequestException('Unsupported classical cipher algorithm');
+  }
+}
+
+function encryptCaesarBytes(
+  bytes: Uint8Array,
+  shift: number,
+  maxSteps = DEFAULT_CAESAR_JOB_MAX_STEPS,
+): CipherResponseDto {
+  assertBytes(bytes);
+
+  const safeMaxSteps = Math.max(1, Math.min(maxSteps, 500));
+  const checkpointEvery = Math.max(1, Math.ceil(bytes.length / safeMaxSteps));
+  const output = bytes.slice();
+  const steps: CipherStepResponseDto[] = [];
+
+  for (let index = 0; index < output.length; index += 1) {
+    output[index] = modulo(output[index] + shift, 256);
+
+    const processedBytes = index + 1;
+    const shouldCapture =
+      processedBytes === output.length ||
+      processedBytes % checkpointEvery === 0;
+
+    if (shouldCapture) {
+      const state = output.slice();
+      state.set(bytes.slice(processedBytes), processedBytes);
+      steps.push(
+        createByteStep(
+          steps.length + 1,
+          `Encrypted ${processedBytes} of ${bytes.length} bytes`,
+          state,
+          MAX_STORED_STEP_TEXT_LENGTH,
+        ),
+      );
+    }
+  }
+
+  return {
+    finalText: Buffer.from(output).toString('hex'),
+    steps,
+    metricStats: calculateStepMetricStats(steps),
+  };
+}
+
+function encryptVigenereBytesByKeySymbols(
+  bytes: Uint8Array,
+  key: string,
+): CipherResponseDto {
+  assertBytes(bytes);
+  const keyBytes = normalizeByteKey(key);
+  const steps = Array.from(keyBytes).map((keyByte, index) =>
+    createByteStep(
+      index + 1,
+      `Applied key byte 0x${keyByte.toString(16).padStart(2, '0')} (${index + 1} of ${keyBytes.length})`,
+      encryptVigenereBytesPartial(bytes, keyBytes, index),
+    ),
+  );
+
+  return {
+    finalText: steps.at(-1)?.text ?? Buffer.from(bytes).toString('hex'),
+    steps,
+    metricStats: calculateStepMetricStats(steps),
+  };
+}
+
+function encryptVigenereBytesByKeyLengths(
+  bytes: Uint8Array,
+  key: string,
+  keyLengths = [1, 3, 5, 10, 20],
+): CipherResponseDto {
+  assertBytes(bytes);
+  const keyBytes = normalizeByteKey(key);
+  const uniqueLengths = Array.from(new Set(keyLengths)).sort((a, b) => a - b);
+  const steps = uniqueLengths.map((length, index) =>
+    createByteStep(
+      index + 1,
+      `Encrypted with key length ${length}`,
+      encryptVigenereBytesFull(bytes, expandByteKey(keyBytes, length)),
+      undefined,
+      { keyLength: length },
+    ),
+  );
+
+  return {
+    finalText: steps.at(-1)?.text ?? Buffer.from(bytes).toString('hex'),
+    steps,
+    metricStats: calculateStepMetricStats(steps),
+  };
 }
 
 export function encryptCaesar(text: string, shift: number): CipherResponseDto {
@@ -80,6 +211,7 @@ export function encryptCaesar(text: string, shift: number): CipherResponseDto {
   return {
     finalText: currentText,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -92,9 +224,12 @@ export function encryptCaesarCheckpoints(
 
   const totalWords = countWords(text);
   if (totalWords === 0) {
+    const steps = [createStep(1, 'No words to encrypt', text)];
+
     return {
       finalText: text,
-      steps: [createStep(1, 'No words to encrypt', text)],
+      steps,
+      metricStats: calculateStepMetricStats(steps),
     };
   }
 
@@ -134,6 +269,7 @@ export function encryptCaesarCheckpoints(
   return {
     finalText,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -156,6 +292,7 @@ export function encryptVigenereByKeySymbols(
   return {
     finalText: steps.at(-1)?.text ?? text,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -183,6 +320,7 @@ export function encryptVigenereByKeyLengths(
   return {
     finalText: steps.at(-1)?.text ?? text,
     steps,
+    metricStats: calculateStepMetricStats(steps),
   };
 }
 
@@ -226,6 +364,49 @@ function encryptVigenereFull(text: string, key: KeySymbol[]): string {
   }
 
   return result;
+}
+
+function encryptVigenereBytesPartial(
+  bytes: Uint8Array,
+  key: Uint8Array,
+  maxKeyIndex: number,
+): Uint8Array {
+  const output = bytes.slice();
+
+  for (let index = 0; index < output.length; index += 1) {
+    const keyIndex = index % key.length;
+    if (keyIndex <= maxKeyIndex) {
+      output[index] = modulo(output[index] + key[keyIndex], 256);
+    }
+  }
+
+  return output;
+}
+
+function encryptVigenereBytesFull(
+  bytes: Uint8Array,
+  key: Uint8Array,
+): Uint8Array {
+  const output = bytes.slice();
+
+  for (let index = 0; index < output.length; index += 1) {
+    output[index] = modulo(output[index] + key[index % key.length], 256);
+  }
+
+  return output;
+}
+
+function normalizeByteKey(key: string): Uint8Array {
+  const keyBytes = new TextEncoder().encode(key);
+  if (keyBytes.length === 0) {
+    throw new BadRequestException('Key must contain at least one byte');
+  }
+
+  return keyBytes;
+}
+
+function expandByteKey(key: Uint8Array, length: number): Uint8Array {
+  return Uint8Array.from({ length }, (_, index) => key[index % key.length]);
 }
 
 function shiftText(text: string, shift: number): string {
@@ -298,10 +479,42 @@ function createStep(
   };
 }
 
+function createByteStep(
+  step: number,
+  description: string,
+  bytes: Uint8Array,
+  maxStoredTextLength?: number,
+  metadata: Partial<Pick<CipherStepResponseDto, 'keyLength'>> = {},
+): CipherStepResponseDto {
+  const hex = Buffer.from(bytes).toString('hex');
+
+  return {
+    step,
+    description,
+    ...metadata,
+    text: maxStoredTextLength ? truncateText(hex, maxStoredTextLength) : hex,
+    ...calculateByteMetrics(bytes),
+  };
+}
+
 function assertText(text: string): void {
   if (!text?.trim()) {
     throw new BadRequestException('Text cannot be empty');
   }
+}
+
+function assertBytes(bytes: Uint8Array): void {
+  if (bytes.length === 0) {
+    throw new BadRequestException('Binary content cannot be empty');
+  }
+}
+
+function parseHexBytes(text: string): Uint8Array {
+  if (!text || text.length % 2 !== 0 || !/^[\da-f]*$/i.test(text)) {
+    throw new BadRequestException('Binary content must be valid hex');
+  }
+
+  return Uint8Array.from(Buffer.from(text, 'hex'));
 }
 
 function getShift(parameters: ClassicalCipherParameters): number {
@@ -326,6 +539,12 @@ function getKey(parameters: ClassicalCipherParameters): string {
   }
 
   throw new BadRequestException('Vigenere cipher requires key parameter');
+}
+
+function getInputEncoding(
+  parameters: ClassicalCipherParameters,
+): 'utf8' | 'hex' {
+  return parameters.inputEncoding ?? 'utf8';
 }
 
 interface KeySymbol {
@@ -353,4 +572,42 @@ function truncateText(text: string, maxLength: number): string {
   }
 
   return `${text.slice(0, maxLength)}\n... [truncated ${text.length - maxLength} chars]`;
+}
+
+function calculateStepMetricStats(
+  steps: CipherStepResponseDto[],
+): CipherMetricStatDto[] {
+  if (steps.length === 0) {
+    return [];
+  }
+
+  return METRIC_DESCRIPTORS.map((metric) => {
+    const values = steps.map((step) => step[metric.key]);
+    const mean = average(values);
+    const variance =
+      values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+      values.length;
+
+    return {
+      key: metric.key,
+      label: metric.label,
+      final: roundMetric(values.at(-1) ?? 0),
+      mean: roundMetric(mean),
+      standardDeviation: roundMetric(Math.sqrt(variance)),
+      min: roundMetric(Math.min(...values)),
+      max: roundMetric(Math.max(...values)),
+    };
+  });
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundMetric(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.round(value * 10000) / 10000;
 }

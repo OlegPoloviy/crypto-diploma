@@ -6,6 +6,7 @@ import {
   createParsedTextFromFile,
   createParsedTextFromRaw,
   listParsedTexts,
+  TextFileType,
 } from "../lib/api";
 import { ParsedText } from "../types/parsed-text";
 
@@ -81,20 +82,29 @@ export function useParsedTexts() {
     return submit(() => createParsedTextFromRaw(input));
   }
 
-  async function createFromFile(input: { title: string; file: File | null }) {
+  async function createFromFile(input: {
+    title: string;
+    files: File[];
+    fileType: TextFileType;
+  }) {
     return submit(() => createParsedTextFromFile(input));
   }
 
-  async function submit(factory: () => Promise<ParsedText>) {
+  async function submit(factory: () => Promise<ParsedText | ParsedText[]>) {
     setMessage(null);
     setIsSubmitting(true);
 
     try {
-      const created = await factory();
-      selectParsedText(created.id);
-      setMessage(`Queued "${created.title}" for parsing.`);
+      const result = await factory();
+      const created = Array.isArray(result) ? result : [result];
+      selectParsedText(created[0]?.id ?? null);
+      setMessage(
+        created.length === 1
+          ? `Queued "${created[0].title}" for parsing.`
+          : `Queued ${created.length} files for parsing.`,
+      );
       await refresh();
-      return created;
+      return result;
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Failed to queue text",

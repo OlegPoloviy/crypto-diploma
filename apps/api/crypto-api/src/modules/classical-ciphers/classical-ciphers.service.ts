@@ -9,9 +9,14 @@ import { join } from 'path';
 import { Worker } from 'worker_threads';
 import { Repository } from 'typeorm';
 import {
+  ParsedTextContentEncoding,
   ParsedTextEntity,
   ParsedTextStatus,
 } from '../text-parser/parsed-text.entity';
+import {
+  TextFileType,
+  TextParserService,
+} from '../text-parser/text-parser.service';
 import {
   encryptCaesar,
   encryptVigenereByKeyLengths,
@@ -39,6 +44,9 @@ interface QueuedCipherJob {
 export class ClassicalCiphersService {
   private readonly logger = new Logger(ClassicalCiphersService.name);
   private readonly queue: QueuedCipherJob[] = [];
+  private readonly deletedJobIds = new Set<string>();
+  private currentJobId: string | null = null;
+  private currentWorker: Worker | null = null;
   private isProcessing = false;
 
   constructor(
@@ -46,6 +54,7 @@ export class ClassicalCiphersService {
     private readonly parsedTextsRepo: Repository<ParsedTextEntity>,
     @InjectRepository(ClassicalCipherJobEntity)
     private readonly cipherJobsRepo: Repository<ClassicalCipherJobEntity>,
+    private readonly textParserService: TextParserService,
   ) {}
 
   encryptCaesar(text: string, shift: number): CipherResponseDto {
@@ -75,6 +84,26 @@ export class ClassicalCiphersService {
     });
   }
 
+  async createCaesarJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    shift: number,
+    maxSteps?: number,
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createCaesarJob(parsedText.id, shift, maxSteps),
+      ),
+    );
+  }
+
   async createVigenereKeySymbolsJob(
     parsedTextId: string,
     key: string,
@@ -83,6 +112,25 @@ export class ClassicalCiphersService {
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
       { key },
+    );
+  }
+
+  async createVigenereKeySymbolsJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    key: string,
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createVigenereKeySymbolsJob(parsedText.id, key),
+      ),
     );
   }
 
@@ -95,6 +143,26 @@ export class ClassicalCiphersService {
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
       { key, keyLengths },
+    );
+  }
+
+  async createVigenereKeyLengthsJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    key: string,
+    keyLengths?: number[],
+  ): Promise<CipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createVigenereKeyLengthsJob(parsedText.id, key, keyLengths),
+      ),
     );
   }
 
@@ -115,6 +183,25 @@ export class ClassicalCiphersService {
     return this.toJobResponse(job);
   }
 
+  async deleteJob(id: string): Promise<void> {
+    const queuedIndex = this.queue.findIndex((job) => job.id === id);
+    const removedFromQueue = queuedIndex >= 0;
+    if (removedFromQueue) {
+      this.queue.splice(queuedIndex, 1);
+    }
+
+    const isActiveJob = this.currentJobId === id;
+    if (isActiveJob) {
+      this.deletedJobIds.add(id);
+      await this.currentWorker?.terminate();
+    }
+
+    const result = await this.cipherJobsRepo.delete(id);
+    if (!result.affected && !removedFromQueue && !isActiveJob) {
+      throw new NotFoundException(`Classical cipher job ${id} not found`);
+    }
+  }
+
   private async createJob(
     parsedTextId: string,
     algorithm: ClassicalCipherAlgorithm,
@@ -126,6 +213,8 @@ export class ClassicalCiphersService {
         id: true,
         status: true,
         words: true,
+        content: true,
+        contentEncoding: true,
       },
     });
 
@@ -139,16 +228,26 @@ export class ClassicalCiphersService {
       );
     }
 
-    const text = parsedText.words?.join(' ') ?? '';
+    const text = parsedText.content ?? parsedText.words?.join(' ') ?? '';
     if (!text.trim()) {
-      throw new BadRequestException(`Parsed text ${parsedTextId} has no words`);
+      throw new BadRequestException(
+        `Parsed text ${parsedTextId} has no content`,
+      );
     }
+
+    const jobParameters: ClassicalCipherParameters = {
+      ...parameters,
+      inputEncoding:
+        parsedText.contentEncoding === ParsedTextContentEncoding.HEX
+          ? 'hex'
+          : 'utf8',
+    };
 
     const job = await this.cipherJobsRepo.save(
       this.cipherJobsRepo.create({
         parsedTextId,
         algorithm,
-        parameters,
+        parameters: jobParameters,
         status: ClassicalCipherJobStatus.QUEUED,
       }),
     );
@@ -157,7 +256,7 @@ export class ClassicalCiphersService {
       id: job.id,
       text,
       algorithm,
-      parameters,
+      parameters: jobParameters,
     });
 
     return this.toJobResponse(job);
@@ -188,23 +287,39 @@ export class ClassicalCiphersService {
   }
 
   private async processJob(job: QueuedCipherJob): Promise<void> {
+    if (this.deletedJobIds.has(job.id)) {
+      return;
+    }
+
     await this.cipherJobsRepo.update(job.id, {
       status: ClassicalCipherJobStatus.PROCESSING,
       errorMessage: null,
     });
 
     try {
-      const result = await this.runCipherWorker({
-        text: job.text,
-        algorithm: job.algorithm,
-        parameters: job.parameters,
-      });
+      const result = await this.runCipherWorker(
+        {
+          text: job.text,
+          algorithm: job.algorithm,
+          parameters: job.parameters,
+        },
+        job.id,
+      );
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       await this.cipherJobsRepo.update(job.id, {
         finalText: result.finalText,
         steps: result.steps,
+        metricStats: result.metricStats,
         status: ClassicalCipherJobStatus.COMPLETED,
       });
     } catch (error) {
+      if (this.deletedJobIds.has(job.id)) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : 'Failed to run cipher job';
       this.logger.error(
@@ -215,11 +330,14 @@ export class ClassicalCiphersService {
         status: ClassicalCipherJobStatus.FAILED,
         errorMessage: message,
       });
+    } finally {
+      this.deletedJobIds.delete(job.id);
     }
   }
 
   private runCipherWorker(
     data: ClassicalCipherWorkerData,
+    jobId: string,
   ): Promise<CipherResponseDto> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(
@@ -228,8 +346,21 @@ export class ClassicalCiphersService {
           workerData: data,
         },
       );
+      let settled = false;
+
+      this.currentJobId = jobId;
+      this.currentWorker = worker;
+
+      const cleanup = (): void => {
+        if (this.currentWorker === worker) {
+          this.currentWorker = null;
+          this.currentJobId = null;
+        }
+      };
 
       worker.once('message', (message: ClassicalCipherWorkerResult) => {
+        settled = true;
+        cleanup();
         if ('error' in message) {
           reject(new Error(message.error));
           return;
@@ -237,9 +368,14 @@ export class ClassicalCiphersService {
 
         resolve(message);
       });
-      worker.once('error', reject);
+      worker.once('error', (error) => {
+        settled = true;
+        cleanup();
+        reject(error);
+      });
       worker.once('exit', (code) => {
-        if (code !== 0) {
+        cleanup();
+        if (!settled && code !== 0) {
           reject(new Error(`Cipher worker stopped with exit code ${code}`));
         }
       });
@@ -255,6 +391,7 @@ export class ClassicalCiphersService {
       status: job.status,
       finalText: job.finalText,
       steps: job.steps,
+      metricStats: job.metricStats,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
