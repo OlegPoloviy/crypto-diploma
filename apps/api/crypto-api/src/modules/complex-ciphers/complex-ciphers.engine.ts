@@ -40,10 +40,11 @@ function encryptTextWithAes(
   }
 
   const mode = parameters.mode ?? AesMode.CBC;
+  const inputEncoding = parameters.inputEncoding ?? BinaryEncoding.UTF8;
   const keyEncoding = parameters.keyEncoding ?? BinaryEncoding.HEX;
   const outputEncoding = parameters.outputEncoding ?? BinaryEncoding.HEX;
   const ivEncoding = parameters.ivEncoding ?? BinaryEncoding.HEX;
-  const plaintext = parseBytes(text, BinaryEncoding.UTF8, 'plaintext');
+  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
   const key = parseBytes(parameters.key, keyEncoding, 'key');
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
@@ -51,7 +52,9 @@ function encryptTextWithAes(
   const result = encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv });
   const ciphertext = result.ciphertext;
   const encodedIv =
-    mode === AesMode.CBC && iv ? formatBytes(iv, BinaryEncoding.HEX) : undefined;
+    mode === AesMode.CBC && iv
+      ? formatBytes(iv, BinaryEncoding.HEX)
+      : undefined;
   const finalText = formatBytes(ciphertext, outputEncoding);
   const stepResponses = result.steps.map((bytes, index) =>
     createAesStep(index, result.steps.length, bytes, outputEncoding),
@@ -68,7 +71,7 @@ function encryptTextWithAes(
     metadata: {
       mode,
       keySize: key.length * 8,
-      inputEncoding: BinaryEncoding.UTF8,
+      inputEncoding,
       outputEncoding,
       iv: encodedIv,
       plaintextLength: plaintext.length,

@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Activity,
   ArrowLeft,
   BarChart3,
   Binary,
+  BookOpenText,
   Braces,
   CheckCircle2,
   Clock3,
@@ -18,6 +20,7 @@ import {
   ShieldCheck,
   Sigma,
   Trash2,
+  Upload,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
+import { TextFileType } from "@/features/text-parser/lib/api";
 
 import { useCipherWorkspace } from "../hooks/use-cipher-workspace";
 import {
@@ -52,11 +56,24 @@ const algorithmLabel: Record<ClassicalCipherAlgorithm, string> = {
   vigenere_key_lengths: "Vigenere lengths",
 };
 
+const fileTypeOptions: {
+  value: TextFileType;
+  label: string;
+  accept: string;
+}[] = [
+  { value: "binary", label: "Binary", accept: "" },
+  { value: "plain-text", label: "Plain text", accept: ".txt,.text,text/plain" },
+  { value: "markdown", label: "Markdown", accept: ".md,.markdown,text/markdown" },
+  { value: "csv", label: "CSV", accept: ".csv,text/csv" },
+  { value: "json", label: "JSON", accept: ".json,application/json" },
+];
+
 interface MetricDescriptor {
   key: CipherMetricKey;
   label: string;
   shortLabel: string;
   stroke: string;
+  swatch: string;
   textClass: string;
 }
 
@@ -66,6 +83,7 @@ const metricDescriptors: MetricDescriptor[] = [
     label: "Hurst exponent",
     shortLabel: "Hurst",
     stroke: "#22d3ee",
+    swatch: "bg-cyan-400",
     textClass: "text-cyan-700 dark:text-cyan-200",
   },
   {
@@ -73,6 +91,7 @@ const metricDescriptors: MetricDescriptor[] = [
     label: "DFA alpha",
     shortLabel: "DFA",
     stroke: "#cbd5e1",
+    swatch: "bg-slate-300",
     textClass: "text-slate-700 dark:text-slate-300",
   },
   {
@@ -80,6 +99,7 @@ const metricDescriptors: MetricDescriptor[] = [
     label: "Word entropy",
     shortLabel: "Entropy",
     stroke: "#34d399",
+    swatch: "bg-emerald-400",
     textClass: "text-emerald-700 dark:text-emerald-200",
   },
 ];
@@ -155,6 +175,7 @@ export function CipherWorkspace() {
                 onKeyChange={workspace.setKey}
                 onKeyLengthsChange={workspace.setKeyLengthsText}
                 onSubmit={() => void workspace.submitJob()}
+                onSubmitFiles={workspace.submitFileJobs}
               />
             </div>
 
@@ -220,6 +241,16 @@ function CipherSidebar() {
           <Link href="/complex-ciphers">
             <ShieldCheck className="size-4" />
             Complex Ciphers
+          </Link>
+        </Button>
+        <Button
+          asChild
+          variant="ghost"
+          className="h-10 w-full justify-start rounded-md text-slate-500 dark:text-slate-400"
+        >
+          <Link href="/documentation">
+            <BookOpenText className="size-4" />
+            Documentation
           </Link>
         </Button>
       </nav>
@@ -325,6 +356,7 @@ function CipherJobForm({
   onKeyChange,
   onKeyLengthsChange,
   onSubmit,
+  onSubmitFiles,
 }: {
   completedParsedTexts: { id: string; title: string; totalWords: number }[];
   selectedParsedTextId: string;
@@ -340,7 +372,37 @@ function CipherJobForm({
   onKeyChange: (key: string) => void;
   onKeyLengthsChange: (value: string) => void;
   onSubmit: () => void;
+  onSubmitFiles: (input: {
+    title: string;
+    files: File[];
+    fileType: TextFileType;
+  }) => Promise<unknown>;
 }) {
+  const [fileBatchTitle, setFileBatchTitle] = useState("Cipher file batch");
+  const [fileType, setFileType] = useState<TextFileType>("binary");
+  const [files, setFiles] = useState<File[]>([]);
+  const selectedFileType = fileTypeOptions.find(
+    (option) => option.value === fileType,
+  );
+  const fileLabel =
+    files.length === 0
+      ? "No files selected."
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} files selected`;
+
+  async function submitFiles() {
+    const result = await onSubmitFiles({
+      title: fileBatchTitle,
+      files,
+      fileType,
+    });
+
+    if (result) {
+      setFiles([]);
+    }
+  }
+
   return (
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
@@ -366,6 +428,72 @@ function CipherJobForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="cipherFileBatchTitle">File batch title</Label>
+              <Input
+                id="cipherFileBatchTitle"
+                value={fileBatchTitle}
+                maxLength={150}
+                onChange={(event) => setFileBatchTitle(event.target.value)}
+                className="dark:bg-[#080b16]"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="space-y-2">
+                <Label htmlFor="cipherFileType">File type</Label>
+                <select
+                  id="cipherFileType"
+                  value={fileType}
+                  onChange={(event) =>
+                    setFileType(event.target.value as TextFileType)
+                  }
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+                >
+                  {fileTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Input files</Label>
+                <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424]">
+                  <Upload className="size-4 text-cyan-700 dark:text-cyan-200" />
+                  <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                    {fileLabel}
+                  </span>
+                  <Input
+                    type="file"
+                    accept={selectedFileType?.accept}
+                    multiple
+                    onChange={(event) =>
+                      setFiles(Array.from(event.target.files ?? []))
+                    }
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full rounded-md border-slate-200 bg-white dark:border-white/10 dark:bg-white/5"
+              onClick={() => void submitFiles()}
+              disabled={isSubmitting || files.length === 0 || !fileBatchTitle}
+            >
+              {isSubmitting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+              Queue selected files
+            </Button>
+          </div>
         </div>
 
         <Tabs
@@ -776,6 +904,45 @@ function SingleMetricChart({
   stats?: CipherMetricStat;
 }) {
   const steps = job.steps ?? [];
+  if (steps.length === 1) {
+    const value = steps[0][metric.key];
+    const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
+    const percent = Math.min(100, Math.max(0, (value / max) * 100));
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {metric.label}
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-base font-semibold tabular-nums",
+                metric.textClass,
+              )}
+            >
+              {value.toFixed(4)}
+            </p>
+          </div>
+          <Badge variant="outline">
+            SD {stats?.standardDeviation.toFixed(4) ?? "0.0000"}
+          </Badge>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${percent}%`, backgroundColor: metric.stroke }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+          <span>0</span>
+          <span>{max}</span>
+        </div>
+      </div>
+    );
+  }
+
   const width = 520;
   const height = 145;
   const padding = 24;
@@ -959,6 +1126,10 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
     );
   }
 
+  if (steps.length === 1) {
+    return <SingleStepMetricBars step={steps[0]} />;
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
       <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
@@ -1058,6 +1229,47 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+function SingleStepMetricBars({ step }: { step: CipherStep }) {
+  const values = metricDescriptors.map((metric) => {
+    const value = step[metric.key];
+    const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
+
+    return {
+      ...metric,
+      value,
+      max,
+      percent: Math.min(100, Math.max(0, (value / max) * 100)),
+    };
+  });
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="grid gap-3 md:grid-cols-3">
+        {values.map((metric) => (
+          <div key={metric.key} className="min-w-0">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <Legend swatch={metric.swatch} label={metric.shortLabel} />
+              <span className="font-mono text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                {metric.value.toFixed(4)}
+              </span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+              <div
+                className={cn("h-full rounded-full", metric.swatch)}
+                style={{ width: `${metric.percent}%` }}
+              />
+            </div>
+            <div className="mt-2 flex justify-between text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+              <span>0</span>
+              <span>{metric.max}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

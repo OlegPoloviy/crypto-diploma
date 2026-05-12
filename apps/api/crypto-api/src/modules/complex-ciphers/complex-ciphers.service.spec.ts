@@ -32,6 +32,9 @@ describe('ComplexCiphersService', () => {
     find: jest.Mock;
     findOne: jest.Mock;
   };
+  let textParserService: {
+    createCompletedFromFiles: jest.Mock;
+  };
 
   beforeEach(() => {
     parsedTextsRepo = {
@@ -50,10 +53,14 @@ describe('ComplexCiphersService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
     };
+    textParserService = {
+      createCompletedFromFiles: jest.fn(),
+    };
 
     service = new ComplexCiphersService(
       parsedTextsRepo as never,
       cipherJobsRepo as never,
+      textParserService as never,
     );
   });
 

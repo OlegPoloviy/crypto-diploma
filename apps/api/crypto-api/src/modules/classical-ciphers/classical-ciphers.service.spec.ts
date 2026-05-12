@@ -1,7 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { ClassicalCiphersService } from './classical-ciphers.service';
-import { ParsedTextStatus } from '../text-parser/parsed-text.entity';
-import { encryptCaesarCheckpoints } from './classical-ciphers.engine';
+import {
+  ParsedTextContentEncoding,
+  ParsedTextStatus,
+} from '../text-parser/parsed-text.entity';
+import {
+  encryptCaesarCheckpoints,
+  runClassicalCipher,
+} from './classical-ciphers.engine';
 import { calculateTextMetrics } from './classical-ciphers.metrics';
 import {
   ClassicalCipherAlgorithm,
@@ -21,6 +27,9 @@ describe('ClassicalCiphersService', () => {
     find: jest.Mock;
     findOne: jest.Mock;
   };
+  let textParserService: {
+    createCompletedFromFiles: jest.Mock;
+  };
 
   beforeEach(() => {
     parsedTextsRepo = {
@@ -39,10 +48,14 @@ describe('ClassicalCiphersService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
     };
+    textParserService = {
+      createCompletedFromFiles: jest.fn(),
+    };
 
     service = new ClassicalCiphersService(
       parsedTextsRepo as never,
       cipherJobsRepo as never,
+      textParserService as never,
     );
   });
 
@@ -123,6 +136,28 @@ describe('ClassicalCiphersService', () => {
     );
   });
 
+  it('calculates byte entropy for binary classical cipher payloads', () => {
+    const bytes = Buffer.from(Array.from({ length: 256 }, (_, index) => index));
+    const result = runClassicalCipher(
+      bytes.toString('hex'),
+      ClassicalCipherAlgorithm.CAESAR,
+      { shift: 0, maxSteps: 1, inputEncoding: 'hex' },
+    );
+
+    expect(result.finalText).toBe(bytes.toString('hex'));
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].wordFrequencyEntropy).toBe(8);
+    expect(result.metricStats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'wordFrequencyEntropy',
+          final: 8,
+          mean: 8,
+        }),
+      ]),
+    );
+  });
+
   it('rejects keys without letters', () => {
     expect(() => service.encryptVigenereByKeySymbols('hello', '123')).toThrow(
       BadRequestException,
@@ -151,7 +186,7 @@ describe('ClassicalCiphersService', () => {
       parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
       algorithm: ClassicalCipherAlgorithm.CAESAR,
       status: ClassicalCipherJobStatus.QUEUED,
-      parameters: { shift: 3, maxSteps: undefined },
+      parameters: { shift: 3, maxSteps: undefined, inputEncoding: 'utf8' },
     });
     expect(cipherJobsRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -189,5 +224,28 @@ describe('ClassicalCiphersService', () => {
     await expect(
       service.createCaesarJob('5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f', 3),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('queues binary parsed text jobs with hex input encoding', async () => {
+    jest.spyOn(service as never, 'runCipherWorker').mockResolvedValue({
+      finalText: '00ff',
+      steps: [],
+      metricStats: [],
+    } as never);
+    parsedTextsRepo.findOne.mockResolvedValue({
+      id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      status: ParsedTextStatus.COMPLETED,
+      content: '00ff',
+      contentEncoding: ParsedTextContentEncoding.HEX,
+      words: ['00ff'],
+    });
+
+    await service.createCaesarJob('5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f', 0);
+
+    expect(cipherJobsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parameters: expect.objectContaining({ inputEncoding: 'hex' }),
+      }),
+    );
   });
 });

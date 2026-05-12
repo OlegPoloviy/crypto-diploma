@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Binary,
+  BookOpenText,
   Braces,
   CheckCircle2,
   Clipboard,
@@ -20,6 +22,7 @@ import {
   Shuffle,
   Trash2,
   UnlockKeyhole,
+  Upload,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
+import { TextFileType } from "@/features/text-parser/lib/api";
 import { cn } from "@/lib/utils";
 
 import { useAesWorkspace } from "../hooks/use-aes-workspace";
@@ -44,6 +48,17 @@ import {
 
 const encodingOptions: BinaryEncoding[] = ["utf8", "hex", "base64"];
 const modeOptions: AesMode[] = ["cbc", "ecb"];
+const fileTypeOptions: {
+  value: TextFileType;
+  label: string;
+  accept: string;
+}[] = [
+  { value: "binary", label: "Binary", accept: "" },
+  { value: "plain-text", label: "Plain text", accept: ".txt,.text,text/plain" },
+  { value: "markdown", label: "Markdown", accept: ".md,.markdown,text/markdown" },
+  { value: "csv", label: "CSV", accept: ".csv,text/csv" },
+  { value: "json", label: "JSON", accept: ".json,application/json" },
+];
 const statusVariant: Record<
   ComplexCipherJobStatus,
   "outline" | "success" | "warning" | "destructive" | "teal"
@@ -85,6 +100,31 @@ function AesCorpusJobPanel({
 }: {
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
+  const [fileBatchTitle, setFileBatchTitle] = useState("AES file batch");
+  const [fileType, setFileType] = useState<TextFileType>("binary");
+  const [files, setFiles] = useState<File[]>([]);
+  const selectedFileType = fileTypeOptions.find(
+    (option) => option.value === fileType,
+  );
+  const fileLabel =
+    files.length === 0
+      ? "No files selected."
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} files selected`;
+
+  async function submitFiles() {
+    const result = await workspace.submitFileJobs({
+      title: fileBatchTitle,
+      files,
+      fileType,
+    });
+
+    if (result) {
+      setFiles([]);
+    }
+  }
+
   return (
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
@@ -144,8 +184,76 @@ function AesCorpusJobPanel({
 
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
           The worker uses the AES key, mode, IV, and output encoding from the
-          controls above. Parsed corpus text is sent to the backend worker as
-          UTF-8 and stored as encoded ciphertext.
+          controls above. Binary files are sent as byte payloads and stored as
+          encoded ciphertext.
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="aesFileBatchTitle">File batch title</Label>
+              <Input
+                id="aesFileBatchTitle"
+                value={fileBatchTitle}
+                maxLength={150}
+                onChange={(event) => setFileBatchTitle(event.target.value)}
+                className="dark:bg-[#080b16]"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="space-y-2">
+                <Label htmlFor="aesFileType">File type</Label>
+                <select
+                  id="aesFileType"
+                  value={fileType}
+                  onChange={(event) =>
+                    setFileType(event.target.value as TextFileType)
+                  }
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+                >
+                  {fileTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Input files</Label>
+                <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424]">
+                  <Upload className="size-4 text-cyan-700 dark:text-cyan-200" />
+                  <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                    {fileLabel}
+                  </span>
+                  <Input
+                    type="file"
+                    accept={selectedFileType?.accept}
+                    multiple
+                    onChange={(event) =>
+                      setFiles(Array.from(event.target.files ?? []))
+                    }
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full rounded-md border-slate-200 bg-white dark:border-white/10 dark:bg-white/5"
+              onClick={() => void submitFiles()}
+              disabled={
+                workspace.isQueueingJob || files.length === 0 || !fileBatchTitle
+              }
+            >
+              {workspace.isQueueingJob ? (
+                <Shuffle className="size-4 animate-spin" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+              Queue selected files
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -478,6 +586,11 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
     { key: "dfaAlpha", label: "DFA", color: "#cbd5e1" },
     { key: "wordFrequencyEntropy", label: "Byte entropy", color: "#34d399" },
   ] as const;
+
+  if (steps.length === 1) {
+    return <AesSingleRoundMetricBars step={steps[0]} metrics={metrics} />;
+  }
+
   const allValues = steps.flatMap((step) => [
     step.hurstExponent,
     step.dfaAlpha,
@@ -561,6 +674,51 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+function AesSingleRoundMetricBars({
+  step,
+  metrics,
+}: {
+  step: CipherStep;
+  metrics: readonly {
+    key: "hurstExponent" | "dfaAlpha" | "wordFrequencyEntropy";
+    label: string;
+    color: string;
+  }[];
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="grid gap-3 md:grid-cols-3">
+        {metrics.map((metric) => {
+          const value = step[metric.key];
+          const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
+          const percent = Math.min(100, Math.max(0, (value / max) * 100));
+
+          return (
+            <div key={metric.key} className="min-w-0">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <LegendDot color={metric.color} label={metric.label} />
+                <span className="font-mono text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                  {value.toFixed(4)}
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${percent}%`, backgroundColor: metric.color }}
+                />
+              </div>
+              <div className="mt-2 flex justify-between text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                <span>0</span>
+                <span>{max}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -868,6 +1026,16 @@ function ComplexCipherSidebar() {
           <ShieldCheck className="size-4" />
           Complex Ciphers
         </div>
+        <Button
+          asChild
+          variant="ghost"
+          className="h-10 w-full justify-start rounded-md text-slate-500 dark:text-slate-400"
+        >
+          <Link href="/documentation">
+            <BookOpenText className="size-4" />
+            Documentation
+          </Link>
+        </Button>
       </nav>
 
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">

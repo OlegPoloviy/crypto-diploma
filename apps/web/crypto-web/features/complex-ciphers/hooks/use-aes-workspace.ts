@@ -7,6 +7,7 @@ import { ParsedText } from "@/features/text-parser/types/parsed-text";
 
 import {
   createAesJob,
+  createAesJobsFromFiles,
   decryptAes,
   deleteComplexCipherJob,
   encryptAes,
@@ -19,6 +20,7 @@ import {
   BinaryEncoding,
   ComplexCipherJob,
 } from "../types/aes-cipher";
+import { TextFileType } from "@/features/text-parser/lib/api";
 
 export function useAesWorkspace() {
   const [operation, setOperation] = useState<AesOperation>("encrypt");
@@ -255,6 +257,45 @@ export function useAesWorkspace() {
     }
   }
 
+  async function submitFileJobs(input: {
+    title: string;
+    files: File[];
+    fileType: TextFileType;
+  }) {
+    if (input.files.length === 0) {
+      setMessage("Select at least one file.");
+      return null;
+    }
+
+    setMessage(null);
+    setIsQueueingJob(true);
+
+    try {
+      const created = await createAesJobsFromFiles({
+        title: input.title,
+        files: input.files,
+        fileType: input.fileType,
+        key,
+        keyEncoding,
+        outputEncoding,
+        mode,
+        iv: mode === "cbc" ? iv : undefined,
+        ivEncoding,
+      });
+      selectJob(created[0]?.id ?? null);
+      setMessage(`Queued ${created.length} AES file jobs.`);
+      await refreshJobs();
+      return created;
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to queue AES jobs",
+      );
+      return null;
+    } finally {
+      setIsQueueingJob(false);
+    }
+  }
+
   async function deleteJob(id: string) {
     setMessage(null);
 
@@ -342,6 +383,7 @@ export function useAesWorkspace() {
     setSelectedJobId: selectJob,
     submit,
     submitJob,
+    submitFileJobs,
     deleteJob,
     refreshJobs,
     loadFipsVector,
