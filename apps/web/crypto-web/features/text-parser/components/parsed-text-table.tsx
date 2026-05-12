@@ -1,4 +1,5 @@
 import { Database } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   Card,
@@ -21,14 +22,16 @@ export function ParsedTextTable({
   selectedId?: string;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Card className="overflow-hidden border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-          Job Queue
+          {t("Job Queue")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          Parsed corpora
+          {t("Parsed corpora")}
         </CardTitle>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
@@ -43,11 +46,11 @@ export function ParsedTextTable({
             </colgroup>
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
-                <th className="px-4 py-3 font-medium">Title</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Words</th>
-                <th className="px-4 py-3 font-medium">Unique</th>
-                <th className="px-4 py-3 font-medium">Source</th>
+                <th className="px-4 py-3 font-medium">{t("Title")}</th>
+                <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                <th className="px-4 py-3 font-medium">{t("Words")}</th>
+                <th className="px-4 py-3 font-medium">{t("Unique")}</th>
+                <th className="px-4 py-3 font-medium">{t("Source")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -78,7 +81,7 @@ export function ParsedTextTable({
                     {formatNumber(item.uniqueWords)}
                   </td>
                   <td className="px-4 py-4 capitalize text-slate-500 dark:text-slate-400">
-                    {item.source}
+                    {t(item.source)}
                   </td>
                 </tr>
               ))}
@@ -87,7 +90,7 @@ export function ParsedTextTable({
                   <td colSpan={5} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Database className="size-8" />
-                      <p>No parsed corpora yet.</p>
+                      <p>{t("No parsed corpora yet.")}</p>
                     </div>
                   </td>
                 </tr>

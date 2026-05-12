@@ -10,6 +10,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
+
+import { LanguageSwitcher } from "@/lib/i18n";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
@@ -23,6 +26,8 @@ const navItems = [
 ];
 
 export function ParserSidebar() {
+  const { t } = useTranslation();
+
   return (
     <aside className="hidden w-full min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111424] dark:shadow-2xl dark:shadow-black/30 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-1 py-1">
@@ -31,7 +36,7 @@ export function ParserSidebar() {
         </div>
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Diploma App
+            {t("Diploma App")}
           </p>
           <p className="font-semibold text-slate-950 dark:text-slate-100">CryptoLab</p>
         </div>
@@ -42,25 +47,35 @@ export function ParserSidebar() {
           <NavItem
             key={item.label}
             item={item}
+            label={t(item.label)}
           />
         ))}
       </nav>
 
+      <LanguageSwitcher className="mt-5" />
+
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
         <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-cyan-700 dark:text-cyan-300">
           <FileText className="size-3.5" />
-          Research Mode
+          {t("Research Mode")}
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          Prepare reusable corpora for encryption experiments without returning
-          full word arrays to the browser.
+          {t(
+            "Prepare reusable corpora for encryption experiments without returning full word arrays to the browser.",
+          )}
         </p>
       </div>
     </aside>
   );
 }
 
-function NavItem({ item }: { item: (typeof navItems)[number] }) {
+function NavItem({
+  item,
+  label,
+}: {
+  item: (typeof navItems)[number];
+  label: string;
+}) {
   const className = `flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition ${
     item.active
       ? "border border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100"
@@ -69,7 +84,7 @@ function NavItem({ item }: { item: (typeof navItems)[number] }) {
   const content = (
     <>
       <item.icon className="size-4" />
-      {item.label}
+      {label}
     </>
   );
 
