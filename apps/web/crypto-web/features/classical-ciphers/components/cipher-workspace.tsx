@@ -814,6 +814,16 @@ function CipherJobDetails({
               <Download className="size-4" />
               {t("Download encrypted text")}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+              disabled={!job.finalText}
+              onClick={() => downloadEncryptedBinary(job)}
+            >
+              <Binary className="size-4" />
+              {t("Download binary")}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1434,6 +1444,49 @@ function downloadEncryptedText(job: ClassicalCipherJob) {
 
   link.href = url;
   link.download = `${job.algorithm}-${job.id.slice(0, 8)}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadEncryptedBinary(job: ClassicalCipherJob) {
+  if (!job.finalText) {
+    return;
+  }
+
+  const inputEncoding = String(job.parameters.inputEncoding ?? "utf8");
+  const bytes =
+    inputEncoding === "hex"
+      ? decodeHexBytes(job.finalText)
+      : new TextEncoder().encode(job.finalText);
+  const bits = bytesToBitString(bytes);
+
+  downloadTextFile(bits, `${job.algorithm}-${job.id.slice(0, 8)}-binary.txt`);
+}
+
+function decodeHexBytes(value: string) {
+  const normalized = value.replace(/\s/g, "");
+  const bytes = new Uint8Array(Math.floor(normalized.length / 2));
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+  }
+
+  return bytes;
+}
+
+function bytesToBitString(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(2).padStart(8, "0")).join("");
+}
+
+function downloadTextFile(text: string, filename: string) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
