@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type React from "react";
 import {
@@ -19,6 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LanguageSwitcher } from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 
 const metricDocs = [
   {
@@ -97,6 +101,8 @@ const fileTypeDocs = [
 ];
 
 export function DocumentationWorkspace() {
+  const { t } = useTranslation();
+
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
       <div className="grid w-full max-w-none min-w-0 grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -108,18 +114,18 @@ export function DocumentationWorkspace() {
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-cyan-700 dark:text-cyan-300">
                   <BookOpenText className="size-4" />
-                  Documentation
+                  {t("Documentation")}
                 </p>
                 <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-3xl">
-                  CryptoLab guide
+                  {t("CryptoLab guide")}
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  Use this page to understand what each metric means, how file
-                  uploads become queued jobs, and how to interpret text and
-                  binary encryption runs.
+                  {t(
+                    "Use this page to understand what each metric means, how file uploads become queued jobs, and how to interpret text and binary encryption runs.",
+                  )}
                 </p>
               </div>
-              <Badge variant="teal">User guide</Badge>
+              <Badge variant="teal">{t("User guide")}</Badge>
             </div>
           </section>
 
@@ -133,10 +139,10 @@ export function DocumentationWorkspace() {
             <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
               <CardHeader className="border-b border-slate-200 dark:border-white/10">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                  Workflow
+                  {t("Workflow")}
                 </p>
                 <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                  How to work with the app
+                  {t("How to work with the app")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 p-4 md:grid-cols-2">
@@ -150,14 +156,14 @@ export function DocumentationWorkspace() {
                         <item.icon className="size-4" />
                       </div>
                       <h2 className="font-semibold text-slate-950 dark:text-slate-50">
-                        {item.title}
+                        {t(item.title)}
                       </h2>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                      {item.body}
+                      {t(item.body)}
                     </p>
                     <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                      {item.details}
+                      {t(item.details)}
                     </p>
                   </div>
                 ))}
@@ -167,10 +173,10 @@ export function DocumentationWorkspace() {
             <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
               <CardHeader className="border-b border-slate-200 dark:border-white/10">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                  File types
+                  {t("File types")}
                 </p>
                 <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                  Upload modes
+                  {t("Upload modes")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-4">
@@ -181,12 +187,12 @@ export function DocumentationWorkspace() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-slate-950 dark:text-slate-100">
-                        {title}
+                        {t(title)}
                       </p>
-                      {title === "Binary" ? <Badge variant="teal">bytes</Badge> : null}
+                      {title === "Binary" ? <Badge variant="teal">{t("bytes")}</Badge> : null}
                     </div>
                     <p className="mt-1 text-sm leading-5 text-slate-600 dark:text-slate-300">
-                      {body}
+                      {t(body)}
                     </p>
                   </div>
                 ))}
@@ -227,6 +233,7 @@ function MetricDocCard({
 }: {
   metric: (typeof metricDocs)[number];
 }) {
+  const { t } = useTranslation();
   const colorClass =
     metric.tone === "cyan"
       ? "text-cyan-700 dark:text-cyan-200 border-cyan-200 bg-cyan-50 dark:border-cyan-400/20 dark:bg-cyan-400/10"
@@ -241,16 +248,16 @@ function MetricDocCard({
           <div className={`flex size-10 items-center justify-center rounded-md border ${colorClass}`}>
             <metric.icon className="size-4" />
           </div>
-          <Badge variant="outline">{metric.value}</Badge>
+          <Badge variant="outline">{t(metric.value)}</Badge>
         </div>
         <h2 className="mt-4 text-lg font-semibold text-slate-950 dark:text-slate-50">
-          {metric.title}
+          {t(metric.title)}
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          {metric.body}
+          {t(metric.body)}
         </p>
         <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-          {metric.use}
+          {t(metric.use)}
         </p>
       </CardContent>
     </Card>
@@ -268,6 +275,8 @@ function UsageCard({
   body: string;
   items: string[];
 }) {
+  const { t } = useTranslation();
+
   return (
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
@@ -276,19 +285,19 @@ function UsageCard({
             {icon}
           </div>
           <CardTitle className="text-lg text-slate-950 dark:text-slate-50">
-            {title}
+            {t(title)}
           </CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-4">
         <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-          {body}
+          {t(body)}
         </p>
         <div className="mt-4 space-y-2">
           {items.map((item) => (
             <div key={item} className="flex gap-2 text-sm text-slate-600 dark:text-slate-300">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-              <span>{item}</span>
+              <span>{t(item)}</span>
             </div>
           ))}
         </div>
@@ -298,6 +307,8 @@ function UsageCard({
 }
 
 function DocumentationSidebar() {
+  const { t } = useTranslation();
+
   return (
     <aside className="hidden w-full min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111424] dark:shadow-2xl dark:shadow-black/30 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-1 py-1">
@@ -306,7 +317,7 @@ function DocumentationSidebar() {
         </div>
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Diploma App
+            {t("Diploma App")}
           </p>
           <p className="font-semibold text-slate-950 dark:text-slate-100">
             CryptoLab
@@ -315,31 +326,34 @@ function DocumentationSidebar() {
       </div>
 
       <nav className="mt-8 space-y-2">
-        <SidebarLink href="/" icon={<ArrowLeft className="size-4" />} label="Dashboard" />
+        <SidebarLink href="/" icon={<ArrowLeft className="size-4" />} label={t("Dashboard")} />
         <SidebarLink
           href="/classical-ciphers"
           icon={<Binary className="size-4" />}
-          label="Classical Ciphers"
+          label={t("Classical Ciphers")}
         />
         <SidebarLink
           href="/complex-ciphers"
           icon={<LockKeyhole className="size-4" />}
-          label="Complex Ciphers"
+          label={t("Complex Ciphers")}
         />
         <div className="flex h-10 w-full items-center gap-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100">
           <BookOpenText className="size-4" />
-          Documentation
+          {t("Documentation")}
         </div>
       </nav>
+
+      <LanguageSwitcher className="mt-6" />
 
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
         <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-cyan-700 dark:text-cyan-300">
           <Database className="size-3.5" />
-          Reference
+          {t("Reference")}
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          Metric notes and workflow rules for text, binary, classical cipher,
-          and AES experiments.
+          {t(
+            "Metric notes and workflow rules for text, binary, classical cipher, and AES experiments.",
+          )}
         </p>
       </div>
     </aside>

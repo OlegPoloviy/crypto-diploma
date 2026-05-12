@@ -34,7 +34,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
 import { TextFileType } from "@/features/text-parser/lib/api";
+import { LanguageSwitcher } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 import { useAesWorkspace } from "../hooks/use-aes-workspace";
 import {
@@ -100,6 +102,7 @@ function AesCorpusJobPanel({
 }: {
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
+  const { t } = useTranslation();
   const [fileBatchTitle, setFileBatchTitle] = useState("AES file batch");
   const [fileType, setFileType] = useState<TextFileType>("binary");
   const [files, setFiles] = useState<File[]>([]);
@@ -108,10 +111,10 @@ function AesCorpusJobPanel({
   );
   const fileLabel =
     files.length === 0
-      ? "No files selected."
+      ? t("No files selected.")
       : files.length === 1
         ? files[0].name
-        : `${files.length} files selected`;
+        : t("{{count}} files selected", { count: files.length });
 
   async function submitFiles() {
     const result = await workspace.submitFileJobs({
@@ -129,22 +132,22 @@ function AesCorpusJobPanel({
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-          Corpus worker
+          {t("Corpus worker")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          Queue AES job
+          {t("Queue AES job")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
           <MiniStat
             icon={<Database className="size-4" />}
-            label="Ready corpora"
+            label={t("Ready corpora")}
             value={formatNumber(workspace.completedParsedTexts.length)}
           />
           <MiniStat
             icon={<Clock3 className="size-4" />}
-            label="Active jobs"
+            label={t("Active jobs")}
             value={formatNumber(
               workspace.jobs.filter(
                 (job) => job.status === "queued" || job.status === "processing",
@@ -153,7 +156,7 @@ function AesCorpusJobPanel({
           />
           <MiniStat
             icon={<CheckCircle2 className="size-4" />}
-            label="Completed"
+            label={t("Completed")}
             value={formatNumber(
               workspace.jobs.filter((job) => job.status === "completed").length,
             )}
@@ -161,7 +164,7 @@ function AesCorpusJobPanel({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="aes-parsed-text">Parsed corpus</Label>
+          <Label htmlFor="aes-parsed-text">{t("Parsed corpus")}</Label>
           <select
             id="aes-parsed-text"
             value={
@@ -176,22 +179,22 @@ function AesCorpusJobPanel({
           >
             {workspace.completedParsedTexts.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title} · {formatNumber(item.totalWords)} words
+                {item.title} · {t("{{count}} words", { count: formatNumber(item.totalWords) })}
               </option>
             ))}
           </select>
         </div>
 
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-          The worker uses the AES key, mode, IV, and output encoding from the
-          controls above. Binary files are sent as byte payloads and stored as
-          encoded ciphertext.
+          {t(
+            "The worker uses the AES key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.",
+          )}
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="aesFileBatchTitle">File batch title</Label>
+              <Label htmlFor="aesFileBatchTitle">{t("File batch title")}</Label>
               <Input
                 id="aesFileBatchTitle"
                 value={fileBatchTitle}
@@ -202,7 +205,7 @@ function AesCorpusJobPanel({
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <div className="space-y-2">
-                <Label htmlFor="aesFileType">File type</Label>
+                <Label htmlFor="aesFileType">{t("File type")}</Label>
                 <select
                   id="aesFileType"
                   value={fileType}
@@ -213,13 +216,13 @@ function AesCorpusJobPanel({
                 >
                   {fileTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Input files</Label>
+                <Label>{t("Input files")}</Label>
                 <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424]">
                   <Upload className="size-4 text-cyan-700 dark:text-cyan-200" />
                   <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
@@ -251,7 +254,7 @@ function AesCorpusJobPanel({
               ) : (
                 <Upload className="size-4" />
               )}
-              Queue selected files
+              {t("Queue selected files")}
             </Button>
           </div>
         </div>
@@ -271,7 +274,7 @@ function AesCorpusJobPanel({
             ) : (
               <Play className="size-4" />
             )}
-            Queue corpus job
+            {t("Queue corpus job")}
           </Button>
           <Button
             type="button"
@@ -286,7 +289,7 @@ function AesCorpusJobPanel({
                 workspace.isRefreshingJobs && "animate-spin",
               )}
             />
-            Refresh jobs
+            {t("Refresh jobs")}
           </Button>
         </div>
       </CardContent>
@@ -299,6 +302,8 @@ function AesJobsPanel({
 }: {
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="grid min-w-0 grid-cols-1 gap-5">
       <Card className="overflow-hidden border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
@@ -306,14 +311,14 @@ function AesJobsPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                Worker queue
+                {t("Worker queue")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                AES corpus jobs
+                {t("AES corpus jobs")}
               </CardTitle>
             </div>
             {workspace.hasActiveJobs ? (
-              <Badge variant="warning">Polling</Badge>
+              <Badge variant="warning">{t("Polling")}</Badge>
             ) : null}
           </div>
         </CardHeader>
@@ -322,12 +327,12 @@ function AesJobsPanel({
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Algorithm</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Parameters</th>
-                  <th className="px-4 py-3 font-medium">Output</th>
-                  <th className="px-4 py-3 font-medium">Updated</th>
-                  <th className="px-4 py-3 font-medium">Actions</th>
+                  <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Parameters")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Output")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Updated")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -372,7 +377,7 @@ function AesJobsPanel({
                         }}
                       >
                         <Trash2 className="size-4" />
-                        Delete
+                        {t("Delete")}
                       </Button>
                     </td>
                   </tr>
@@ -382,7 +387,7 @@ function AesJobsPanel({
                     <td colSpan={6} className="px-5 py-14 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                         <ShieldCheck className="size-8" />
-                        <p>No AES corpus jobs yet.</p>
+                        <p>{t("No AES corpus jobs yet.")}</p>
                       </div>
                     </td>
                   </tr>
@@ -405,13 +410,15 @@ function AesJobDetails({
   workspace: ReturnType<typeof useAesWorkspace>;
   job: ComplexCipherJob | null;
 }) {
+  const { t } = useTranslation();
+
   if (!job) {
     return (
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
         <CardContent className="grid min-h-52 place-items-center p-8 text-center text-slate-500">
           <div>
             <ShieldCheck className="mx-auto size-9" />
-            <p className="mt-3">Select or queue an AES corpus job.</p>
+            <p className="mt-3">{t("Select or queue an AES corpus job.")}</p>
           </div>
         </CardContent>
       </Card>
@@ -424,10 +431,10 @@ function AesJobDetails({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-              Worker output
+              {t("Worker output")}
             </p>
             <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-              Stored ciphertext
+              {t("Stored ciphertext")}
             </CardTitle>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -440,7 +447,7 @@ function AesJobDetails({
               onClick={() => void workspace.deleteJob(job.id)}
             >
               <Trash2 className="size-4" />
-              Delete
+              {t("Delete")}
             </Button>
           </div>
         </div>
@@ -456,28 +463,28 @@ function AesJobDetails({
             </div>
           ) : null}
           <pre className="max-h-72 min-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-            {job.finalText ?? "Waiting for worker result..."}
+            {job.finalText ?? t("Waiting for worker result...")}
           </pre>
         </div>
         <div className="space-y-3">
           <StateTile
             icon={<Layers3 className="size-4" />}
-            label="Mode"
+            label={t("Mode")}
             value={String(job.metadata?.mode ?? job.parameters.mode ?? "-")}
           />
           <StateTile
             icon={<KeyRound className="size-4" />}
-            label="Key size"
-            value={`${String(job.metadata?.keySize ?? "-")} bits`}
+            label={t("Key size")}
+            value={t("{{count}} bits", { count: String(job.metadata?.keySize ?? "-") })}
           />
           <StateTile
             icon={<Database className="size-4" />}
-            label="Byte entropy"
+            label={t("Byte entropy")}
             value={formatMetricValue(job.metadata?.byteEntropy)}
           />
           <StateTile
             icon={<Database className="size-4" />}
-            label="Cipher bytes"
+            label={t("Cipher bytes")}
             value={String(job.metadata?.ciphertextLength ?? "-")}
           />
           <StateTile
@@ -494,7 +501,7 @@ function AesJobDetails({
             onClick={() => downloadAesCiphertext(job)}
           >
             <Download className="size-4" />
-            Download ciphertext
+            {t("Download ciphertext")}
           </Button>
         </div>
       </CardContent>
@@ -503,6 +510,7 @@ function AesJobDetails({
 }
 
 function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
+  const { t } = useTranslation();
   const steps = job.steps ?? [];
   const isSampled = job.metadata?.stepSampled === true;
   const sampleSize =
@@ -513,7 +521,7 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
   if (steps.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        AES round states will appear after the corpus worker completes.
+        {t("AES round states will appear after the corpus worker completes.")}
       </div>
     );
   }
@@ -526,26 +534,35 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              AES rounds
+              {t("AES rounds")}
             </p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               {isSampled
-                ? `Sampled corpus state after whitening and each AES round (${formatNumber(sampleSize ?? steps.at(-1)?.text.length ?? 0)} bytes).`
-                : "Corpus state after whitening and each AES round."}
+                ? t(
+                    "Sampled corpus state after whitening and each AES round ({{count}} bytes).",
+                    {
+                      count: formatNumber(
+                        sampleSize ?? steps.at(-1)?.text.length ?? 0,
+                      ),
+                    },
+                  )
+                : t("Corpus state after whitening and each AES round.")}
             </p>
           </div>
-          <Badge variant="outline">{steps.length} states</Badge>
+          <Badge variant="outline">
+            {t("{{count}} states", { count: steps.length })}
+          </Badge>
         </div>
 
         <div className="max-h-96 overflow-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="sticky top-0 border-b border-slate-200 bg-slate-100 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
-                <th className="px-4 py-3 font-medium">Step</th>
-                <th className="px-4 py-3 font-medium">State</th>
-                <th className="px-4 py-3 font-medium">Hurst</th>
-                <th className="px-4 py-3 font-medium">DFA</th>
-                <th className="px-4 py-3 font-medium">Entropy</th>
+                <th className="px-4 py-3 font-medium">{t("Step")}</th>
+                <th className="px-4 py-3 font-medium">{t("State")}</th>
+                <th className="px-4 py-3 font-medium">{t("Hurst")}</th>
+                <th className="px-4 py-3 font-medium">{t("DFA")}</th>
+                <th className="px-4 py-3 font-medium">{t("Entropy")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-white/5">
@@ -578,6 +595,7 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
 }
 
 function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
+  const { t } = useTranslation();
   const width = 760;
   const height = 220;
   const padding = 36;
@@ -613,13 +631,13 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
       <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
         {metrics.map((metric) => (
-          <LegendDot key={metric.key} color={metric.color} label={metric.label} />
+          <LegendDot key={metric.key} color={metric.color} label={t(metric.label)} />
         ))}
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="AES round metrics chart"
+        aria-label={t("AES round metrics chart")}
         className="h-56 w-full overflow-visible"
       >
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -689,6 +707,8 @@ function AesSingleRoundMetricBars({
     color: string;
   }[];
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
       <div className="grid gap-3 md:grid-cols-3">
@@ -700,7 +720,7 @@ function AesSingleRoundMetricBars({
           return (
             <div key={metric.key} className="min-w-0">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <LegendDot color={metric.color} label={metric.label} />
+                <LegendDot color={metric.color} label={t(metric.label)} />
                 <span className="font-mono text-sm tabular-nums text-slate-700 dark:text-slate-200">
                   {value.toFixed(4)}
                 </span>
@@ -732,11 +752,12 @@ function MetricCell({ value }: { value: number }) {
 }
 
 function MetricStrip({ job }: { job: ComplexCipherJob }) {
+  const { t } = useTranslation();
   const stats = job.metricStats ?? [];
   if (stats.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        Hurst, DFA, and entropy metrics will appear after the worker completes.
+        {t("Hurst, DFA, and entropy metrics will appear after the worker completes.")}
       </div>
     );
   }
@@ -749,14 +770,16 @@ function MetricStrip({ job }: { job: ComplexCipherJob }) {
           className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]"
         >
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {metric.label}
+            {t(metric.label)}
           </p>
           <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950 dark:text-slate-50">
             {metric.final.toFixed(4)}
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            mean {metric.mean.toFixed(4)} · SD{" "}
-            {metric.standardDeviation.toFixed(4)}
+            {t("mean {{mean}} · SD {{sd}}", {
+              mean: metric.mean.toFixed(4),
+              sd: metric.standardDeviation.toFixed(4),
+            })}
           </p>
         </div>
       ))}
@@ -765,6 +788,7 @@ function MetricStrip({ job }: { job: ComplexCipherJob }) {
 }
 
 function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
+  const { t } = useTranslation();
   const stats = job.metricStats ?? [];
   if (stats.length === 0) {
     return null;
@@ -774,7 +798,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
   const height = 210;
   const padding = 34;
   const chartValues = stats.map((metric) => ({
-    label: metric.label,
+    label: t(metric.label),
     value: metric.final,
     color:
       metric.key === "hurstExponent"
@@ -823,7 +847,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="AES metrics chart"
+          aria-label={t("AES metrics chart")}
           className="h-56 w-full overflow-visible"
         >
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -878,7 +902,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Byte entropy
+          {t("Byte entropy")}
         </p>
         <p className="mt-3 text-2xl font-semibold tabular-nums text-slate-950 dark:text-slate-50">
           {byteEntropy === null ? "-" : byteEntropy.toFixed(4)}
@@ -890,7 +914,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
           />
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-          Normalized against 8 bits per byte.
+          {t("Normalized against 8 bits per byte.")}
         </p>
       </div>
     </div>
@@ -934,9 +958,11 @@ function MiniStat({
 }
 
 function JobStatusBadge({ status }: { status: ComplexCipherJobStatus }) {
+  const { t } = useTranslation();
+
   return (
     <Badge variant={statusVariant[status]} className="capitalize">
-      {status}
+      {t(status)}
     </Badge>
   );
 }
@@ -985,6 +1011,8 @@ function downloadAesCiphertext(job: ComplexCipherJob) {
 }
 
 function ComplexCipherSidebar() {
+  const { t } = useTranslation();
+
   return (
     <aside className="hidden w-full min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111424] dark:shadow-2xl dark:shadow-black/30 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-1 py-1">
@@ -993,7 +1021,7 @@ function ComplexCipherSidebar() {
         </div>
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Diploma App
+            {t("Diploma App")}
           </p>
           <p className="font-semibold text-slate-950 dark:text-slate-100">
             CryptoLab
@@ -1009,7 +1037,7 @@ function ComplexCipherSidebar() {
         >
           <Link href="/">
             <ArrowLeft className="size-4" />
-            Dashboard
+            {t("Dashboard")}
           </Link>
         </Button>
         <Button
@@ -1019,12 +1047,12 @@ function ComplexCipherSidebar() {
         >
           <Link href="/classical-ciphers">
             <Binary className="size-4" />
-            Classical Ciphers
+            {t("Classical Ciphers")}
           </Link>
         </Button>
         <div className="flex h-10 w-full items-center gap-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100">
           <ShieldCheck className="size-4" />
-          Complex Ciphers
+          {t("Complex Ciphers")}
         </div>
         <Button
           asChild
@@ -1033,19 +1061,22 @@ function ComplexCipherSidebar() {
         >
           <Link href="/documentation">
             <BookOpenText className="size-4" />
-            Documentation
+            {t("Documentation")}
           </Link>
         </Button>
       </nav>
 
+      <LanguageSwitcher className="mt-6" />
+
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
         <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-cyan-700 dark:text-cyan-300">
           <KeyRound className="size-3.5" />
-          AES Lab
+          {t("AES Lab")}
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          Run the backend AES implementation directly and inspect encoded input,
-          key, IV, and output parameters in one place.
+          {t(
+            "Run the backend AES implementation directly and inspect encoded input, key, IV, and output parameters in one place.",
+          )}
         </p>
       </div>
     </aside>
@@ -1053,20 +1084,23 @@ function ComplexCipherSidebar() {
 }
 
 function ComplexCipherHero({ onLoadVector }: { onLoadVector: () => void }) {
+  const { t } = useTranslation();
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111424]">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-cyan-700 dark:text-cyan-300">
             <Braces className="size-4" />
-            Complex cipher lab
+            {t("Complex cipher lab")}
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-3xl">
-            AES encryption and decryption
+            {t("AES encryption and decryption")}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Work with AES-128, AES-192, and AES-256 keys through the API module,
-            switching between CBC and ECB modes plus hex, base64, and UTF-8 data.
+            {t(
+              "Work with AES-128, AES-192, and AES-256 keys through the API module, switching between CBC and ECB modes plus hex, base64, and UTF-8 data.",
+            )}
           </p>
         </div>
 
@@ -1077,7 +1111,7 @@ function ComplexCipherHero({ onLoadVector }: { onLoadVector: () => void }) {
           onClick={onLoadVector}
         >
           <RotateCcw className="size-4" />
-          Load test vector
+          {t("Load test vector")}
         </Button>
       </div>
     </section>
@@ -1089,14 +1123,16 @@ function AesControlPanel({
 }: {
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-          Parameters
+          {t("Parameters")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          AES controls
+          {t("AES controls")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
@@ -1109,17 +1145,17 @@ function AesControlPanel({
           <TabsList className="grid-cols-2">
             <TabsTrigger value="encrypt">
               <LockKeyhole className="size-4" />
-              Encrypt
+              {t("Encrypt")}
             </TabsTrigger>
             <TabsTrigger value="decrypt">
               <UnlockKeyhole className="size-4" />
-              Decrypt
+              {t("Decrypt")}
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="space-y-2">
-          <Label htmlFor="aes-mode">Mode</Label>
+          <Label htmlFor="aes-mode">{t("Mode")}</Label>
           <select
             id="aes-mode"
             value={workspace.mode}
@@ -1139,8 +1175,8 @@ function AesControlPanel({
             id="aes-input-encoding"
             label={
               workspace.operation === "encrypt"
-                ? "Plaintext encoding"
-                : "Ciphertext encoding"
+                ? t("Plaintext encoding")
+                : t("Ciphertext encoding")
             }
             value={workspace.activeInputEncoding}
             onChange={(value) =>
@@ -1151,7 +1187,7 @@ function AesControlPanel({
           />
           <EncodingSelect
             id="aes-output-encoding"
-            label="Output encoding"
+            label={t("Output encoding")}
             value={workspace.activeOutputEncoding}
             onChange={(value) =>
               workspace.operation === "encrypt"
@@ -1163,7 +1199,7 @@ function AesControlPanel({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="aes-key">Key</Label>
+            <Label htmlFor="aes-key">{t("Key")}</Label>
             <Badge variant="outline">{workspace.keySizeHint}</Badge>
           </div>
           <Textarea
@@ -1174,7 +1210,7 @@ function AesControlPanel({
           />
           <EncodingSelect
             id="aes-key-encoding"
-            label="Key encoding"
+            label={t("Key encoding")}
             value={workspace.keyEncoding}
             onChange={workspace.setKeyEncoding}
           />
@@ -1182,7 +1218,7 @@ function AesControlPanel({
 
         {workspace.mode === "cbc" ? (
           <div className="space-y-2">
-            <Label htmlFor="aes-iv">IV</Label>
+            <Label htmlFor="aes-iv">{t("IV")}</Label>
             <Input
               id="aes-iv"
               value={workspace.iv}
@@ -1191,14 +1227,14 @@ function AesControlPanel({
             />
             <EncodingSelect
               id="aes-iv-encoding"
-              label="IV encoding"
+              label={t("IV encoding")}
               value={workspace.ivEncoding}
               onChange={workspace.setIvEncoding}
             />
           </div>
         ) : (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
-            ECB mode does not use an IV.
+            {t("ECB mode does not use an IV.")}
           </div>
         )}
 
@@ -1226,7 +1262,7 @@ function AesControlPanel({
           ) : (
             <Play className="size-4" />
           )}
-          Run AES
+          {t("Run AES")}
         </Button>
       </CardContent>
     </Card>
@@ -1238,6 +1274,7 @@ function AesIOPanel({
 }: {
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
+  const { t } = useTranslation();
   const result = workspace.result;
 
   return (
@@ -1247,7 +1284,7 @@ function AesIOPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                Input
+                {t("Input")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
                 {workspace.inputLabel}
@@ -1277,7 +1314,7 @@ function AesIOPanel({
               onClick={workspace.swapToDecrypt}
             >
               <Clipboard className="size-4" />
-              Use last ciphertext
+              {t("Use last ciphertext")}
             </Button>
           ) : null}
         </CardContent>
@@ -1288,15 +1325,15 @@ function AesIOPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                Output
+                {t("Output")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                AES result
+                {t("AES result")}
               </CardTitle>
             </div>
             {result ? (
               <div className="flex flex-wrap gap-2">
-                <Badge variant="teal">{result.keySize}-bit key</Badge>
+                <Badge variant="teal">{t("{{count}}-bit key", { count: result.keySize })}</Badge>
                 <Badge variant="outline">
                   {result.outputEncoding.toUpperCase()}
                 </Badge>
@@ -1306,23 +1343,23 @@ function AesIOPanel({
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_260px]">
           <pre className="max-h-72 min-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-            {result?.result ?? "Run AES to see the encoded result."}
+            {result?.result ?? t("Run AES to see the encoded result.")}
           </pre>
 
           <div className="space-y-3">
             <StateTile
               icon={<Layers3 className="size-4" />}
-              label="Mode"
+              label={t("Mode")}
               value={result?.mode.toUpperCase() ?? workspace.mode.toUpperCase()}
             />
             <StateTile
               icon={<KeyRound className="size-4" />}
-              label="Key size"
-              value={result ? `${result.keySize} bits` : workspace.keySizeHint}
+              label={t("Key size")}
+              value={result ? t("{{count}} bits", { count: result.keySize }) : workspace.keySizeHint}
             />
             <StateTile
               icon={<ShieldCheck className="size-4" />}
-              label="Operation"
+              label={t("Operation")}
               value={result?.operation ?? workspace.operation}
             />
             <StateTile
