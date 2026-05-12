@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   createParsedTextFromFile,
@@ -11,6 +12,7 @@ import {
 import { ParsedText } from "../types/parsed-text";
 
 export function useParsedTexts() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<ParsedText[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -53,13 +55,13 @@ export function useParsedTexts() {
         }
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : "Failed to load jobs",
+          error instanceof Error ? error.message : t("Failed to load jobs"),
         );
       } finally {
         setIsRefreshing(false);
       }
     },
-    [selectParsedText],
+    [selectParsedText, t],
   );
 
   useEffect(() => {
@@ -100,14 +102,16 @@ export function useParsedTexts() {
       selectParsedText(created[0]?.id ?? null);
       setMessage(
         created.length === 1
-          ? `Queued "${created[0].title}" for parsing.`
-          : `Queued ${created.length} files for parsing.`,
+          ? t('Queued "{{title}}" for parsing.', { title: created[0].title })
+          : t("Queued {{count}} files for parsing.", {
+              count: created.length,
+            }),
       );
       await refresh();
       return result;
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to queue text",
+        error instanceof Error ? error.message : t("Failed to queue text"),
       );
       return null;
     } finally {

@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "crypto-lab-theme";
 
 export function ThemeToggle() {
+  const { t } = useTranslation();
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof window === "undefined") {
       return "dark";
@@ -36,7 +38,7 @@ export function ThemeToggle() {
       className="w-full rounded-md border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10 xl:w-auto"
     >
       {theme === "dark" ? <Sun /> : <Moon />}
-      {theme === "dark" ? "Light theme" : "Dark theme"}
+      {theme === "dark" ? t("Light theme") : t("Dark theme")}
     </Button>
   );
 }

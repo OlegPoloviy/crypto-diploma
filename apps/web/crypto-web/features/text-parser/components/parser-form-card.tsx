@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { FileStack, FileUp, Send, Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ export function ParserFormCard({
     text: string;
   }) => Promise<unknown>;
 }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<"file" | "text">("file");
   const [title, setTitle] = useState("");
   const [rawText, setRawText] = useState("");
@@ -51,10 +53,10 @@ export function ParserFormCard({
   );
   const fileLabel =
     files.length === 0
-      ? "No files selected."
+      ? t("No files selected.")
       : files.length === 1
         ? files[0].name
-        : `${files.length} files selected`;
+        : t("{{count}} files selected", { count: files.length });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,14 +79,14 @@ export function ParserFormCard({
       <CardHeader className="flex-row items-start justify-between">
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Configuration
+            {t("Configuration")}
           </p>
           <CardTitle className="mt-2 text-lg text-slate-950 dark:text-slate-50">
-            Create corpus
+            {t("Create corpus")}
           </CardTitle>
         </div>
         <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
-          Draft
+          {t("Draft")}
         </span>
       </CardHeader>
 
@@ -94,15 +96,25 @@ export function ParserFormCard({
             value={mode}
             onValueChange={(value) => setMode(value as "file" | "text")}
           >
-            <TabsList className="border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#080b16]">
-              <TabsTrigger value="file">File upload</TabsTrigger>
-              <TabsTrigger value="text">Raw text</TabsTrigger>
+            <TabsList className="h-auto min-h-10 border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#080b16]">
+              <TabsTrigger
+                value="file"
+                className="min-h-8 whitespace-normal px-2 text-center leading-4"
+              >
+                {t("File upload")}
+              </TabsTrigger>
+              <TabsTrigger
+                value="text"
+                className="min-h-8 whitespace-normal px-2 text-center leading-4"
+              >
+                {t("Raw text")}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
           <div className="space-y-2">
             <Label className="text-slate-700 dark:text-slate-300">
-              Corpus title
+              {t("Corpus title")}
             </Label>
             <Input
               value={title}
@@ -118,7 +130,7 @@ export function ParserFormCard({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">
-                  File type
+                  {t("File type")}
                 </Label>
                 <select
                   value={fileType}
@@ -129,7 +141,7 @@ export function ParserFormCard({
                 >
                   {FILE_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </option>
                   ))}
                 </select>
@@ -137,15 +149,15 @@ export function ParserFormCard({
 
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">
-                  Input files
+                  {t("Input files")}
                 </Label>
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
-                  <label className="flex h-12 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
-                    <span className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
+                  <label className="flex min-h-12 cursor-pointer flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424] dark:hover:border-cyan-400/30">
+                    <span className="inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md bg-cyan-50 px-3 py-1 font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
                       <Upload className="size-4" />
-                      Browse...
+                      {t("Browse...")}
                     </span>
-                    <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                    <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">
                       {fileLabel}
                     </span>
                     <Input
@@ -175,33 +187,33 @@ export function ParserFormCard({
           ) : (
             <div className="space-y-2">
               <Label className="text-slate-700 dark:text-slate-300">
-                Input text
+                {t("Input text")}
               </Label>
               <Textarea
                 value={rawText}
                 onChange={(event) => setRawText(event.target.value)}
-                placeholder="Paste Project Gutenberg text here..."
+                placeholder={t("Paste Project Gutenberg text here...")}
                 required={mode === "text"}
                 className="min-h-48 border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-400 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100 dark:placeholder:text-slate-600"
               />
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid gap-3">
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-100 dark:hover:bg-cyan-400/30"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-100 dark:hover:bg-cyan-400/30"
             >
               {mode === "file" ? <FileUp /> : <Send />}
-              {isSubmitting ? "Queueing..." : "Save & queue"}
+              {isSubmitting ? t("Queueing...") : t("Save & queue")}
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="w-full rounded-md border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md border-slate-200 bg-white px-3 py-2 text-center leading-5 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             >
-              Compare preset
+              {t("Compare preset")}
             </Button>
           </div>
 

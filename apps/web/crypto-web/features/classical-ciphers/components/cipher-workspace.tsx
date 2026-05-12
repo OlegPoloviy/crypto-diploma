@@ -35,9 +35,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { LanguageSwitcher } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
 import { TextFileType } from "@/features/text-parser/lib/api";
+import { useTranslation } from "react-i18next";
 
 import { useCipherWorkspace } from "../hooks/use-cipher-workspace";
 import {
@@ -105,6 +107,7 @@ const metricDescriptors: MetricDescriptor[] = [
 ];
 
 export function CipherWorkspace() {
+  const { t } = useTranslation();
   const workspace = useCipherWorkspace();
   const selectedSteps = workspace.selectedJob?.steps ?? [];
   const completedJobs = workspace.jobs.filter(
@@ -130,27 +133,29 @@ export function CipherWorkspace() {
           <section className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <MetricTile
               icon={<Database className="size-4" />}
-              label="Ready corpora"
+              label={t("Ready corpora")}
               value={workspace.completedParsedTexts.length}
-              caption="Parsed texts in DB"
+              caption={t("Parsed texts in DB")}
             />
             <MetricTile
               icon={<Clock3 className="size-4" />}
-              label="Active jobs"
+              label={t("Active jobs")}
               value={activeJobs}
-              caption="Queued or processing"
+              caption={t("Queued or processing")}
             />
             <MetricTile
               icon={<CheckCircle2 className="size-4" />}
-              label="Completed"
+              label={t("Completed")}
               value={completedJobs}
-              caption="Stored cipher runs"
+              caption={t("Stored cipher runs")}
             />
             <MetricTile
               icon={<Sigma className="size-4" />}
-              label="Latest DFA"
+              label={t("Latest DFA")}
               value={latestAlpha ? latestAlpha.toFixed(3) : "0.000"}
-              caption={`Hurst ${latestHurst ? latestHurst.toFixed(3) : "0.000"}`}
+              caption={t("Hurst {{value}}", {
+                value: latestHurst ? latestHurst.toFixed(3) : "0.000",
+              })}
             />
           </section>
 
@@ -202,6 +207,8 @@ export function CipherWorkspace() {
 }
 
 function CipherSidebar() {
+  const { t } = useTranslation();
+
   return (
     <aside className="hidden w-full min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111424] dark:shadow-2xl dark:shadow-black/30 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-1 py-1">
@@ -210,7 +217,7 @@ function CipherSidebar() {
         </div>
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Diploma App
+            {t("Diploma App")}
           </p>
           <p className="font-semibold text-slate-950 dark:text-slate-100">
             CryptoLab
@@ -226,12 +233,12 @@ function CipherSidebar() {
         >
           <Link href="/">
             <ArrowLeft className="size-4" />
-            Dashboard
+            {t("Dashboard")}
           </Link>
         </Button>
         <div className="flex h-10 w-full items-center gap-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/15 dark:text-cyan-100">
           <Binary className="size-4" />
-          Classical Ciphers
+          {t("Classical Ciphers")}
         </div>
         <Button
           asChild
@@ -240,7 +247,7 @@ function CipherSidebar() {
         >
           <Link href="/complex-ciphers">
             <ShieldCheck className="size-4" />
-            Complex Ciphers
+            {t("Complex Ciphers")}
           </Link>
         </Button>
         <Button
@@ -250,19 +257,22 @@ function CipherSidebar() {
         >
           <Link href="/documentation">
             <BookOpenText className="size-4" />
-            Documentation
+            {t("Documentation")}
           </Link>
         </Button>
       </nav>
 
+      <LanguageSwitcher className="mt-6" />
+
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
         <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-cyan-700 dark:text-cyan-300">
           <KeyRound className="size-3.5" />
-          Worker Mode
+          {t("Worker Mode")}
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          Run cipher experiments from stored corpora while the API keeps heavy
-          metric calculations off the request thread.
+          {t(
+            "Run cipher experiments from stored corpora while the API keeps heavy metric calculations off the request thread.",
+          )}
         </p>
       </div>
     </aside>
@@ -276,20 +286,23 @@ function CipherHero({
   isRefreshing: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111424]">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-cyan-700 dark:text-cyan-300">
             <Braces className="size-4" />
-            Classical cipher lab
+            {t("Classical cipher lab")}
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-3xl">
-            Worker-backed Caesar and Vigenere runs
+            {t("Worker-backed Caesar and Vigenere runs")}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Select a parsed corpus from the database, queue a cipher job, and
-            inspect how Hurst, DFA alpha, and word entropy move step by step.
+            {t(
+              "Select a parsed corpus from the database, queue a cipher job, and inspect how Hurst, DFA alpha, and word entropy move step by step.",
+            )}
           </p>
         </div>
 
@@ -303,7 +316,7 @@ function CipherHero({
           <RefreshCw
             className={cn("size-4", isRefreshing && "animate-spin")}
           />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
     </section>
@@ -378,6 +391,7 @@ function CipherJobForm({
     fileType: TextFileType;
   }) => Promise<unknown>;
 }) {
+  const { t } = useTranslation();
   const [fileBatchTitle, setFileBatchTitle] = useState("Cipher file batch");
   const [fileType, setFileType] = useState<TextFileType>("binary");
   const [files, setFiles] = useState<File[]>([]);
@@ -386,10 +400,10 @@ function CipherJobForm({
   );
   const fileLabel =
     files.length === 0
-      ? "No files selected."
+      ? t("No files selected.")
       : files.length === 1
         ? files[0].name
-        : `${files.length} files selected`;
+        : t("{{count}} files selected", { count: files.length });
 
   async function submitFiles() {
     const result = await onSubmitFiles({
@@ -407,15 +421,15 @@ function CipherJobForm({
     <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-          New run
+          {t("New run")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          Queue cipher job
+          {t("Queue cipher job")}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-5 p-5">
         <div className="space-y-2">
-          <Label htmlFor="parsedTextId">Parsed corpus</Label>
+          <Label htmlFor="parsedTextId">{t("Parsed corpus")}</Label>
           <select
             id="parsedTextId"
             value={selectedParsedTextId}
@@ -424,7 +438,7 @@ function CipherJobForm({
           >
             {completedParsedTexts.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title} · {formatNumber(item.totalWords)} words
+                {item.title} · {t("{{count}} words", { count: formatNumber(item.totalWords) })}
               </option>
             ))}
           </select>
@@ -433,7 +447,7 @@ function CipherJobForm({
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="cipherFileBatchTitle">File batch title</Label>
+              <Label htmlFor="cipherFileBatchTitle">{t("File batch title")}</Label>
               <Input
                 id="cipherFileBatchTitle"
                 value={fileBatchTitle}
@@ -444,7 +458,7 @@ function CipherJobForm({
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <div className="space-y-2">
-                <Label htmlFor="cipherFileType">File type</Label>
+                <Label htmlFor="cipherFileType">{t("File type")}</Label>
                 <select
                   id="cipherFileType"
                   value={fileType}
@@ -455,13 +469,13 @@ function CipherJobForm({
                 >
                   {fileTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Input files</Label>
+                <Label>{t("Input files")}</Label>
                 <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm transition hover:border-cyan-300 dark:border-white/10 dark:bg-[#111424]">
                   <Upload className="size-4 text-cyan-700 dark:text-cyan-200" />
                   <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
@@ -482,7 +496,7 @@ function CipherJobForm({
             <Button
               type="button"
               variant="outline"
-              className="h-10 w-full rounded-md border-slate-200 bg-white dark:border-white/10 dark:bg-white/5"
+              className="min-h-10 h-auto w-full whitespace-normal rounded-md border-slate-200 bg-white px-3 py-2 text-center leading-5 dark:border-white/10 dark:bg-white/5"
               onClick={() => void submitFiles()}
               disabled={isSubmitting || files.length === 0 || !fileBatchTitle}
             >
@@ -491,7 +505,7 @@ function CipherJobForm({
               ) : (
                 <Upload className="size-4" />
               )}
-              Queue selected files
+              {t("Queue selected files")}
             </Button>
           </div>
         </div>
@@ -500,16 +514,28 @@ function CipherJobForm({
           value={mode}
           onValueChange={(value) => onModeChange(value as CipherMode)}
         >
-          <TabsList className="grid-cols-3">
-            <TabsTrigger value="caesar">Caesar</TabsTrigger>
-            <TabsTrigger value="vigenere-key-symbols">Symbols</TabsTrigger>
-            <TabsTrigger value="vigenere-key-lengths">Lengths</TabsTrigger>
+          <TabsList className="h-auto min-h-10 grid-cols-3">
+            <TabsTrigger value="caesar" className="min-h-8 px-2 text-xs sm:text-sm">
+              Caesar
+            </TabsTrigger>
+            <TabsTrigger
+              value="vigenere-key-symbols"
+              className="min-h-8 px-2 text-xs sm:text-sm"
+            >
+              {t("Symbols")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="vigenere-key-lengths"
+              className="min-h-8 px-2 text-xs sm:text-sm"
+            >
+              {t("Lengths")}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {mode === "caesar" ? (
           <div className="space-y-2">
-            <Label htmlFor="shift">Shift</Label>
+            <Label htmlFor="shift">{t("Shift")}</Label>
             <Input
               id="shift"
               type="number"
@@ -524,7 +550,7 @@ function CipherJobForm({
           </div>
         ) : (
           <div className="space-y-2">
-            <Label htmlFor="key">Vigenere key</Label>
+            <Label htmlFor="key">{t("Vigenere key")}</Label>
             <Textarea
               id="key"
               value={vigenereKey}
@@ -532,15 +558,16 @@ function CipherJobForm({
               className="min-h-24 resize-y font-mono dark:bg-[#080b16]"
             />
             <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-              Long alphabetic keys are supported; non-letter characters are
-              ignored by the cipher engine.
+              {t(
+                "Long alphabetic keys are supported; non-letter characters are ignored by the cipher engine.",
+              )}
             </p>
           </div>
         )}
 
         {mode === "vigenere-key-lengths" ? (
           <div className="space-y-2">
-            <Label htmlFor="keyLengths">Key lengths</Label>
+            <Label htmlFor="keyLengths">{t("Key lengths")}</Label>
             <Input
               id="keyLengths"
               value={keyLengthsText}
@@ -548,8 +575,9 @@ function CipherJobForm({
               className="font-mono dark:bg-[#080b16]"
             />
             <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-              Use comma-separated lengths, including multi-digit values such as
-              10, 100, or 1000.
+              {t(
+                "Use comma-separated lengths, including multi-digit values such as 10, 100, or 1000.",
+              )}
             </p>
           </div>
         ) : null}
@@ -562,7 +590,7 @@ function CipherJobForm({
 
         <Button
           type="button"
-          className="mt-auto h-10 w-full rounded-md bg-cyan-600 text-white hover:bg-cyan-500"
+          className="mt-auto min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-500"
           onClick={onSubmit}
           disabled={isSubmitting || completedParsedTexts.length === 0}
         >
@@ -571,7 +599,7 @@ function CipherJobForm({
           ) : (
             <Play className="size-4" />
           )}
-          Queue worker run
+          {t("Queue worker run")}
         </Button>
       </CardContent>
     </Card>
@@ -589,14 +617,16 @@ function CipherJobsTable({
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Card className="overflow-hidden border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
       <CardHeader className="border-b border-slate-200 dark:border-white/10">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-          Worker queue
+          {t("Worker queue")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          Cipher jobs
+          {t("Cipher jobs")}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
@@ -604,12 +634,12 @@ function CipherJobsTable({
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
-                <th className="px-4 py-3 font-medium">Algorithm</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Parameters</th>
-                <th className="px-4 py-3 font-medium">Steps</th>
-                <th className="px-4 py-3 font-medium">Updated</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
+                <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                <th className="px-4 py-3 font-medium">{t("Parameters")}</th>
+                <th className="px-4 py-3 font-medium">{t("Steps")}</th>
+                <th className="px-4 py-3 font-medium">{t("Updated")}</th>
+                <th className="px-4 py-3 font-medium">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -624,7 +654,7 @@ function CipherJobsTable({
                 >
                   <td className="px-4 py-4">
                     <div className="font-medium text-slate-950 dark:text-slate-100">
-                      {algorithmLabel[job.algorithm]}
+                      {t(algorithmLabel[job.algorithm])}
                     </div>
                     <div className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
                       {job.id}
@@ -653,7 +683,7 @@ function CipherJobsTable({
                       }}
                     >
                       <Trash2 className="size-4" />
-                      Delete
+                      {t("Delete")}
                     </Button>
                   </td>
                 </tr>
@@ -663,7 +693,7 @@ function CipherJobsTable({
                   <td colSpan={6} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Binary className="size-8" />
-                      <p>No cipher jobs yet.</p>
+                      <p>{t("No cipher jobs yet.")}</p>
                     </div>
                   </td>
                 </tr>
@@ -683,13 +713,15 @@ function CipherJobDetails({
   job: ClassicalCipherJob | null;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+
   if (!job) {
     return (
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
         <CardContent className="grid min-h-72 place-items-center p-8 text-center text-slate-500">
           <div>
             <BarChart3 className="mx-auto size-9" />
-            <p className="mt-3">Select or queue a cipher job.</p>
+            <p className="mt-3">{t("Select or queue a cipher job.")}</p>
           </div>
         </CardContent>
       </Card>
@@ -707,10 +739,10 @@ function CipherJobDetails({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                Metrics
+                {t("Metrics")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                Step progression
+                {t("Step progression")}
               </CardTitle>
             </div>
             <CipherStatusBadge status={job.status} />
@@ -720,13 +752,13 @@ function CipherJobDetails({
           <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(300px,0.72fr)_minmax(360px,1.28fr)]">
             <div className="grid grid-cols-3 gap-2">
               <MiniMetric
-                label="Hurst"
+                label={t("Hurst")}
                 value={lastStep?.hurstExponent ?? 0}
                 accent="cyan"
               />
-              <MiniMetric label="DFA alpha" value={lastStep?.dfaAlpha ?? 0} />
+              <MiniMetric label={t("DFA alpha")} value={lastStep?.dfaAlpha ?? 0} />
               <MiniMetric
-                label="Entropy"
+                label={t("Entropy")}
                 value={lastStep?.wordFrequencyEntropy ?? 0}
                 accent="emerald"
               />
@@ -741,16 +773,16 @@ function CipherJobDetails({
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
         <CardHeader className="border-b border-slate-200 py-4 dark:border-white/10">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Output
+            {t("Output")}
           </p>
           <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-            Final state
+            {t("Final state")}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 p-4">
           <div className="min-w-0 space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="teal">{algorithmLabel[job.algorithm]}</Badge>
+              <Badge variant="teal">{t(algorithmLabel[job.algorithm])}</Badge>
               <Badge variant="outline">{formatParameters(job.parameters)}</Badge>
               <Button
                 type="button"
@@ -759,7 +791,7 @@ function CipherJobDetails({
                 onClick={() => void onDelete(job.id)}
               >
                 <Trash2 className="size-4" />
-                Delete
+                {t("Delete")}
               </Button>
             </div>
             {job.errorMessage ? (
@@ -768,7 +800,7 @@ function CipherJobDetails({
               </div>
             ) : null}
             <pre className="max-h-60 min-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-              {job.finalText ?? "Waiting for worker result..."}
+              {job.finalText ?? t("Waiting for worker result...")}
             </pre>
           </div>
           <div className="flex min-w-0 flex-col gap-3">
@@ -780,7 +812,7 @@ function CipherJobDetails({
               onClick={() => downloadEncryptedText(job)}
             >
               <Download className="size-4" />
-              Download encrypted text
+              {t("Download encrypted text")}
             </Button>
           </div>
         </CardContent>
@@ -789,10 +821,10 @@ function CipherJobDetails({
       <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424] 2xl:col-span-2">
         <CardHeader className="border-b border-slate-200 py-4 dark:border-white/10">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-            Step log
+            {t("Step log")}
           </p>
           <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-            Intermediate states
+            {t("Intermediate states")}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -804,10 +836,12 @@ function CipherJobDetails({
 }
 
 function StepStatistics({ stats }: { stats: CipherMetricStat[] }) {
+  const { t } = useTranslation();
+
   if (stats.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        Step statistics will appear after the worker records metric values.
+        {t("Step statistics will appear after the worker records metric values.")}
       </div>
     );
   }
@@ -817,10 +851,10 @@ function StepStatistics({ stats }: { stats: CipherMetricStat[] }) {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Step statistics
+            {t("Step statistics")}
           </p>
         </div>
-        <Badge variant="outline">mean +/- SD</Badge>
+        <Badge variant="outline">{t("mean +/- SD")}</Badge>
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
         {stats.map((metric) => (
@@ -829,7 +863,7 @@ function StepStatistics({ stats }: { stats: CipherMetricStat[] }) {
             className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5"
           >
             <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-              {metric.label}
+              {t(metric.label)}
             </p>
             <p className="truncate text-sm font-semibold tabular-nums text-slate-950 dark:text-slate-50">
               {metric.mean.toFixed(4)} +/- {metric.standardDeviation.toFixed(4)}
@@ -903,6 +937,7 @@ function SingleMetricChart({
   metric: MetricDescriptor;
   stats?: CipherMetricStat;
 }) {
+  const { t } = useTranslation();
   const steps = job.steps ?? [];
   if (steps.length === 1) {
     const value = steps[0][metric.key];
@@ -914,7 +949,7 @@ function SingleMetricChart({
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {metric.label}
+              {t(metric.label)}
             </p>
             <p
               className={cn(
@@ -926,7 +961,9 @@ function SingleMetricChart({
             </p>
           </div>
           <Badge variant="outline">
-            SD {stats?.standardDeviation.toFixed(4) ?? "0.0000"}
+            {t("SD {{value}}", {
+              value: stats?.standardDeviation.toFixed(4) ?? "0.0000",
+            })}
           </Badge>
         </div>
         <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
@@ -996,20 +1033,25 @@ function SingleMetricChart({
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            {metric.label}
+            {t(metric.label)}
           </p>
           <p className={cn("mt-1 text-base font-semibold tabular-nums", metric.textClass)}>
             {stats ? stats.final.toFixed(4) : "0.0000"}
           </p>
         </div>
         <Badge variant="outline">
-          SD {stats?.standardDeviation.toFixed(4) ?? "0.0000"}
+          {t("SD {{value}}", {
+            value: stats?.standardDeviation.toFixed(4) ?? "0.0000",
+          })}
         </Badge>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`${metric.label} by ${isKeyLengthChart ? "key length" : "step"}`}
+        aria-label={t("{{metric}} by {{axis}}", {
+          metric: t(metric.label),
+          axis: t(isKeyLengthChart ? "key length" : "step"),
+        })}
         className="h-36 w-full overflow-visible"
       >
         {[0, 0.5, 1].map((ratio) => {
@@ -1076,6 +1118,7 @@ function SingleMetricChart({
 }
 
 function MetricsChart({ job }: { job: ClassicalCipherJob }) {
+  const { t } = useTranslation();
   const steps = job.steps ?? [];
   const width = 980;
   const height = 230;
@@ -1120,7 +1163,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
       <div className="grid min-h-56 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-[#080b16]">
         <div className="text-center">
           <Activity className="mx-auto size-8" />
-          <p className="mt-3 text-sm">Metrics will appear after completion.</p>
+          <p className="mt-3 text-sm">{t("Metrics will appear after completion.")}</p>
         </div>
       </div>
     );
@@ -1133,17 +1176,17 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
       <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
-        <Legend swatch="bg-cyan-400" label="Hurst" />
-        <Legend swatch="bg-slate-300" label="DFA alpha" />
-        <Legend swatch="bg-emerald-400" label="Entropy" />
+        <Legend swatch="bg-cyan-400" label={t("Hurst")} />
+        <Legend swatch="bg-slate-300" label={t("DFA alpha")} />
+        <Legend swatch="bg-emerald-400" label={t("Entropy")} />
         <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-          X: {isKeyLengthChart ? "key length" : "step"}
+          {t("X: {{axis}}", { axis: t(isKeyLengthChart ? "key length" : "step") })}
         </span>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Cipher metrics chart"
+        aria-label={t("Cipher metrics chart")}
         className="h-64 w-full overflow-visible"
       >
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -1234,6 +1277,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
 }
 
 function SingleStepMetricBars({ step }: { step: CipherStep }) {
+  const { t } = useTranslation();
   const values = metricDescriptors.map((metric) => {
     const value = step[metric.key];
     const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
@@ -1252,7 +1296,7 @@ function SingleStepMetricBars({ step }: { step: CipherStep }) {
         {values.map((metric) => (
           <div key={metric.key} className="min-w-0">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <Legend swatch={metric.swatch} label={metric.shortLabel} />
+              <Legend swatch={metric.swatch} label={t(metric.shortLabel)} />
               <span className="font-mono text-sm tabular-nums text-slate-700 dark:text-slate-200">
                 {metric.value.toFixed(4)}
               </span>
@@ -1308,18 +1352,20 @@ function Legend({ swatch, label }: { swatch: string; label: string }) {
 }
 
 function StepTable({ steps }: { steps: CipherStep[] }) {
+  const { t } = useTranslation();
+
   return (
     <div className="max-h-[460px] overflow-auto">
       <table className="w-full min-w-[980px] text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
           <tr>
-            <th className="px-4 py-3 font-medium">Step</th>
-            <th className="px-4 py-3 font-medium">Key length</th>
-            <th className="px-4 py-3 font-medium">Description</th>
-            <th className="px-4 py-3 font-medium">Hurst</th>
-            <th className="px-4 py-3 font-medium">DFA</th>
-            <th className="px-4 py-3 font-medium">Entropy</th>
-            <th className="px-4 py-3 font-medium">Text preview</th>
+            <th className="px-4 py-3 font-medium">{t("Step")}</th>
+            <th className="px-4 py-3 font-medium">{t("Key length")}</th>
+            <th className="px-4 py-3 font-medium">{t("Description")}</th>
+            <th className="px-4 py-3 font-medium">{t("Hurst")}</th>
+            <th className="px-4 py-3 font-medium">{t("DFA")}</th>
+            <th className="px-4 py-3 font-medium">{t("Entropy")}</th>
+            <th className="px-4 py-3 font-medium">{t("Text preview")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -1351,7 +1397,7 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
           {steps.length === 0 ? (
             <tr>
               <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
-                Waiting for worker steps.
+                {t("Waiting for worker steps.")}
               </td>
             </tr>
           ) : null}
