@@ -6,11 +6,12 @@ import {
 import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
 import { calculateByteMetrics } from '../classical-ciphers/classical-ciphers.metrics';
 import {
+  encryptAes,
   encryptAesCorpusWithSampledSteps,
   formatBytes,
   parseBytes,
 } from './aes.engine';
-import { encryptDesCorpusWithSampledSteps } from './des.engine';
+import { encryptDes, encryptDesCorpusWithSampledSteps } from './des.engine';
 import {
   AesMode,
   BinaryEncoding,
@@ -18,6 +19,9 @@ import {
   ComplexCipherParameters,
   ComplexCipherWorkerResult,
 } from './complex-ciphers.types';
+
+const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 50_000;
+const FINAL_METRIC_SAMPLE_SIZE = 50_000;
 
 export function runComplexCipher(
   text: string,
@@ -53,27 +57,44 @@ function encryptTextWithBlockCipher(
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
     : undefined;
-  const result =
-    algorithmLabel === 'AES'
+  const paddedLength = getPaddedLength(
+    plaintext.length,
+    algorithmLabel === 'AES' ? 16 : 8,
+  );
+  const shouldCollectRoundMetrics =
+    paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
+  const result = shouldCollectRoundMetrics
+    ? algorithmLabel === 'AES'
       ? encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv })
-      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv });
+      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv })
+    : {
+        ciphertext:
+          algorithmLabel === 'AES'
+            ? encryptAes(plaintext, key, { mode, iv }).ciphertext
+            : encryptDes(plaintext, key, { mode, iv }).ciphertext,
+        steps: [],
+        sampleSize: 0,
+        totalBytes: paddedLength,
+      };
   const ciphertext = result.ciphertext;
   const encodedIv =
     mode === AesMode.CBC && iv
       ? formatBytes(iv, BinaryEncoding.HEX)
       : undefined;
   const finalText = formatBytes(ciphertext, outputEncoding);
-  const stepResponses = result.steps.map((bytes, index) =>
-    createBlockCipherStep(
-      index,
-      result.steps.length,
-      bytes,
-      outputEncoding,
-      algorithmLabel,
-    ),
-  );
+  const stepResponses = shouldCollectRoundMetrics
+    ? result.steps.map((bytes, index) =>
+        createBlockCipherStep(
+          index,
+          result.steps.length,
+          bytes,
+          outputEncoding,
+          algorithmLabel,
+        ),
+      )
+    : [];
   const finalMetrics = calculateByteMetrics(
-    result.steps.at(-1) ?? new Uint8Array(),
+    sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
   );
   const byteEntropy = finalMetrics.wordFrequencyEntropy;
 
@@ -90,12 +111,22 @@ function encryptTextWithBlockCipher(
       iv: encodedIv,
       plaintextLength: plaintext.length,
       ciphertextLength: ciphertext.length,
-      stepSampleSize: result.sampleSize,
-      stepSampled: result.sampleSize < result.totalBytes,
+      stepMetricThresholdBytes: COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES,
+      stepMetricsSkipped: !shouldCollectRoundMetrics,
+      stepSampleSize: shouldCollectRoundMetrics ? result.sampleSize : 0,
+      stepSampled:
+        shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
       stepSampleSourceBytes: result.totalBytes,
       byteEntropy,
     },
   };
+}
+
+function getPaddedLength(byteLength: number, blockSize: number): number {
+  const remainder = byteLength % blockSize;
+  const paddingLength = remainder === 0 ? blockSize : blockSize - remainder;
+
+  return byteLength + paddingLength;
 }
 
 function createBlockCipherStep(
@@ -142,6 +173,10 @@ function createBlockCipherStepDescription(
 function calculateStepMetricStats(
   steps: CipherStepResponseDto[],
 ): CipherMetricStatDto[] {
+  if (steps.length === 0) {
+    return [];
+  }
+
   const metricLabels: Array<{ key: CipherMetricKey; label: string }> = [
     { key: 'hurstExponent', label: 'Hurst' },
     { key: 'dfaAlpha', label: 'DFA' },
@@ -179,4 +214,18 @@ function roundMetric(value: number): number {
   }
 
   return Math.round(value * 10000) / 10000;
+}
+
+function sampleBytes(bytes: Uint8Array, maxSampleSize: number): Uint8Array {
+  if (bytes.length <= maxSampleSize) {
+    return bytes;
+  }
+
+  const sample = new Uint8Array(maxSampleSize);
+  for (let index = 0; index < maxSampleSize; index += 1) {
+    const sourceIndex = Math.floor((index * bytes.length) / maxSampleSize);
+    sample[index] = bytes[sourceIndex];
+  }
+
+  return sample;
 }

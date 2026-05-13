@@ -537,6 +537,7 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
   const steps = job.steps ?? [];
   const algorithm = formatJobAlgorithm(job);
   const isSampled = job.metadata?.stepSampled === true;
+  const metricsSkipped = job.metadata?.stepMetricsSkipped === true;
   const sampleSize =
     typeof job.metadata?.stepSampleSize === "number"
       ? job.metadata.stepSampleSize
@@ -545,7 +546,11 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
   if (steps.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        {t("Round states will appear after the corpus worker completes.")}
+        {metricsSkipped
+          ? t(
+              "Round metrics were skipped because this corpus is above the detailed-step threshold.",
+            )
+          : t("Round states will appear after the corpus worker completes.")}
       </div>
     );
   }

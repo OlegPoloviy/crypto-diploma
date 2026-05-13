@@ -363,7 +363,7 @@ describe('ComplexCiphersService', () => {
     });
   });
 
-  it('stores sampled AES job step payloads for large corpora', () => {
+  it('skips round metrics for large AES corpora', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.AES,
@@ -376,13 +376,37 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_016,
-      stepSampleSize: 50_000,
-      stepSampled: true,
+      stepMetricThresholdBytes: 50_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+      stepSampled: false,
       stepSampleSourceBytes: 60_016,
     });
-    expect(result.steps?.at(-1)?.text.length).toBeLessThan(
-      result.finalText.length,
+    expect(result.steps).toEqual([]);
+    expect(result.metricStats).toEqual([]);
+  });
+
+  it('skips round metrics for large DES corpora', () => {
+    const result = runComplexCipher(
+      'a'.repeat(60_000),
+      ComplexCipherAlgorithm.DES,
+      {
+        key: '133457799bbcdff1',
+        mode: AesMode.CBC,
+        iv: '1234567890abcdef',
+      },
     );
+
+    expect(result.metadata).toMatchObject({
+      ciphertextLength: 60_008,
+      stepMetricThresholdBytes: 50_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+      stepSampled: false,
+      stepSampleSourceBytes: 60_008,
+    });
+    expect(result.steps).toEqual([]);
+    expect(result.metricStats).toEqual([]);
   });
 
   it('exposes AES encryption through the service DTO contract', () => {
