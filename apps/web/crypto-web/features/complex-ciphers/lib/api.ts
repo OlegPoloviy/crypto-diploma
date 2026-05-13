@@ -2,13 +2,17 @@ import {
   AesDecryptInput,
   AesEncryptInput,
   AesResponse,
+  ComplexCipherAlgorithm,
   ComplexCipherJob,
   CreateAesJobInput,
 } from "../types/aes-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
 
-export async function encryptAes(input: AesEncryptInput): Promise<AesResponse> {
-  const response = await fetch("/api/complex-ciphers/aes/encrypt", {
+export async function encryptAes(
+  input: AesEncryptInput,
+  algorithm: ComplexCipherAlgorithm = "aes",
+): Promise<AesResponse> {
+  const response = await fetch(`/api/complex-ciphers/${algorithm}/encrypt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -17,8 +21,11 @@ export async function encryptAes(input: AesEncryptInput): Promise<AesResponse> {
   return parseResponse<AesResponse>(response);
 }
 
-export async function decryptAes(input: AesDecryptInput): Promise<AesResponse> {
-  const response = await fetch("/api/complex-ciphers/aes/decrypt", {
+export async function decryptAes(
+  input: AesDecryptInput,
+  algorithm: ComplexCipherAlgorithm = "aes",
+): Promise<AesResponse> {
+  const response = await fetch(`/api/complex-ciphers/${algorithm}/decrypt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -47,8 +54,9 @@ export async function getComplexCipherJob(
 
 export async function createAesJob(
   input: CreateAesJobInput,
+  algorithm: ComplexCipherAlgorithm = "aes",
 ): Promise<ComplexCipherJob> {
-  const response = await fetch("/api/complex-ciphers/jobs/aes", {
+  const response = await fetch(`/api/complex-ciphers/jobs/${algorithm}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -58,6 +66,7 @@ export async function createAesJob(
 }
 
 export async function createAesJobsFromFiles(input: {
+  algorithm?: ComplexCipherAlgorithm;
   title: string;
   files: File[];
   fileType: TextFileType;
@@ -81,10 +90,13 @@ export async function createAesJobsFromFiles(input: {
   }
   input.files.forEach((file) => formData.append("files", file));
 
-  const response = await fetch("/api/complex-ciphers/jobs/aes/files", {
-    method: "POST",
-    body: formData,
-  });
+  const response = await fetch(
+    `/api/complex-ciphers/jobs/${input.algorithm ?? "aes"}/files`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
 
   return parseResponse<ComplexCipherJob[]>(response);
 }

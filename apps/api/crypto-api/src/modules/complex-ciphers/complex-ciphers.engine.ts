@@ -10,6 +10,7 @@ import {
   formatBytes,
   parseBytes,
 } from './aes.engine';
+import { encryptDesCorpusWithSampledSteps } from './des.engine';
 import {
   AesMode,
   BinaryEncoding,
@@ -25,15 +26,18 @@ export function runComplexCipher(
 ): ComplexCipherWorkerResult {
   switch (algorithm) {
     case ComplexCipherAlgorithm.AES:
-      return encryptTextWithAes(text, parameters);
+      return encryptTextWithBlockCipher(text, parameters, 'AES');
+    case ComplexCipherAlgorithm.DES:
+      return encryptTextWithBlockCipher(text, parameters, 'DES');
     default:
       throw new BadRequestException('Unsupported complex cipher algorithm');
   }
 }
 
-function encryptTextWithAes(
+function encryptTextWithBlockCipher(
   text: string,
   parameters: ComplexCipherParameters,
+  algorithmLabel: 'AES' | 'DES',
 ): ComplexCipherWorkerResult {
   if (!text?.trim()) {
     throw new BadRequestException('Text cannot be empty');
@@ -49,7 +53,10 @@ function encryptTextWithAes(
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
     : undefined;
-  const result = encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv });
+  const result =
+    algorithmLabel === 'AES'
+      ? encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv })
+      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv });
   const ciphertext = result.ciphertext;
   const encodedIv =
     mode === AesMode.CBC && iv
@@ -57,7 +64,13 @@ function encryptTextWithAes(
       : undefined;
   const finalText = formatBytes(ciphertext, outputEncoding);
   const stepResponses = result.steps.map((bytes, index) =>
-    createAesStep(index, result.steps.length, bytes, outputEncoding),
+    createBlockCipherStep(
+      index,
+      result.steps.length,
+      bytes,
+      outputEncoding,
+      algorithmLabel,
+    ),
   );
   const finalMetrics = calculateByteMetrics(
     result.steps.at(-1) ?? new Uint8Array(),
@@ -71,6 +84,7 @@ function encryptTextWithAes(
     metadata: {
       mode,
       keySize: key.length * 8,
+      algorithm: algorithmLabel.toLowerCase(),
       inputEncoding,
       outputEncoding,
       iv: encodedIv,
@@ -84,17 +98,22 @@ function encryptTextWithAes(
   };
 }
 
-function createAesStep(
+function createBlockCipherStep(
   index: number,
   totalSteps: number,
   bytes: Uint8Array,
   outputEncoding: BinaryEncoding,
+  algorithmLabel: 'AES' | 'DES',
 ): CipherStepResponseDto {
   const metrics = calculateByteMetrics(bytes);
 
   return {
     step: index + 1,
-    description: createAesStepDescription(index, totalSteps),
+    description: createBlockCipherStepDescription(
+      index,
+      totalSteps,
+      algorithmLabel,
+    ),
     text: formatBytes(bytes, outputEncoding),
     hurstExponent: metrics.hurstExponent,
     dfaAlpha: metrics.dfaAlpha,
@@ -102,18 +121,22 @@ function createAesStep(
   };
 }
 
-function createAesStepDescription(index: number, totalSteps: number): string {
-  if (index === 0) {
+function createBlockCipherStepDescription(
+  index: number,
+  totalSteps: number,
+  algorithmLabel: 'AES' | 'DES',
+): string {
+  if (algorithmLabel === 'AES' && index === 0) {
     return 'AES initial AddRoundKey (whitening)';
   }
 
-  const round = index;
-  const lastRound = totalSteps - 1;
+  const round = algorithmLabel === 'AES' ? index : index + 1;
+  const lastRound = algorithmLabel === 'AES' ? totalSteps - 1 : totalSteps;
   if (round === lastRound) {
-    return `AES final round ${round} of ${lastRound}`;
+    return `${algorithmLabel} final round ${round} of ${lastRound}`;
   }
 
-  return `AES round ${round} of ${lastRound}`;
+  return `${algorithmLabel} round ${round} of ${lastRound}`;
 }
 
 function calculateStepMetricStats(

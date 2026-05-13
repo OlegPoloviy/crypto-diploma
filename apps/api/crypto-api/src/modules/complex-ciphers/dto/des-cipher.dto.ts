@@ -1,28 +1,32 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AesMode, BinaryEncoding } from '../complex-ciphers.types';
 
-export class CreateAesCipherJobDto {
+export class DesEncryptDto {
   @ApiProperty({
-    example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
-    description: 'Existing parsed text id from text-parser',
+    example: 'hello world',
+    description: 'Plain text to encrypt',
   })
-  @IsUUID('4')
-  parsedTextId: string;
+  @IsString()
+  @IsNotEmpty()
+  plaintext: string;
 
   @ApiProperty({
-    example: '000102030405060708090a0b0c0d0e0f',
-    description: 'AES key. Must decode to 16, 24, or 32 bytes',
+    example: '133457799bbcdff1',
+    description: 'DES key. Must decode to 8 bytes',
   })
   @IsString()
   @IsNotEmpty()
   key: string;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.UTF8,
+    description: 'Encoding used to decode plaintext',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @ApiPropertyOptional({
     enum: BinaryEncoding,
@@ -52,8 +56,8 @@ export class CreateAesCipherJobDto {
   mode?: AesMode;
 
   @ApiPropertyOptional({
-    example: '101112131415161718191a1b1c1d1e1f',
-    description: 'Initialization vector for CBC mode. Must decode to 16 bytes',
+    example: '1234567890abcdef',
+    description: 'Initialization vector for CBC mode. Must decode to 8 bytes',
   })
   @IsString()
   @IsOptional()
@@ -69,13 +73,14 @@ export class CreateAesCipherJobDto {
   ivEncoding?: BinaryEncoding;
 }
 
-export class CreateDesCipherJobDto {
+export class DesDecryptDto {
   @ApiProperty({
-    example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
-    description: 'Existing parsed text id from text-parser',
+    example: '85e813540f0ab405',
+    description: 'Ciphertext to decrypt',
   })
-  @IsUUID('4')
-  parsedTextId: string;
+  @IsString()
+  @IsNotEmpty()
+  ciphertext: string;
 
   @ApiProperty({
     example: '133457799bbcdff1',
@@ -88,6 +93,15 @@ export class CreateDesCipherJobDto {
   @ApiPropertyOptional({
     enum: BinaryEncoding,
     default: BinaryEncoding.HEX,
+    description: 'Encoding used to decode ciphertext',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.HEX,
     description: 'Encoding used to decode key',
   })
   @IsEnum(BinaryEncoding)
@@ -96,8 +110,8 @@ export class CreateDesCipherJobDto {
 
   @ApiPropertyOptional({
     enum: BinaryEncoding,
-    default: BinaryEncoding.HEX,
-    description: 'Encoding used for returned ciphertext',
+    default: BinaryEncoding.UTF8,
+    description: 'Encoding used for returned plaintext',
   })
   @IsEnum(BinaryEncoding)
   @IsOptional()

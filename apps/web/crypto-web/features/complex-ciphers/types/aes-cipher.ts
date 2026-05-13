@@ -4,6 +4,8 @@ export type BinaryEncoding = "utf8" | "hex" | "base64";
 
 export type AesOperation = "encrypt" | "decrypt";
 
+export type ComplexCipherAlgorithm = "aes" | "des";
+
 export interface AesResponse {
   operation: AesOperation;
   mode: AesMode;
@@ -34,8 +36,6 @@ export interface AesDecryptInput {
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
-
-export type ComplexCipherAlgorithm = "aes";
 
 export type ComplexCipherJobStatus =
   | "queued"
@@ -92,3 +92,7 @@ export interface CreateAesJobInput {
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
+
+export type CreateComplexCipherJobInput = CreateAesJobInput & {
+  algorithm: ComplexCipherAlgorithm;
+};

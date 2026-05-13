@@ -43,11 +43,13 @@ import {
   AesMode,
   AesOperation,
   BinaryEncoding,
+  ComplexCipherAlgorithm,
   ComplexCipherJob,
   ComplexCipherJobStatus,
   CipherStep,
 } from "../types/aes-cipher";
 
+const algorithmOptions: ComplexCipherAlgorithm[] = ["aes", "des"];
 const encodingOptions: BinaryEncoding[] = ["utf8", "hex", "base64"];
 const modeOptions: AesMode[] = ["cbc", "ecb"];
 const fileTypeOptions: {
@@ -57,7 +59,11 @@ const fileTypeOptions: {
 }[] = [
   { value: "binary", label: "Binary", accept: "" },
   { value: "plain-text", label: "Plain text", accept: ".txt,.text,text/plain" },
-  { value: "markdown", label: "Markdown", accept: ".md,.markdown,text/markdown" },
+  {
+    value: "markdown",
+    label: "Markdown",
+    accept: ".md,.markdown,text/markdown",
+  },
   { value: "csv", label: "CSV", accept: ".csv,text/csv" },
   { value: "json", label: "JSON", accept: ".json,application/json" },
 ];
@@ -103,7 +109,7 @@ function AesCorpusJobPanel({
   workspace: ReturnType<typeof useAesWorkspace>;
 }) {
   const { t } = useTranslation();
-  const [fileBatchTitle, setFileBatchTitle] = useState("AES file batch");
+  const [fileBatchTitle, setFileBatchTitle] = useState("Complex file batch");
   const [fileType, setFileType] = useState<TextFileType>("binary");
   const [files, setFiles] = useState<File[]>([]);
   const selectedFileType = fileTypeOptions.find(
@@ -135,7 +141,7 @@ function AesCorpusJobPanel({
           {t("Corpus worker")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          {t("Queue AES job")}
+          {t("Queue {{cipher}} job", { cipher: workspace.cipherLabel })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
@@ -179,7 +185,8 @@ function AesCorpusJobPanel({
           >
             {workspace.completedParsedTexts.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title} · {t("{{count}} words", { count: formatNumber(item.totalWords) })}
+                {item.title} ·{" "}
+                {t("{{count}} words", { count: formatNumber(item.totalWords) })}
               </option>
             ))}
           </select>
@@ -187,16 +194,18 @@ function AesCorpusJobPanel({
 
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
           {t(
-            "The worker uses the AES key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.",
+            "The worker uses the selected cipher key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.",
           )}
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="aesFileBatchTitle">{t("File batch title")}</Label>
+              <Label htmlFor="cipherFileBatchTitle">
+                {t("File batch title")}
+              </Label>
               <Input
-                id="aesFileBatchTitle"
+                id="cipherFileBatchTitle"
                 value={fileBatchTitle}
                 maxLength={150}
                 onChange={(event) => setFileBatchTitle(event.target.value)}
@@ -314,7 +323,7 @@ function AesJobsPanel({
                 {t("Worker queue")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                {t("AES corpus jobs")}
+                {t("Complex cipher corpus jobs")}
               </CardTitle>
             </div>
             {workspace.hasActiveJobs ? (
@@ -348,7 +357,7 @@ function AesJobsPanel({
                   >
                     <td className="px-4 py-4">
                       <div className="font-medium text-slate-950 dark:text-slate-100">
-                        AES
+                        {formatJobAlgorithm(job)}
                       </div>
                       <div className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
                         {job.id}
@@ -387,7 +396,7 @@ function AesJobsPanel({
                     <td colSpan={6} className="px-5 py-14 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                         <ShieldCheck className="size-8" />
-                        <p>{t("No AES corpus jobs yet.")}</p>
+                        <p>{t("No complex cipher corpus jobs yet.")}</p>
                       </div>
                     </td>
                   </tr>
@@ -418,7 +427,9 @@ function AesJobDetails({
         <CardContent className="grid min-h-52 place-items-center p-8 text-center text-slate-500">
           <div>
             <ShieldCheck className="mx-auto size-9" />
-            <p className="mt-3">{t("Select or queue an AES corpus job.")}</p>
+            <p className="mt-3">
+              {t("Select or queue a complex cipher corpus job.")}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -475,7 +486,9 @@ function AesJobDetails({
           <StateTile
             icon={<KeyRound className="size-4" />}
             label={t("Key size")}
-            value={t("{{count}} bits", { count: String(job.metadata?.keySize ?? "-") })}
+            value={t("{{count}} bits", {
+              count: String(job.metadata?.keySize ?? "-"),
+            })}
           />
           <StateTile
             icon={<Database className="size-4" />}
@@ -522,6 +535,7 @@ function AesJobDetails({
 function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
   const { t } = useTranslation();
   const steps = job.steps ?? [];
+  const algorithm = formatJobAlgorithm(job);
   const isSampled = job.metadata?.stepSampled === true;
   const sampleSize =
     typeof job.metadata?.stepSampleSize === "number"
@@ -531,7 +545,7 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
   if (steps.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        {t("AES round states will appear after the corpus worker completes.")}
+        {t("Round states will appear after the corpus worker completes.")}
       </div>
     );
   }
@@ -544,19 +558,19 @@ function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              {t("AES rounds")}
+              {t("{{cipher}} rounds", { cipher: algorithm })}
             </p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               {isSampled
                 ? t(
-                    "Sampled corpus state after whitening and each AES round ({{count}} bytes).",
+                    "Sampled corpus state after each round ({{count}} bytes).",
                     {
                       count: formatNumber(
                         sampleSize ?? steps.at(-1)?.text.length ?? 0,
                       ),
                     },
                   )
-                : t("Corpus state after whitening and each AES round.")}
+                : t("Corpus state after each round.")}
             </p>
           </div>
           <Badge variant="outline">
@@ -631,8 +645,7 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
       (steps.length <= 1
         ? 0
         : (index / (steps.length - 1)) * (width - padding * 2));
-    const y =
-      height - padding - (value / maxValue) * (height - padding * 2);
+    const y = height - padding - (value / maxValue) * (height - padding * 2);
 
     return { x, y };
   };
@@ -641,13 +654,17 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
       <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
         {metrics.map((metric) => (
-          <LegendDot key={metric.key} color={metric.color} label={t(metric.label)} />
+          <LegendDot
+            key={metric.key}
+            color={metric.color}
+            label={t(metric.label)}
+          />
         ))}
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={t("AES round metrics chart")}
+        aria-label={t("Round metrics chart")}
         className="h-56 w-full overflow-visible"
       >
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -738,7 +755,10 @@ function AesSingleRoundMetricBars({
               <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
                 <div
                   className="h-full rounded-full"
-                  style={{ width: `${percent}%`, backgroundColor: metric.color }}
+                  style={{
+                    width: `${percent}%`,
+                    backgroundColor: metric.color,
+                  }}
                 />
               </div>
               <div className="mt-2 flex justify-between text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
@@ -767,7 +787,9 @@ function MetricStrip({ job }: { job: ComplexCipherJob }) {
   if (stats.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
-        {t("Hurst, DFA, and entropy metrics will appear after the worker completes.")}
+        {t(
+          "Hurst, DFA, and entropy metrics will appear after the worker completes.",
+        )}
       </div>
     );
   }
@@ -824,8 +846,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
       (chartValues.length <= 1
         ? 0
         : (index / (chartValues.length - 1)) * (width - padding * 2));
-    const y =
-      height - padding - (value / maxMetric) * (height - padding * 2);
+    const y = height - padding - (value / maxMetric) * (height - padding * 2);
 
     return { x, y };
   };
@@ -857,7 +878,7 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={t("AES metrics chart")}
+          aria-label={t("Complex cipher metrics chart")}
           className="h-56 w-full overflow-visible"
         >
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -983,13 +1004,18 @@ function formatJobParameters(job: ComplexCipherJob) {
   return `${mode}; out=${output}`;
 }
 
+function formatJobAlgorithm(job: ComplexCipherJob) {
+  return job.algorithm.toUpperCase();
+}
+
 function formatJobOutput(job: ComplexCipherJob) {
   if (job.status !== "completed") {
     return "-";
   }
 
   const bytes = job.metadata?.ciphertextLength;
-  const encoding = job.metadata?.outputEncoding ?? job.parameters.outputEncoding;
+  const encoding =
+    job.metadata?.outputEncoding ?? job.parameters.outputEncoding;
 
   return `${String(bytes ?? "-")} bytes · ${String(encoding ?? "hex").toUpperCase()}`;
 }
@@ -1013,7 +1039,7 @@ function downloadAesCiphertext(job: ComplexCipherJob) {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `aes-${job.id.slice(0, 8)}-${outputEncoding}.txt`;
+  link.download = `${job.algorithm}-${job.id.slice(0, 8)}-${outputEncoding}.txt`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1031,14 +1057,21 @@ function downloadAesBinary(job: ComplexCipherJob) {
   const bytes = decodeAesOutputBytes(job.finalText, outputEncoding);
   const bits = bytesToBitString(bytes);
 
-  downloadTextFile(bits, `aes-${job.id.slice(0, 8)}-${outputEncoding}-binary.txt`);
+  downloadTextFile(
+    bits,
+    `${job.algorithm}-${job.id.slice(0, 8)}-${outputEncoding}-binary.txt`,
+  );
 }
 
-function downloadAesResultBinary(value: string, outputEncoding: BinaryEncoding) {
+function downloadAesResultBinary(
+  value: string,
+  outputEncoding: BinaryEncoding,
+  algorithm: ComplexCipherAlgorithm,
+) {
   const bytes = decodeAesOutputBytes(value, outputEncoding);
   const bits = bytesToBitString(bytes);
 
-  downloadTextFile(bits, `aes-result-${outputEncoding}-binary.txt`);
+  downloadTextFile(bits, `${algorithm}-result-${outputEncoding}-binary.txt`);
 }
 
 function decodeAesOutputBytes(value: string, encoding: BinaryEncoding) {
@@ -1058,7 +1091,10 @@ function decodeHexBytes(value: string) {
   const bytes = new Uint8Array(Math.floor(normalized.length / 2));
 
   for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+    bytes[index] = Number.parseInt(
+      normalized.slice(index * 2, index * 2 + 2),
+      16,
+    );
   }
 
   return bytes;
@@ -1076,7 +1112,9 @@ function decodeBase64Bytes(value: string) {
 }
 
 function bytesToBitString(bytes: Uint8Array) {
-  return Array.from(bytes, (byte) => byte.toString(2).padStart(8, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(2).padStart(8, "0")).join(
+    "",
+  );
 }
 
 function downloadTextFile(text: string, filename: string) {
@@ -1153,11 +1191,11 @@ function ComplexCipherSidebar() {
       <div className="mt-auto rounded-lg border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
         <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-cyan-700 dark:text-cyan-300">
           <KeyRound className="size-3.5" />
-          {t("AES Lab")}
+          {t("Complex Cipher Lab")}
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
           {t(
-            "Run the backend AES implementation directly and inspect encoded input, key, IV, and output parameters in one place.",
+            "Run backend AES and DES implementations directly and inspect encoded input, key, IV, and output parameters in one place.",
           )}
         </p>
       </div>
@@ -1177,11 +1215,11 @@ function ComplexCipherHero({ onLoadVector }: { onLoadVector: () => void }) {
             {t("Complex cipher lab")}
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-3xl">
-            {t("AES encryption and decryption")}
+            {t("AES and DES encryption and decryption")}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             {t(
-              "Work with AES-128, AES-192, and AES-256 keys through the API module, switching between CBC and ECB modes plus hex, base64, and UTF-8 data.",
+              "Work with AES and DES through the API module, switching between CBC and ECB modes plus hex, base64, and UTF-8 data.",
             )}
           </p>
         </div>
@@ -1214,10 +1252,26 @@ function AesControlPanel({
           {t("Parameters")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          {t("AES controls")}
+          {t("{{cipher}} controls", { cipher: workspace.cipherLabel })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
+        <Tabs
+          value={workspace.algorithm}
+          onValueChange={(value) =>
+            workspace.setAlgorithm(value as ComplexCipherAlgorithm)
+          }
+        >
+          <TabsList className="grid-cols-2">
+            {algorithmOptions.map((item) => (
+              <TabsTrigger key={item} value={item}>
+                <ShieldCheck className="size-4" />
+                {item.toUpperCase()}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
         <Tabs
           value={workspace.operation}
           onValueChange={(value) =>
@@ -1241,7 +1295,9 @@ function AesControlPanel({
           <select
             id="aes-mode"
             value={workspace.mode}
-            onChange={(event) => workspace.setMode(event.target.value as AesMode)}
+            onChange={(event) =>
+              workspace.setMode(event.target.value as AesMode)
+            }
             className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
           >
             {modeOptions.map((item) => (
@@ -1344,7 +1400,7 @@ function AesControlPanel({
           ) : (
             <Play className="size-4" />
           )}
-          {t("Run AES")}
+          {t("Run {{cipher}}", { cipher: workspace.cipherLabel })}
         </Button>
       </CardContent>
     </Card>
@@ -1388,7 +1444,8 @@ function AesIOPanel({
             }
             className="min-h-48 resize-y font-mono dark:bg-[#080b16]"
           />
-          {workspace.operation === "decrypt" && result?.operation === "encrypt" ? (
+          {workspace.operation === "decrypt" &&
+          result?.operation === "encrypt" ? (
             <Button
               type="button"
               variant="outline"
@@ -1410,12 +1467,14 @@ function AesIOPanel({
                 {t("Output")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                {t("AES result")}
+                {t("{{cipher}} result", { cipher: workspace.cipherLabel })}
               </CardTitle>
             </div>
             {result ? (
               <div className="flex flex-wrap gap-2">
-                <Badge variant="teal">{t("{{count}}-bit key", { count: result.keySize })}</Badge>
+                <Badge variant="teal">
+                  {t("{{count}}-bit key", { count: result.keySize })}
+                </Badge>
                 <Badge variant="outline">
                   {result.outputEncoding.toUpperCase()}
                 </Badge>
@@ -1425,7 +1484,10 @@ function AesIOPanel({
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_260px]">
           <pre className="max-h-72 min-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-            {result?.result ?? t("Run AES to see the encoded result.")}
+            {result?.result ??
+              t("Run {{cipher}} to see the encoded result.", {
+                cipher: workspace.cipherLabel,
+              })}
           </pre>
 
           <div className="space-y-3">
@@ -1437,7 +1499,11 @@ function AesIOPanel({
             <StateTile
               icon={<KeyRound className="size-4" />}
               label={t("Key size")}
-              value={result ? t("{{count}} bits", { count: result.keySize }) : workspace.keySizeHint}
+              value={
+                result
+                  ? t("{{count}} bits", { count: result.keySize })
+                  : workspace.keySizeHint
+              }
             />
             <StateTile
               icon={<ShieldCheck className="size-4" />}
@@ -1447,7 +1513,9 @@ function AesIOPanel({
             <StateTile
               icon={<Clipboard className="size-4" />}
               label="IV"
-              value={result?.iv ?? (workspace.mode === "cbc" ? workspace.iv : "-")}
+              value={
+                result?.iv ?? (workspace.mode === "cbc" ? workspace.iv : "-")
+              }
               mono
             />
             <Button
@@ -1457,7 +1525,11 @@ function AesIOPanel({
               disabled={!result}
               onClick={() => {
                 if (result) {
-                  downloadAesResultBinary(result.result, result.outputEncoding);
+                  downloadAesResultBinary(
+                    result.result,
+                    result.outputEncoding,
+                    workspace.algorithm,
+                  );
                 }
               }}
             >

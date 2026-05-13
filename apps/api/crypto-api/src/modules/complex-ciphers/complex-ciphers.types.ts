@@ -17,8 +17,14 @@ export enum AesOperation {
   DECRYPT = 'decrypt',
 }
 
+export enum DesOperation {
+  ENCRYPT = 'encrypt',
+  DECRYPT = 'decrypt',
+}
+
 export enum ComplexCipherAlgorithm {
   AES = 'aes',
+  DES = 'des',
 }
 
 export enum ComplexCipherJobStatus {
@@ -38,7 +44,17 @@ export interface AesJobParameters {
   ivEncoding?: BinaryEncoding;
 }
 
-export type ComplexCipherParameters = AesJobParameters;
+export interface DesJobParameters {
+  key: string;
+  inputEncoding?: BinaryEncoding;
+  keyEncoding?: BinaryEncoding;
+  outputEncoding?: BinaryEncoding;
+  mode?: AesMode;
+  iv?: string;
+  ivEncoding?: BinaryEncoding;
+}
+
+export type ComplexCipherParameters = AesJobParameters | DesJobParameters;
 
 export interface ComplexCipherWorkerData {
   text: string;

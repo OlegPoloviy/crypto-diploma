@@ -18,17 +18,38 @@ import {
   AesOperation,
   AesResponse,
   BinaryEncoding,
+  ComplexCipherAlgorithm,
   ComplexCipherJob,
 } from "../types/aes-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
 
+const cipherPresets: Record<
+  ComplexCipherAlgorithm,
+  { plaintext: string; key: string; iv: string; vectorMessage: string }
+> = {
+  aes: {
+    plaintext: "hello AES",
+    key: "000102030405060708090a0b0c0d0e0f",
+    iv: "101112131415161718191a1b1c1d1e1f",
+    vectorMessage: "Loaded AES-128 block test vector.",
+  },
+  des: {
+    plaintext: "hello DES",
+    key: "133457799bbcdff1",
+    iv: "1234567890abcdef",
+    vectorMessage: "Loaded DES block test vector.",
+  },
+};
+
 export function useAesWorkspace() {
+  const [algorithm, setAlgorithmState] =
+    useState<ComplexCipherAlgorithm>("aes");
   const [operation, setOperation] = useState<AesOperation>("encrypt");
   const [mode, setMode] = useState<AesMode>("cbc");
-  const [plaintext, setPlaintext] = useState("hello AES");
+  const [plaintext, setPlaintext] = useState(cipherPresets.aes.plaintext);
   const [ciphertext, setCiphertext] = useState("");
-  const [key, setKey] = useState("000102030405060708090a0b0c0d0e0f");
-  const [iv, setIv] = useState("101112131415161718191a1b1c1d1e1f");
+  const [key, setKey] = useState(cipherPresets.aes.key);
+  const [iv, setIv] = useState(cipherPresets.aes.iv);
   const [inputEncoding, setInputEncoding] = useState<BinaryEncoding>("utf8");
   const [cipherInputEncoding, setCipherInputEncoding] =
     useState<BinaryEncoding>("hex");
@@ -44,9 +65,9 @@ export function useAesWorkspace() {
   const [result, setResult] = useState<AesResponse | null>(null);
   const [parsedTexts, setParsedTexts] = useState<ParsedText[]>([]);
   const [jobs, setJobs] = useState<ComplexCipherJob[]>([]);
-  const [selectedParsedTextId, setSelectedParsedTextId] = useState<string | null>(
-    null,
-  );
+  const [selectedParsedTextId, setSelectedParsedTextId] = useState<
+    string | null
+  >(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const selectedParsedTextIdRef = useRef<string | null>(null);
   const selectedJobIdRef = useRef<string | null>(null);
@@ -59,11 +80,12 @@ export function useAesWorkspace() {
     operation === "encrypt" ? inputEncoding : cipherInputEncoding;
   const activeOutputEncoding =
     operation === "encrypt" ? outputEncoding : plainOutputEncoding;
+  const cipherLabel = algorithm.toUpperCase();
 
-  const keySizeHint = useMemo(() => describeKeySize(key, keyEncoding), [
-    key,
-    keyEncoding,
-  ]);
+  const keySizeHint = useMemo(
+    () => describeKeySize(key, keyEncoding),
+    [key, keyEncoding],
+  );
   const completedParsedTexts = useMemo(
     () => parsedTexts.filter((item) => item.status === "completed"),
     [parsedTexts],
@@ -81,7 +103,9 @@ export function useAesWorkspace() {
   );
   const hasActiveJobs = useMemo(
     () =>
-      jobs.some((job) => job.status === "queued" || job.status === "processing"),
+      jobs.some(
+        (job) => job.status === "queued" || job.status === "processing",
+      ),
     [jobs],
   );
 
@@ -128,12 +152,16 @@ export function useAesWorkspace() {
             ? textsResult.value
             : parsedTextsRef.current;
         const complexJobs =
-          jobsResult.status === "fulfilled" ? jobsResult.value : jobsRef.current;
+          jobsResult.status === "fulfilled"
+            ? jobsResult.value
+            : jobsRef.current;
 
         setParsedTexts(texts);
         setJobs(complexJobs);
 
-        const firstCompleted = texts.find((item) => item.status === "completed");
+        const firstCompleted = texts.find(
+          (item) => item.status === "completed",
+        );
         if (!selectedParsedTextIdRef.current && firstCompleted) {
           selectParsedText(firstCompleted.id);
         }
@@ -141,10 +169,13 @@ export function useAesWorkspace() {
           selectJob(complexJobs[0].id);
         }
 
-        if (textsResult.status === "rejected" || jobsResult.status === "rejected") {
+        if (
+          textsResult.status === "rejected" ||
+          jobsResult.status === "rejected"
+        ) {
           const failed = [
             textsResult.status === "rejected" ? "parsed texts" : null,
-            jobsResult.status === "rejected" ? "AES jobs" : null,
+            jobsResult.status === "rejected" ? "complex cipher jobs" : null,
           ]
             .filter(Boolean)
             .join(" and ");
@@ -152,7 +183,9 @@ export function useAesWorkspace() {
         }
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : "Failed to load AES jobs",
+          error instanceof Error
+            ? error.message
+            : "Failed to load complex cipher jobs",
         );
       } finally {
         setIsRefreshingJobs(false);
@@ -184,26 +217,32 @@ export function useAesWorkspace() {
     try {
       const response =
         operation === "encrypt"
-          ? await encryptAes({
-              plaintext,
-              key,
-              inputEncoding,
-              keyEncoding,
-              outputEncoding,
-              mode,
-              iv: mode === "cbc" ? iv : undefined,
-              ivEncoding,
-            })
-          : await decryptAes({
-              ciphertext,
-              key,
-              inputEncoding: cipherInputEncoding,
-              keyEncoding,
-              outputEncoding: plainOutputEncoding,
-              mode,
-              iv: mode === "cbc" ? iv : undefined,
-              ivEncoding,
-            });
+          ? await encryptAes(
+              {
+                plaintext,
+                key,
+                inputEncoding,
+                keyEncoding,
+                outputEncoding,
+                mode,
+                iv: mode === "cbc" ? iv : undefined,
+                ivEncoding,
+              },
+              algorithm,
+            )
+          : await decryptAes(
+              {
+                ciphertext,
+                key,
+                inputEncoding: cipherInputEncoding,
+                keyEncoding,
+                outputEncoding: plainOutputEncoding,
+                mode,
+                iv: mode === "cbc" ? iv : undefined,
+                ivEncoding,
+              },
+              algorithm,
+            );
 
       setResult(response);
       if (response.operation === "encrypt") {
@@ -212,12 +251,16 @@ export function useAesWorkspace() {
       }
       setMessage(
         response.operation === "encrypt"
-          ? "AES encryption completed."
-          : "AES decryption completed.",
+          ? `${cipherLabel} encryption completed.`
+          : `${cipherLabel} decryption completed.`,
       );
       return response;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "AES request failed");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : `${cipherLabel} request failed`,
+      );
       return null;
     } finally {
       setIsSubmitting(false);
@@ -234,22 +277,27 @@ export function useAesWorkspace() {
     setIsQueueingJob(true);
 
     try {
-      const created = await createAesJob({
-        parsedTextId: selectedParsedText.id,
-        key,
-        keyEncoding,
-        outputEncoding,
-        mode,
-        iv: mode === "cbc" ? iv : undefined,
-        ivEncoding,
-      });
+      const created = await createAesJob(
+        {
+          parsedTextId: selectedParsedText.id,
+          key,
+          keyEncoding,
+          outputEncoding,
+          mode,
+          iv: mode === "cbc" ? iv : undefined,
+          ivEncoding,
+        },
+        algorithm,
+      );
       selectJob(created.id);
-      setMessage("AES corpus job queued.");
+      setMessage(`${cipherLabel} corpus job queued.`);
       await refreshJobs();
       return created;
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to queue AES job",
+        error instanceof Error
+          ? error.message
+          : `Failed to queue ${cipherLabel} job`,
       );
       return null;
     } finally {
@@ -272,6 +320,7 @@ export function useAesWorkspace() {
 
     try {
       const created = await createAesJobsFromFiles({
+        algorithm,
         title: input.title,
         files: input.files,
         fileType: input.fileType,
@@ -283,12 +332,14 @@ export function useAesWorkspace() {
         ivEncoding,
       });
       selectJob(created[0]?.id ?? null);
-      setMessage(`Queued ${created.length} AES file jobs.`);
+      setMessage(`Queued ${created.length} ${cipherLabel} file jobs.`);
       await refreshJobs();
       return created;
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to queue AES jobs",
+        error instanceof Error
+          ? error.message
+          : `Failed to queue ${cipherLabel} jobs`,
       );
       return null;
     } finally {
@@ -306,11 +357,13 @@ export function useAesWorkspace() {
       if (selectedJobIdRef.current === id) {
         selectJob(remainingJobs[0]?.id ?? null);
       }
-      setMessage("AES job stopped and deleted.");
+      setMessage("Complex cipher job stopped and deleted.");
       await refreshJobs();
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to delete AES job",
+        error instanceof Error
+          ? error.message
+          : "Failed to delete complex cipher job",
       );
     }
   }
@@ -318,13 +371,38 @@ export function useAesWorkspace() {
   function loadFipsVector() {
     setOperation("encrypt");
     setMode("ecb");
-    setPlaintext("00112233445566778899aabbccddeeff");
+    setPlaintext(
+      algorithm === "aes"
+        ? "00112233445566778899aabbccddeeff"
+        : "0123456789abcdef",
+    );
     setInputEncoding("hex");
-    setKey("000102030405060708090a0b0c0d0e0f");
+    setKey(
+      algorithm === "aes"
+        ? "000102030405060708090a0b0c0d0e0f"
+        : cipherPresets.des.key,
+    );
     setKeyEncoding("hex");
     setOutputEncoding("hex");
     setResult(null);
-    setMessage("Loaded AES-128 block test vector.");
+    setMessage(cipherPresets[algorithm].vectorMessage);
+  }
+
+  function setAlgorithm(nextAlgorithm: ComplexCipherAlgorithm) {
+    const preset = cipherPresets[nextAlgorithm];
+    setAlgorithmState(nextAlgorithm);
+    setPlaintext(preset.plaintext);
+    setCiphertext("");
+    setKey(preset.key);
+    setIv(preset.iv);
+    setInputEncoding("utf8");
+    setCipherInputEncoding("hex");
+    setKeyEncoding("hex");
+    setOutputEncoding("hex");
+    setPlainOutputEncoding("utf8");
+    setIvEncoding("hex");
+    setResult(null);
+    setMessage(null);
   }
 
   function swapToDecrypt() {
@@ -337,6 +415,8 @@ export function useAesWorkspace() {
   }
 
   return {
+    algorithm,
+    cipherLabel,
     operation,
     mode,
     plaintext,
@@ -367,6 +447,7 @@ export function useAesWorkspace() {
     selectedJob,
     selectedJobId,
     hasActiveJobs,
+    setAlgorithm,
     setOperation,
     setMode,
     setPlaintext,

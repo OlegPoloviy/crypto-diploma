@@ -31,13 +31,53 @@ import {
 } from 'class-validator';
 import { TextFileType } from '../text-parser/text-parser.service';
 import { ComplexCiphersService } from './complex-ciphers.service';
-import { CreateAesCipherJobDto } from './dto/create-complex-cipher-job.dto';
+import {
+  CreateAesCipherJobDto,
+  CreateDesCipherJobDto,
+} from './dto/create-complex-cipher-job.dto';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
 import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.dto';
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
+import { DesDecryptDto, DesEncryptDto } from './dto/des-cipher.dto';
+import { DesResponseDto } from './dto/des-response.dto';
 
 class BatchAesFileDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  title: string;
+
+  @IsEnum(TextFileType)
+  @IsOptional()
+  fileType?: TextFileType;
+
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  keyEncoding?: BinaryEncoding;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  outputEncoding?: BinaryEncoding;
+
+  @IsEnum(AesMode)
+  @IsOptional()
+  mode?: AesMode;
+
+  @IsString()
+  @IsOptional()
+  iv?: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  ivEncoding?: BinaryEncoding;
+}
+
+class BatchDesFileDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
@@ -126,6 +166,26 @@ export class ComplexCiphersController {
     return this.complexCiphersService.decryptAes(body);
   }
 
+  @Post('des/encrypt')
+  @ApiOperation({
+    summary: 'Encrypt data with a self-contained DES implementation',
+  })
+  @ApiCreatedResponse({ type: DesResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed' })
+  encryptDes(@Body() body: DesEncryptDto): DesResponseDto {
+    return this.complexCiphersService.encryptDes(body);
+  }
+
+  @Post('des/decrypt')
+  @ApiOperation({
+    summary: 'Decrypt data with a self-contained DES implementation',
+  })
+  @ApiCreatedResponse({ type: DesResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed' })
+  decryptDes(@Body() body: DesDecryptDto): DesResponseDto {
+    return this.complexCiphersService.decryptDes(body);
+  }
+
   @Post('jobs/aes')
   @ApiOperation({
     summary: 'Queue AES encryption for an existing parsed text',
@@ -137,6 +197,19 @@ export class ComplexCiphersController {
     @Body() body: CreateAesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     return this.complexCiphersService.createAesJob(body);
+  }
+
+  @Post('jobs/des')
+  @ApiOperation({
+    summary: 'Queue DES encryption for an existing parsed text',
+  })
+  @ApiCreatedResponse({ type: ComplexCipherJobResponseDto })
+  @ApiBadRequestResponse({ description: 'Parsed text is not ready or invalid' })
+  @ApiNotFoundResponse({ description: 'Parsed text not found' })
+  createDesJob(
+    @Body() body: CreateDesCipherJobDto,
+  ): Promise<ComplexCipherJobResponseDto> {
+    return this.complexCiphersService.createDesJob(body);
   }
 
   @Post('jobs/aes/files')
@@ -196,6 +269,77 @@ export class ComplexCiphersController {
     @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
   ): Promise<ComplexCipherJobResponseDto[]> {
     return this.complexCiphersService.createAesJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      {
+        key: body.key,
+        keyEncoding: body.keyEncoding,
+        outputEncoding: body.outputEncoding,
+        mode: body.mode,
+        iv: body.mode === AesMode.ECB ? undefined : body.iv,
+        ivEncoding: body.ivEncoding,
+      },
+    );
+  }
+
+  @Post('jobs/des/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Upload multiple files and queue DES jobs' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'DES file batch' },
+        fileType: {
+          type: 'string',
+          enum: Object.values(TextFileType),
+          default: TextFileType.BINARY,
+        },
+        key: {
+          type: 'string',
+          example: '133457799bbcdff1',
+        },
+        keyEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        outputEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        mode: {
+          type: 'string',
+          enum: Object.values(AesMode),
+          default: AesMode.CBC,
+        },
+        iv: {
+          type: 'string',
+          example: '1234567890abcdef',
+        },
+        ivEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+          default: BinaryEncoding.HEX,
+        },
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+      required: ['title', 'files', 'key'],
+    },
+  })
+  @ApiCreatedResponse({ type: ComplexCipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createDesJobsFromFiles(
+    @Body() body: BatchDesFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<ComplexCipherJobResponseDto[]> {
+    return this.complexCiphersService.createDesJobsFromFiles(
       body.title,
       files,
       body.fileType ?? TextFileType.BINARY,
