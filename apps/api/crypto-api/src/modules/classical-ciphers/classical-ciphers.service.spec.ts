@@ -158,6 +158,24 @@ describe('ClassicalCiphersService', () => {
     );
   });
 
+  it('keeps full binary Vigenere output as raw hex for download decoding', () => {
+    const bytes = Buffer.from(
+      Array.from({ length: 5000 }, (_, index) => index % 256),
+    );
+    const key = 'abc';
+    const result = runClassicalCipher(
+      bytes.toString('hex'),
+      ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
+      { key, inputEncoding: 'hex' },
+    );
+    const keyBytes = Buffer.from(key);
+    const expected = Buffer.from(
+      bytes.map((byte, index) => (byte + keyBytes[index % keyBytes.length]) % 256),
+    ).toString('hex');
+
+    expect(result.finalText).toBe(expected);
+  });
+
   it('rejects keys without letters', () => {
     expect(() => service.encryptVigenereByKeySymbols('hello', '123')).toThrow(
       BadRequestException,

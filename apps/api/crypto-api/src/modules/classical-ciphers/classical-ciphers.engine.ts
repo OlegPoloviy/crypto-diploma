@@ -153,7 +153,9 @@ function encryptVigenereBytesByKeySymbols(
   );
 
   return {
-    finalText: steps.at(-1)?.text ?? Buffer.from(bytes).toString('hex'),
+    finalText: Buffer.from(encryptVigenereBytesFull(bytes, keyBytes)).toString(
+      'hex',
+    ),
     steps,
     metricStats: calculateStepMetricStats(steps),
   };
@@ -178,7 +180,12 @@ function encryptVigenereBytesByKeyLengths(
   );
 
   return {
-    finalText: steps.at(-1)?.text ?? Buffer.from(bytes).toString('hex'),
+    finalText: Buffer.from(
+      encryptVigenereBytesFull(
+        bytes,
+        expandByteKey(keyBytes, uniqueLengths.at(-1) ?? keyBytes.length),
+      ),
+    ).toString('hex'),
     steps,
     metricStats: calculateStepMetricStats(steps),
   };

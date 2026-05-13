@@ -503,6 +503,16 @@ function AesJobDetails({
             <Download className="size-4" />
             {t("Download ciphertext")}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+            disabled={!job.finalText}
+            onClick={() => downloadAesBinary(job)}
+          >
+            <Binary className="size-4" />
+            {t("Download binary")}
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -1010,6 +1020,78 @@ function downloadAesCiphertext(job: ComplexCipherJob) {
   URL.revokeObjectURL(url);
 }
 
+function downloadAesBinary(job: ComplexCipherJob) {
+  if (!job.finalText) {
+    return;
+  }
+
+  const outputEncoding = String(
+    job.metadata?.outputEncoding ?? job.parameters.outputEncoding ?? "hex",
+  ) as BinaryEncoding;
+  const bytes = decodeAesOutputBytes(job.finalText, outputEncoding);
+  const bits = bytesToBitString(bytes);
+
+  downloadTextFile(bits, `aes-${job.id.slice(0, 8)}-${outputEncoding}-binary.txt`);
+}
+
+function downloadAesResultBinary(value: string, outputEncoding: BinaryEncoding) {
+  const bytes = decodeAesOutputBytes(value, outputEncoding);
+  const bits = bytesToBitString(bytes);
+
+  downloadTextFile(bits, `aes-result-${outputEncoding}-binary.txt`);
+}
+
+function decodeAesOutputBytes(value: string, encoding: BinaryEncoding) {
+  if (encoding === "hex") {
+    return decodeHexBytes(value);
+  }
+
+  if (encoding === "base64") {
+    return decodeBase64Bytes(value);
+  }
+
+  return new TextEncoder().encode(value);
+}
+
+function decodeHexBytes(value: string) {
+  const normalized = value.replace(/\s/g, "");
+  const bytes = new Uint8Array(Math.floor(normalized.length / 2));
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+  }
+
+  return bytes;
+}
+
+function decodeBase64Bytes(value: string) {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+function bytesToBitString(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(2).padStart(8, "0")).join("");
+}
+
+function downloadTextFile(text: string, filename: string) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function ComplexCipherSidebar() {
   const { t } = useTranslation();
 
@@ -1368,6 +1450,20 @@ function AesIOPanel({
               value={result?.iv ?? (workspace.mode === "cbc" ? workspace.iv : "-")}
               mono
             />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+              disabled={!result}
+              onClick={() => {
+                if (result) {
+                  downloadAesResultBinary(result.result, result.outputEncoding);
+                }
+              }}
+            >
+              <Binary className="size-4" />
+              {t("Download binary")}
+            </Button>
           </div>
         </CardContent>
       </Card>
