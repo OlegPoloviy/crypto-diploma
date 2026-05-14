@@ -38,6 +38,82 @@ export function runComplexCipher(
   }
 }
 
+export function computeInteractiveEncryptRoundInsights(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  mode: AesMode,
+  iv: Uint8Array | undefined,
+  algorithm: ComplexCipherAlgorithm,
+  outputEncoding: BinaryEncoding,
+): {
+  ciphertext: Uint8Array;
+  steps: CipherStepResponseDto[];
+  metricStats: CipherMetricStatDto[];
+  metadata: Record<string, unknown>;
+} {
+  const algorithmLabel =
+    algorithm === ComplexCipherAlgorithm.AES ? 'AES' : 'DES';
+  const paddedLength = getPaddedLength(
+    plaintext.length,
+    algorithmLabel === 'AES' ? 16 : 8,
+  );
+  // AES sampled-corpus mode still runs encryptAesWithSteps on every block (heavy), so we
+  // cap round metrics by padded size. DES sampled mode only expands full rounds while the
+  // per-step byte budget is unfilled, so large DES inputs can still afford round charts.
+  const shouldCollectRoundMetrics =
+    algorithm === ComplexCipherAlgorithm.DES ||
+    paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
+  const result = shouldCollectRoundMetrics
+    ? algorithmLabel === 'AES'
+      ? encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv })
+      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv })
+    : {
+        ciphertext:
+          algorithmLabel === 'AES'
+            ? encryptAes(plaintext, key, { mode, iv }).ciphertext
+            : encryptDes(plaintext, key, { mode, iv }).ciphertext,
+        steps: [],
+        sampleSize: 0,
+        totalBytes: paddedLength,
+      };
+  const ciphertext = result.ciphertext;
+  const stepResponses = shouldCollectRoundMetrics
+    ? result.steps.map((bytes, index) =>
+        createBlockCipherStep(
+          index,
+          result.steps.length,
+          bytes,
+          outputEncoding,
+          algorithmLabel,
+        ),
+      )
+    : [];
+  const finalMetrics = calculateByteMetrics(
+    sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
+  );
+  const byteEntropy = finalMetrics.wordFrequencyEntropy;
+
+  return {
+    ciphertext,
+    steps: stepResponses,
+    metricStats: calculateStepMetricStats(stepResponses),
+    metadata: {
+      mode,
+      keySize: key.length * 8,
+      algorithm: algorithmLabel.toLowerCase(),
+      plaintextLength: plaintext.length,
+      ciphertextLength: ciphertext.length,
+      stepMetricThresholdBytes: COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES,
+      stepMetricsSkipped: !shouldCollectRoundMetrics,
+      stepSampleSize: shouldCollectRoundMetrics ? result.sampleSize : 0,
+      stepSampled:
+        shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
+      stepSampleSourceBytes: result.totalBytes,
+      byteEntropy,
+    },
+  };
+}
+
 function encryptTextWithBlockCipher(
   text: string,
   parameters: ComplexCipherParameters,
@@ -57,67 +133,33 @@ function encryptTextWithBlockCipher(
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
     : undefined;
-  const paddedLength = getPaddedLength(
-    plaintext.length,
-    algorithmLabel === 'AES' ? 16 : 8,
+  const algorithm =
+    algorithmLabel === 'AES'
+      ? ComplexCipherAlgorithm.AES
+      : ComplexCipherAlgorithm.DES;
+  const insights = computeInteractiveEncryptRoundInsights(
+    plaintext,
+    key,
+    mode,
+    iv,
+    algorithm,
+    outputEncoding,
   );
-  const shouldCollectRoundMetrics =
-    paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
-  const result = shouldCollectRoundMetrics
-    ? algorithmLabel === 'AES'
-      ? encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv })
-      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv })
-    : {
-        ciphertext:
-          algorithmLabel === 'AES'
-            ? encryptAes(plaintext, key, { mode, iv }).ciphertext
-            : encryptDes(plaintext, key, { mode, iv }).ciphertext,
-        steps: [],
-        sampleSize: 0,
-        totalBytes: paddedLength,
-      };
-  const ciphertext = result.ciphertext;
   const encodedIv =
     mode === AesMode.CBC && iv
       ? formatBytes(iv, BinaryEncoding.HEX)
       : undefined;
-  const finalText = formatBytes(ciphertext, outputEncoding);
-  const stepResponses = shouldCollectRoundMetrics
-    ? result.steps.map((bytes, index) =>
-        createBlockCipherStep(
-          index,
-          result.steps.length,
-          bytes,
-          outputEncoding,
-          algorithmLabel,
-        ),
-      )
-    : [];
-  const finalMetrics = calculateByteMetrics(
-    sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
-  );
-  const byteEntropy = finalMetrics.wordFrequencyEntropy;
+  const finalText = formatBytes(insights.ciphertext, outputEncoding);
 
   return {
     finalText,
-    steps: stepResponses,
-    metricStats: calculateStepMetricStats(stepResponses),
+    steps: insights.steps,
+    metricStats: insights.metricStats,
     metadata: {
-      mode,
-      keySize: key.length * 8,
-      algorithm: algorithmLabel.toLowerCase(),
+      ...insights.metadata,
       inputEncoding,
       outputEncoding,
       iv: encodedIv,
-      plaintextLength: plaintext.length,
-      ciphertextLength: ciphertext.length,
-      stepMetricThresholdBytes: COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES,
-      stepMetricsSkipped: !shouldCollectRoundMetrics,
-      stepSampleSize: shouldCollectRoundMetrics ? result.sampleSize : 0,
-      stepSampled:
-        shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
-      stepSampleSourceBytes: result.totalBytes,
-      byteEntropy,
     },
   };
 }

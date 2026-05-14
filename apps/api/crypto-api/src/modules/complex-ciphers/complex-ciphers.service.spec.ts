@@ -386,7 +386,7 @@ describe('ComplexCiphersService', () => {
     expect(result.metricStats).toEqual([]);
   });
 
-  it('skips round metrics for large DES corpora', () => {
+  it('collects sampled DES round metrics for large corpora (above AES round threshold)', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.DES,
@@ -400,13 +400,14 @@ describe('ComplexCiphersService', () => {
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_008,
       stepMetricThresholdBytes: 50_000,
-      stepMetricsSkipped: true,
-      stepSampleSize: 0,
-      stepSampled: false,
+      stepMetricsSkipped: false,
+      stepSampleSize: 1_024,
+      stepSampled: true,
       stepSampleSourceBytes: 60_008,
     });
-    expect(result.steps).toEqual([]);
-    expect(result.metricStats).toEqual([]);
+    expect(result.steps).toHaveLength(16);
+    expect(result.steps?.every((step) => step.text.length > 0)).toBe(true);
+    expect(result.metricStats?.length).toBe(3);
   });
 
   it('exposes AES encryption through the service DTO contract', () => {

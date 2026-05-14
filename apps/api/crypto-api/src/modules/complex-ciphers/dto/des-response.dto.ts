@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CipherMetricStatDto } from '../../classical-ciphers/dto/cipher-metric-stat.dto';
+import { CipherStepResponseDto } from '../../classical-ciphers/dto/cipher-step-response.dto';
 import {
   AesMode,
   BinaryEncoding,
@@ -29,4 +31,24 @@ export class DesResponseDto {
     description: 'CBC initialization vector encoded as hex',
   })
   iv?: string;
+
+  @ApiPropertyOptional({
+    type: CipherStepResponseDto,
+    isArray: true,
+    description: 'Per-round byte samples and metrics (encrypt only)',
+  })
+  steps?: CipherStepResponseDto[];
+
+  @ApiPropertyOptional({
+    type: CipherMetricStatDto,
+    isArray: true,
+    description: 'Aggregated metrics across rounds (encrypt only)',
+  })
+  metricStats?: CipherMetricStatDto[];
+
+  @ApiPropertyOptional({
+    example: { byteEntropy: 3.1, ciphertextLength: 16 },
+    description: 'Auxiliary encrypt analytics',
+  })
+  metadata?: Record<string, unknown>;
 }

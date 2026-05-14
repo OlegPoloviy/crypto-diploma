@@ -13,6 +13,10 @@ export interface AesResponse {
   outputEncoding: BinaryEncoding;
   result: string;
   iv?: string;
+  /** Present after interactive encrypt when round metrics were computed */
+  steps?: CipherStep[] | null;
+  metricStats?: CipherMetricStat[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface AesEncryptInput {

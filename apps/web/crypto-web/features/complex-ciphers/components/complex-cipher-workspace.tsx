@@ -532,7 +532,11 @@ function AesJobDetails({
   );
 }
 
-function AesRoundSteps({ job }: { job: ComplexCipherJob }) {
+function AesRoundSteps({
+  job,
+}: {
+  job: Pick<ComplexCipherJob, "steps" | "metadata" | "algorithm">;
+}) {
   const { t } = useTranslation();
   const steps = job.steps ?? [];
   const algorithm = formatJobAlgorithm(job);
@@ -786,7 +790,7 @@ function MetricCell({ value }: { value: number }) {
   );
 }
 
-function MetricStrip({ job }: { job: ComplexCipherJob }) {
+function MetricStrip({ job }: { job: Pick<ComplexCipherJob, "metricStats"> }) {
   const { t } = useTranslation();
   const stats = job.metricStats ?? [];
   if (stats.length === 0) {
@@ -824,10 +828,18 @@ function MetricStrip({ job }: { job: ComplexCipherJob }) {
   );
 }
 
-function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
+function AesMetricCharts({
+  job,
+}: {
+  job: Pick<ComplexCipherJob, "metricStats" | "metadata">;
+}) {
   const { t } = useTranslation();
   const stats = job.metricStats ?? [];
-  if (stats.length === 0) {
+  const byteEntropy =
+    typeof job.metadata?.byteEntropy === "number"
+      ? job.metadata.byteEntropy
+      : null;
+  if (stats.length === 0 && byteEntropy === null) {
     return null;
   }
 
@@ -861,98 +873,104 @@ function AesMetricCharts({ job }: { job: ComplexCipherJob }) {
       return `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
     })
     .join(" ");
-  const byteEntropy =
-    typeof job.metadata?.byteEntropy === "number"
-      ? job.metadata.byteEntropy
-      : null;
   const byteEntropyPercent =
     byteEntropy === null ? 0 : Math.min(100, (byteEntropy / 8) * 100);
 
   return (
     <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_240px]">
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
-        <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
-          {chartValues.map((metric) => (
-            <LegendDot
-              key={metric.label}
-              color={metric.color}
-              label={metric.label}
-            />
-          ))}
-        </div>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={t("Complex cipher metrics chart")}
-          className="h-56 w-full overflow-visible"
-        >
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const y = padding + ratio * (height - padding * 2);
-            return (
-              <line
-                key={ratio}
-                x1={padding}
-                x2={width - padding}
-                y1={y}
-                y2={y}
-                stroke="currentColor"
-                className="text-slate-200 dark:text-white/10"
+      {chartValues.length > 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+          <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
+            {chartValues.map((metric) => (
+              <LegendDot
+                key={metric.label}
+                color={metric.color}
+                label={metric.label}
               />
-            );
-          })}
-          <path
-            d={path}
-            fill="none"
-            stroke="#22d3ee"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {chartValues.map((metric, index) => {
-            const point = pointFor(index, metric.value);
-
-            return (
-              <g key={metric.label}>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r="4"
-                  fill="#0f172a"
-                  stroke={metric.color}
-                  strokeWidth="2"
-                  className="dark:fill-[#080b16]"
+            ))}
+          </div>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={t("Complex cipher metrics chart")}
+            className="h-56 w-full overflow-visible"
+          >
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+              const y = padding + ratio * (height - padding * 2);
+              return (
+                <line
+                  key={ratio}
+                  x1={padding}
+                  x2={width - padding}
+                  y1={y}
+                  y2={y}
+                  stroke="currentColor"
+                  className="text-slate-200 dark:text-white/10"
                 />
-                <text
-                  x={point.x}
-                  y={height - 10}
-                  textAnchor="middle"
-                  className="fill-slate-500 text-[11px] dark:fill-slate-400"
-                >
-                  {metric.label}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+              );
+            })}
+            <path
+              d={path}
+              fill="none"
+              stroke="#22d3ee"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {chartValues.map((metric, index) => {
+              const point = pointFor(index, metric.value);
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          {t("Byte entropy")}
-        </p>
-        <p className="mt-3 text-2xl font-semibold tabular-nums text-slate-950 dark:text-slate-50">
-          {byteEntropy === null ? "-" : byteEntropy.toFixed(4)}
-        </p>
-        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-          <div
-            className="h-full rounded-full bg-emerald-400"
-            style={{ width: `${byteEntropyPercent}%` }}
-          />
+              return (
+                <g key={metric.label}>
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="4"
+                    fill="#0f172a"
+                    stroke={metric.color}
+                    strokeWidth="2"
+                    className="dark:fill-[#080b16]"
+                  />
+                  <text
+                    x={point.x}
+                    y={height - 10}
+                    textAnchor="middle"
+                    className="fill-slate-500 text-[11px] dark:fill-slate-400"
+                  >
+                    {metric.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
-        <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-          {t("Normalized against 8 bits per byte.")}
-        </p>
-      </div>
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
+          {t(
+            "Round-level charts are omitted because the payload exceeds the detailed-step threshold; ciphertext byte entropy is still shown.",
+          )}
+        </div>
+      )}
+
+      {byteEntropy !== null ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            {t("Byte entropy")}
+          </p>
+          <p className="mt-3 text-2xl font-semibold tabular-nums text-slate-950 dark:text-slate-50">
+            {byteEntropy.toFixed(4)}
+          </p>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+            <div
+              className="h-full rounded-full bg-emerald-400"
+              style={{ width: `${byteEntropyPercent}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            {t("Normalized against 8 bits per byte.")}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1009,7 +1027,7 @@ function formatJobParameters(job: ComplexCipherJob) {
   return `${mode}; out=${output}`;
 }
 
-function formatJobAlgorithm(job: ComplexCipherJob) {
+function formatJobAlgorithm(job: { algorithm: ComplexCipherAlgorithm }) {
   return job.algorithm.toUpperCase();
 }
 
@@ -1488,12 +1506,41 @@ function AesIOPanel({
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_260px]">
-          <pre className="max-h-72 min-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
-            {result?.result ??
-              t("Run {{cipher}} to see the encoded result.", {
-                cipher: workspace.cipherLabel,
-              })}
-          </pre>
+          <div className="min-w-0 space-y-4">
+            {result?.operation === "encrypt" &&
+            ((result.metricStats?.length ?? 0) > 0 ||
+              (result.steps?.length ?? 0) > 0 ||
+              typeof result.metadata?.byteEntropy === "number") ? (
+              <>
+                {(result.metricStats?.length ?? 0) > 0 ? (
+                  <MetricStrip
+                    job={{ metricStats: result.metricStats ?? [] }}
+                  />
+                ) : null}
+                <AesMetricCharts
+                  job={{
+                    metricStats: result.metricStats ?? [],
+                    metadata: result.metadata ?? null,
+                  }}
+                />
+                {(result.steps?.length ?? 0) > 0 ? (
+                  <AesRoundSteps
+                    job={{
+                      steps: result.steps ?? [],
+                      metadata: result.metadata ?? null,
+                      algorithm: workspace.algorithm,
+                    }}
+                  />
+                ) : null}
+              </>
+            ) : null}
+            <pre className="max-h-72 min-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-300">
+              {result?.result ??
+                t("Run {{cipher}} to see the encoded result.", {
+                  cipher: workspace.cipherLabel,
+                })}
+            </pre>
+          </div>
 
           <div className="space-y-3">
             <StateTile

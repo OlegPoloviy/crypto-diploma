@@ -17,8 +17,9 @@ import {
   TextFileType,
   TextParserService,
 } from '../text-parser/text-parser.service';
-import { decryptAes, encryptAes, formatBytes, parseBytes } from './aes.engine';
-import { decryptDes, encryptDes } from './des.engine';
+import { decryptAes, formatBytes, parseBytes } from './aes.engine';
+import { computeInteractiveEncryptRoundInsights } from './complex-ciphers.engine';
+import { decryptDes } from './des.engine';
 import { ComplexCipherJobEntity } from './complex-cipher-job.entity';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
@@ -80,15 +81,28 @@ export class ComplexCiphersService {
     const plaintext = parseBytes(body.plaintext, inputEncoding, 'plaintext');
     const key = parseBytes(body.key, keyEncoding, 'key');
     const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
-    const result = encryptAes(plaintext, key, { mode, iv });
+    const insights = computeInteractiveEncryptRoundInsights(
+      plaintext,
+      key,
+      mode,
+      iv,
+      ComplexCipherAlgorithm.AES,
+      outputEncoding,
+    );
 
     return {
       operation: AesOperation.ENCRYPT,
       mode,
       keySize: key.length * 8,
       outputEncoding,
-      result: formatBytes(result.ciphertext, outputEncoding),
-      iv: result.iv ? formatBytes(result.iv, BinaryEncoding.HEX) : undefined,
+      result: formatBytes(insights.ciphertext, outputEncoding),
+      iv:
+        mode === AesMode.CBC && iv
+          ? formatBytes(iv, BinaryEncoding.HEX)
+          : undefined,
+      steps: insights.steps,
+      metricStats: insights.metricStats,
+      metadata: insights.metadata,
     };
   }
 
@@ -124,15 +138,28 @@ export class ComplexCiphersService {
     const plaintext = parseBytes(body.plaintext, inputEncoding, 'plaintext');
     const key = parseBytes(body.key, keyEncoding, 'key');
     const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
-    const result = encryptDes(plaintext, key, { mode, iv });
+    const insights = computeInteractiveEncryptRoundInsights(
+      plaintext,
+      key,
+      mode,
+      iv,
+      ComplexCipherAlgorithm.DES,
+      outputEncoding,
+    );
 
     return {
       operation: DesOperation.ENCRYPT,
       mode,
       keySize: key.length * 8,
       outputEncoding,
-      result: formatBytes(result.ciphertext, outputEncoding),
-      iv: result.iv ? formatBytes(result.iv, BinaryEncoding.HEX) : undefined,
+      result: formatBytes(insights.ciphertext, outputEncoding),
+      iv:
+        mode === AesMode.CBC && iv
+          ? formatBytes(iv, BinaryEncoding.HEX)
+          : undefined,
+      steps: insights.steps,
+      metricStats: insights.metricStats,
+      metadata: insights.metadata,
     };
   }
 
