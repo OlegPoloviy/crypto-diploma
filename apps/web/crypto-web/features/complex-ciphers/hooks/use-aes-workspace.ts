@@ -20,6 +20,7 @@ import {
   BinaryEncoding,
   ComplexCipherAlgorithm,
   ComplexCipherJob,
+  KalynaBlockSize,
 } from "../types/aes-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
 
@@ -39,11 +40,18 @@ const cipherPresets: Record<
     iv: "1234567890abcdef",
     vectorMessage: "Loaded DES block test vector.",
   },
+  kalyna: {
+    plaintext: "101112131415161718191a1b1c1d1e1f",
+    key: "000102030405060708090a0b0c0d0e0f",
+    iv: "101112131415161718191a1b1c1d1e1f",
+    vectorMessage: "Loaded Kalyna-128/128 ECB test vector.",
+  },
 };
 
 export function useAesWorkspace() {
   const [algorithm, setAlgorithmState] =
     useState<ComplexCipherAlgorithm>("aes");
+  const [blockSizeBits, setBlockSizeBits] = useState<KalynaBlockSize>(128);
   const [operation, setOperation] = useState<AesOperation>("encrypt");
   const [mode, setMode] = useState<AesMode>("cbc");
   const [plaintext, setPlaintext] = useState(cipherPresets.aes.plaintext);
@@ -80,7 +88,10 @@ export function useAesWorkspace() {
     operation === "encrypt" ? inputEncoding : cipherInputEncoding;
   const activeOutputEncoding =
     operation === "encrypt" ? outputEncoding : plainOutputEncoding;
-  const cipherLabel = algorithm.toUpperCase();
+  const cipherLabel =
+    algorithm === "kalyna" ? "KALYNA" : algorithm.toUpperCase();
+  const kalynaPayload =
+    algorithm === "kalyna" ? { blockSizeBits } : {};
 
   const keySizeHint = useMemo(
     () => describeKeySize(key, keyEncoding),
@@ -221,6 +232,7 @@ export function useAesWorkspace() {
               {
                 plaintext,
                 key,
+                ...kalynaPayload,
                 inputEncoding,
                 keyEncoding,
                 outputEncoding,
@@ -234,6 +246,7 @@ export function useAesWorkspace() {
               {
                 ciphertext,
                 key,
+                ...kalynaPayload,
                 inputEncoding: cipherInputEncoding,
                 keyEncoding,
                 outputEncoding: plainOutputEncoding,
@@ -281,6 +294,7 @@ export function useAesWorkspace() {
         {
           parsedTextId: selectedParsedText.id,
           key,
+          ...kalynaPayload,
           keyEncoding,
           outputEncoding,
           mode,
@@ -325,6 +339,7 @@ export function useAesWorkspace() {
         files: input.files,
         fileType: input.fileType,
         key,
+        ...kalynaPayload,
         keyEncoding,
         outputEncoding,
         mode,
@@ -371,17 +386,23 @@ export function useAesWorkspace() {
   function loadFipsVector() {
     setOperation("encrypt");
     setMode("ecb");
-    setPlaintext(
-      algorithm === "aes"
-        ? "00112233445566778899aabbccddeeff"
-        : "0123456789abcdef",
-    );
+    if (algorithm === "kalyna") {
+      setBlockSizeBits(128);
+      setPlaintext("101112131415161718191a1b1c1d1e1f");
+      setKey("000102030405060708090a0b0c0d0e0f");
+    } else {
+      setPlaintext(
+        algorithm === "aes"
+          ? "00112233445566778899aabbccddeeff"
+          : "0123456789abcdef",
+      );
+      setKey(
+        algorithm === "aes"
+          ? "000102030405060708090a0b0c0d0e0f"
+          : cipherPresets.des.key,
+      );
+    }
     setInputEncoding("hex");
-    setKey(
-      algorithm === "aes"
-        ? "000102030405060708090a0b0c0d0e0f"
-        : cipherPresets.des.key,
-    );
     setKeyEncoding("hex");
     setOutputEncoding("hex");
     setResult(null);
@@ -391,6 +412,9 @@ export function useAesWorkspace() {
   function setAlgorithm(nextAlgorithm: ComplexCipherAlgorithm) {
     const preset = cipherPresets[nextAlgorithm];
     setAlgorithmState(nextAlgorithm);
+    if (nextAlgorithm === "kalyna") {
+      setBlockSizeBits(128);
+    }
     setPlaintext(preset.plaintext);
     setCiphertext("");
     setKey(preset.key);
@@ -416,6 +440,7 @@ export function useAesWorkspace() {
 
   return {
     algorithm,
+    blockSizeBits,
     cipherLabel,
     operation,
     mode,
@@ -448,6 +473,7 @@ export function useAesWorkspace() {
     selectedJobId,
     hasActiveJobs,
     setAlgorithm,
+    setBlockSizeBits,
     setOperation,
     setMode,
     setPlaintext,

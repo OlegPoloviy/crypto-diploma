@@ -12,12 +12,15 @@ import {
   parseBytes,
 } from './aes.engine';
 import { encryptDes, encryptDesCorpusWithSampledSteps } from './des.engine';
+import { encryptKalynaCorpusWithSampledSteps } from './kalyna.engine';
+import { getKalynaParams } from './kalyna.constants';
 import {
   AesMode,
   BinaryEncoding,
   ComplexCipherAlgorithm,
   ComplexCipherParameters,
   ComplexCipherWorkerResult,
+  KalynaJobParameters,
 } from './complex-ciphers.types';
 
 const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 50_000;
@@ -33,6 +36,8 @@ export function runComplexCipher(
       return encryptTextWithBlockCipher(text, parameters, 'AES');
     case ComplexCipherAlgorithm.DES:
       return encryptTextWithBlockCipher(text, parameters, 'DES');
+    case ComplexCipherAlgorithm.KALYNA:
+      return encryptTextWithKalyna(text, parameters as KalynaJobParameters);
     default:
       throw new BadRequestException('Unsupported complex cipher algorithm');
   }
@@ -51,15 +56,16 @@ export function computeInteractiveEncryptRoundInsights(
   metricStats: CipherMetricStatDto[];
   metadata: Record<string, unknown>;
 } {
+  if (algorithm === ComplexCipherAlgorithm.KALYNA) {
+    throw new BadRequestException(
+      'Use computeKalynaEncryptRoundInsights for Kalyna',
+    );
+  }
+
   const algorithmLabel =
     algorithm === ComplexCipherAlgorithm.AES ? 'AES' : 'DES';
-  const paddedLength = getPaddedLength(
-    plaintext.length,
-    algorithmLabel === 'AES' ? 16 : 8,
-  );
-  // AES sampled-corpus mode still runs encryptAesWithSteps on every block (heavy), so we
-  // cap round metrics by padded size. DES sampled mode only expands full rounds while the
-  // per-step byte budget is unfilled, so large DES inputs can still afford round charts.
+  const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
+  const paddedLength = getPaddedLength(plaintext.length, blockBytes);
   const shouldCollectRoundMetrics =
     algorithm === ComplexCipherAlgorithm.DES ||
     paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
@@ -110,6 +116,113 @@ export function computeInteractiveEncryptRoundInsights(
         shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
       stepSampleSourceBytes: result.totalBytes,
       byteEntropy,
+    },
+  };
+}
+
+export function computeKalynaEncryptRoundInsights(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  blockSizeBits: number,
+  mode: AesMode,
+  iv: Uint8Array | undefined,
+  outputEncoding: BinaryEncoding,
+): {
+  ciphertext: Uint8Array;
+  steps: CipherStepResponseDto[];
+  metricStats: CipherMetricStatDto[];
+  metadata: Record<string, unknown>;
+} {
+  const { nr, blockBytes } = getKalynaParams(blockSizeBits, key.length * 8);
+  const paddedLength = getPaddedLength(plaintext.length, blockBytes);
+  // Kalyna encrypts large corpora quickly; always collect sampled round metrics (like DES).
+  const shouldCollectRoundMetrics = true;
+  const result = encryptKalynaCorpusWithSampledSteps(plaintext, key, {
+    blockSizeBits,
+    mode,
+    iv,
+  });
+  const ciphertext = result.ciphertext;
+  const stepResponses = shouldCollectRoundMetrics
+    ? result.steps.map((bytes, index) =>
+        createBlockCipherStep(
+          index,
+          result.steps.length,
+          bytes,
+          outputEncoding,
+          'Kalyna',
+        ),
+      )
+    : [];
+  const finalMetrics = calculateByteMetrics(
+    sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
+  );
+
+  return {
+    ciphertext,
+    steps: stepResponses,
+    metricStats: calculateStepMetricStats(stepResponses),
+    metadata: {
+      mode,
+      blockSizeBits,
+      keySize: key.length * 8,
+      roundCount: nr + 1,
+      whitening: `additive_mod_2^${blockSizeBits}`,
+      algorithm: 'kalyna',
+      plaintextLength: plaintext.length,
+      ciphertextLength: ciphertext.length,
+      stepMetricThresholdBytes: COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES,
+      stepMetricsSkipped: !shouldCollectRoundMetrics,
+      stepSampleSize: shouldCollectRoundMetrics ? result.sampleSize : 0,
+      stepSampled:
+        shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
+      stepSampleSourceBytes: result.totalBytes,
+      byteEntropy: finalMetrics.wordFrequencyEntropy,
+    },
+  };
+}
+
+function encryptTextWithKalyna(
+  text: string,
+  parameters: KalynaJobParameters,
+): ComplexCipherWorkerResult {
+  if (!text?.trim()) {
+    throw new BadRequestException('Text cannot be empty');
+  }
+
+  const mode = parameters.mode ?? AesMode.CBC;
+  const inputEncoding = parameters.inputEncoding ?? BinaryEncoding.UTF8;
+  const keyEncoding = parameters.keyEncoding ?? BinaryEncoding.HEX;
+  const outputEncoding = parameters.outputEncoding ?? BinaryEncoding.HEX;
+  const ivEncoding = parameters.ivEncoding ?? BinaryEncoding.HEX;
+  const blockSizeBits = parameters.blockSizeBits;
+  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
+  const key = parseBytes(parameters.key, keyEncoding, 'key');
+  const iv = parameters.iv
+    ? parseBytes(parameters.iv, ivEncoding, 'iv')
+    : undefined;
+  const insights = computeKalynaEncryptRoundInsights(
+    plaintext,
+    key,
+    blockSizeBits,
+    mode,
+    iv,
+    outputEncoding,
+  );
+  const encodedIv =
+    mode === AesMode.CBC && iv
+      ? formatBytes(iv, BinaryEncoding.HEX)
+      : undefined;
+
+  return {
+    finalText: formatBytes(insights.ciphertext, outputEncoding),
+    steps: insights.steps,
+    metricStats: insights.metricStats,
+    metadata: {
+      ...insights.metadata,
+      inputEncoding,
+      outputEncoding,
+      iv: encodedIv,
     },
   };
 }
@@ -176,7 +289,7 @@ function createBlockCipherStep(
   totalSteps: number,
   bytes: Uint8Array,
   outputEncoding: BinaryEncoding,
-  algorithmLabel: 'AES' | 'DES',
+  algorithmLabel: 'AES' | 'DES' | 'Kalyna',
 ): CipherStepResponseDto {
   const metrics = calculateByteMetrics(bytes);
 
@@ -197,14 +310,18 @@ function createBlockCipherStep(
 function createBlockCipherStepDescription(
   index: number,
   totalSteps: number,
-  algorithmLabel: 'AES' | 'DES',
+  algorithmLabel: 'AES' | 'DES' | 'Kalyna',
 ): string {
   if (algorithmLabel === 'AES' && index === 0) {
     return 'AES initial AddRoundKey (whitening)';
   }
 
-  const round = algorithmLabel === 'AES' ? index : index + 1;
-  const lastRound = algorithmLabel === 'AES' ? totalSteps - 1 : totalSteps;
+  if (algorithmLabel === 'Kalyna' && index === 0) {
+    return 'Kalyna initial AddRoundKey (mod 2^64)';
+  }
+
+  const round = algorithmLabel === 'DES' ? index + 1 : index;
+  const lastRound = algorithmLabel === 'DES' ? totalSteps : totalSteps - 1;
   if (round === lastRound) {
     return `${algorithmLabel} final round ${round} of ${lastRound}`;
   }

@@ -34,6 +34,7 @@ import { ComplexCiphersService } from './complex-ciphers.service';
 import {
   CreateAesCipherJobDto,
   CreateDesCipherJobDto,
+  CreateKalynaCipherJobDto,
 } from './dto/create-complex-cipher-job.dto';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
@@ -41,6 +42,9 @@ import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.d
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
 import { DesDecryptDto, DesEncryptDto } from './dto/des-cipher.dto';
 import { DesResponseDto } from './dto/des-response.dto';
+import { KalynaDecryptDto, KalynaEncryptDto } from './dto/kalyna-cipher.dto';
+import { KalynaResponseDto } from './dto/kalyna-response.dto';
+import { KalynaBlockSize } from './complex-ciphers.types';
 
 class BatchAesFileDto {
   @IsString()
@@ -55,6 +59,44 @@ class BatchAesFileDto {
   @IsString()
   @IsNotEmpty()
   key: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  keyEncoding?: BinaryEncoding;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  outputEncoding?: BinaryEncoding;
+
+  @IsEnum(AesMode)
+  @IsOptional()
+  mode?: AesMode;
+
+  @IsString()
+  @IsOptional()
+  iv?: string;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  ivEncoding?: BinaryEncoding;
+}
+
+class BatchKalynaFileDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  title: string;
+
+  @IsEnum(TextFileType)
+  @IsOptional()
+  fileType?: TextFileType;
+
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @IsEnum(KalynaBlockSize)
+  blockSizeBits: KalynaBlockSize;
 
   @IsEnum(BinaryEncoding)
   @IsOptional()
@@ -186,6 +228,28 @@ export class ComplexCiphersController {
     return this.complexCiphersService.decryptDes(body);
   }
 
+  @Post('kalyna/encrypt')
+  @ApiOperation({
+    summary: 'Encrypt data with Kalyna (DSTU 7624:2014)',
+  })
+  @ApiCreatedResponse({ type: KalynaResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed' })
+  async encryptKalyna(
+    @Body() body: KalynaEncryptDto,
+  ): Promise<KalynaResponseDto> {
+    return this.complexCiphersService.encryptKalyna(body);
+  }
+
+  @Post('kalyna/decrypt')
+  @ApiOperation({
+    summary: 'Decrypt data with Kalyna (DSTU 7624:2014)',
+  })
+  @ApiCreatedResponse({ type: KalynaResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed' })
+  decryptKalyna(@Body() body: KalynaDecryptDto): KalynaResponseDto {
+    return this.complexCiphersService.decryptKalyna(body);
+  }
+
   @Post('jobs/aes')
   @ApiOperation({
     summary: 'Queue AES encryption for an existing parsed text',
@@ -210,6 +274,19 @@ export class ComplexCiphersController {
     @Body() body: CreateDesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     return this.complexCiphersService.createDesJob(body);
+  }
+
+  @Post('jobs/kalyna')
+  @ApiOperation({
+    summary: 'Queue Kalyna encryption for an existing parsed text',
+  })
+  @ApiCreatedResponse({ type: ComplexCipherJobResponseDto })
+  @ApiBadRequestResponse({ description: 'Parsed text is not ready or invalid' })
+  @ApiNotFoundResponse({ description: 'Parsed text not found' })
+  createKalynaJob(
+    @Body() body: CreateKalynaCipherJobDto,
+  ): Promise<ComplexCipherJobResponseDto> {
+    return this.complexCiphersService.createKalynaJob(body);
   }
 
   @Post('jobs/aes/files')
@@ -345,6 +422,32 @@ export class ComplexCiphersController {
       body.fileType ?? TextFileType.BINARY,
       {
         key: body.key,
+        keyEncoding: body.keyEncoding,
+        outputEncoding: body.outputEncoding,
+        mode: body.mode,
+        iv: body.mode === AesMode.ECB ? undefined : body.iv,
+        ivEncoding: body.ivEncoding,
+      },
+    );
+  }
+
+  @Post('jobs/kalyna/files')
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Upload multiple files and queue Kalyna jobs' })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreatedResponse({ type: ComplexCipherJobResponseDto, isArray: true })
+  @ApiBadRequestResponse({ description: 'Files are missing or invalid' })
+  createKalynaJobsFromFiles(
+    @Body() body: BatchKalynaFileDto,
+    @UploadedFiles() files?: { buffer: Buffer; originalname?: string }[],
+  ): Promise<ComplexCipherJobResponseDto[]> {
+    return this.complexCiphersService.createKalynaJobsFromFiles(
+      body.title,
+      files,
+      body.fileType ?? TextFileType.BINARY,
+      {
+        key: body.key,
+        blockSizeBits: body.blockSizeBits,
         keyEncoding: body.keyEncoding,
         outputEncoding: body.outputEncoding,
         mode: body.mode,

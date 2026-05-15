@@ -71,6 +71,7 @@ export async function createAesJobsFromFiles(input: {
   files: File[];
   fileType: TextFileType;
   key: string;
+  blockSizeBits?: CreateAesJobInput["blockSizeBits"];
   keyEncoding: CreateAesJobInput["keyEncoding"];
   outputEncoding: CreateAesJobInput["outputEncoding"];
   mode: CreateAesJobInput["mode"];
@@ -87,6 +88,9 @@ export async function createAesJobsFromFiles(input: {
   formData.append("ivEncoding", input.ivEncoding);
   if (input.iv) {
     formData.append("iv", input.iv);
+  }
+  if (input.blockSizeBits) {
+    formData.append("blockSizeBits", String(input.blockSizeBits));
   }
   input.files.forEach((file) => formData.append("files", file));
 

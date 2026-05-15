@@ -49,7 +49,7 @@ import {
   CipherStep,
 } from "../types/aes-cipher";
 
-const algorithmOptions: ComplexCipherAlgorithm[] = ["aes", "des"];
+const algorithmOptions: ComplexCipherAlgorithm[] = ["aes", "des", "kalyna"];
 const encodingOptions: BinaryEncoding[] = ["utf8", "hex", "base64"];
 const modeOptions: AesMode[] = ["cbc", "ecb"];
 const fileTypeOptions: {
@@ -483,6 +483,19 @@ function AesJobDetails({
             label={t("Mode")}
             value={String(job.metadata?.mode ?? job.parameters.mode ?? "-")}
           />
+          {job.algorithm === "kalyna" ? (
+            <StateTile
+              icon={<Layers3 className="size-4" />}
+              label={t("Block size")}
+              value={t("{{count}} bits", {
+                count: String(
+                  job.metadata?.blockSizeBits ??
+                    job.parameters.blockSizeBits ??
+                    "-",
+                ),
+              })}
+            />
+          ) : null}
           <StateTile
             icon={<KeyRound className="size-4" />}
             label={t("Key size")}
@@ -490,6 +503,13 @@ function AesJobDetails({
               count: String(job.metadata?.keySize ?? "-"),
             })}
           />
+          {job.algorithm === "kalyna" && job.metadata?.whitening ? (
+            <StateTile
+              icon={<ShieldCheck className="size-4" />}
+              label={t("Whitening")}
+              value={String(job.metadata.whitening)}
+            />
+          ) : null}
           <StateTile
             icon={<Database className="size-4" />}
             label={t("Byte entropy")}
@@ -1285,7 +1305,11 @@ function AesControlPanel({
             workspace.setAlgorithm(value as ComplexCipherAlgorithm)
           }
         >
-          <TabsList className="grid-cols-2">
+          <TabsList
+            className={
+              algorithmOptions.length > 2 ? "grid-cols-3" : "grid-cols-2"
+            }
+          >
             {algorithmOptions.map((item) => (
               <TabsTrigger key={item} value={item}>
                 <ShieldCheck className="size-4" />
@@ -1294,6 +1318,26 @@ function AesControlPanel({
             ))}
           </TabsList>
         </Tabs>
+
+        {workspace.algorithm === "kalyna" ? (
+          <div className="space-y-2">
+            <Label htmlFor="kalyna-block-size">{t("Block size (bits)")}</Label>
+            <select
+              id="kalyna-block-size"
+              value={workspace.blockSizeBits}
+              onChange={(event) =>
+                workspace.setBlockSizeBits(
+                  Number(event.target.value) as 128 | 256 | 512,
+                )
+              }
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              <option value={128}>128</option>
+              <option value={256}>256</option>
+              <option value={512}>512</option>
+            </select>
+          </div>
+        ) : null}
 
         <Tabs
           value={workspace.operation}

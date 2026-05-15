@@ -26,6 +26,7 @@ import {
   BinaryEncoding,
   ComplexCipherAlgorithm,
   ComplexCipherJobStatus,
+  KalynaBlockSize,
 } from './complex-ciphers.types';
 
 describe('ComplexCiphersService', () => {
@@ -386,6 +387,29 @@ describe('ComplexCiphersService', () => {
     expect(result.metricStats).toEqual([]);
   });
 
+  it('collects sampled Kalyna round metrics for large corpora', () => {
+    const result = runComplexCipher(
+      'a'.repeat(60_000),
+      ComplexCipherAlgorithm.KALYNA,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        blockSizeBits: KalynaBlockSize.BITS_128,
+        mode: AesMode.ECB,
+      },
+    );
+
+    expect(result.metadata).toMatchObject({
+      ciphertextLength: 60_016,
+      stepMetricThresholdBytes: 50_000,
+      stepMetricsSkipped: false,
+      stepSampleSize: 50_000,
+      stepSampled: true,
+      stepSampleSourceBytes: 60_016,
+    });
+    expect(result.steps.length).toBeGreaterThan(0);
+    expect(result.metricStats?.length).toBe(3);
+  });
+
   it('collects sampled DES round metrics for large corpora (above AES round threshold)', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
@@ -598,6 +622,129 @@ describe('ComplexCiphersService', () => {
         metricStats: expect.arrayContaining([
           expect.objectContaining({ key: 'hurstExponent' }),
         ]),
+      }),
+    );
+  });
+
+  it('encrypts with Kalyna through worker and returns blockSizeBits metadata', async () => {
+    const workerSpy = jest
+      .spyOn(service as never, 'runCipherWorker')
+      .mockResolvedValue({
+        finalText: '81bf1c7d779bac20e1c9ea39b4d2ad06',
+        steps: [],
+        metricStats: [
+          {
+            key: 'wordFrequencyEntropy',
+            label: 'Byte entropy',
+            final: 4,
+            mean: 4,
+            standardDeviation: 0,
+            min: 4,
+            max: 4,
+          },
+        ],
+        metadata: {
+          blockSizeBits: 128,
+          keySize: 128,
+          whitening: 'additive_mod_2^128',
+          byteEntropy: 4,
+        },
+      } as never);
+
+    const response = await service.encryptKalyna({
+      plaintext: '101112131415161718191a1b1c1d1e1f',
+      key: '000102030405060708090a0b0c0d0e0f',
+      blockSizeBits: KalynaBlockSize.BITS_128,
+      inputEncoding: BinaryEncoding.HEX,
+      keyEncoding: BinaryEncoding.HEX,
+      outputEncoding: BinaryEncoding.HEX,
+      mode: AesMode.ECB,
+    });
+
+    expect(workerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '101112131415161718191a1b1c1d1e1f',
+        algorithm: ComplexCipherAlgorithm.KALYNA,
+        parameters: expect.objectContaining({
+          blockSizeBits: KalynaBlockSize.BITS_128,
+          inputEncoding: BinaryEncoding.HEX,
+        }),
+      }),
+      expect.stringMatching(/^kalyna-encrypt-/),
+    );
+    expect(response.result.startsWith('81bf1c7d779bac20e1c9ea39b4d2ad06')).toBe(
+      true,
+    );
+    expect(response.blockSizeBits).toBe(128);
+    expect(response.keySize).toBe(128);
+    expect(response.metadata?.whitening).toBe('additive_mod_2^128');
+    expect(response.metricStats?.length).toBeGreaterThan(0);
+  });
+
+  it('runs Kalyna through runComplexCipher with metric stats', () => {
+    const result = runComplexCipher(
+      '101112131415161718191a1b1c1d1e1f',
+      ComplexCipherAlgorithm.KALYNA,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        blockSizeBits: KalynaBlockSize.BITS_128,
+        inputEncoding: BinaryEncoding.HEX,
+        keyEncoding: BinaryEncoding.HEX,
+        outputEncoding: BinaryEncoding.HEX,
+        mode: AesMode.ECB,
+      },
+    );
+
+    expect(result.metricStats.length).toBeGreaterThan(0);
+    expect(result.metadata.blockSizeBits).toBe(128);
+    expect(result.metadata.keySize).toBe(128);
+    expect(result.metadata.whitening).toBe('additive_mod_2^128');
+  });
+
+  it('queues a Kalyna job for completed parsed text and processes it in worker', async () => {
+    jest.spyOn(service as never, 'runCipherWorker').mockResolvedValue({
+      finalText: '81bf1c7d779bac20e1c9ea39b4d2ad06',
+      metricStats: [
+        {
+          key: 'wordFrequencyEntropy',
+          label: 'Byte entropy',
+          final: 4,
+          mean: 4,
+          standardDeviation: 0,
+          min: 4,
+          max: 4,
+        },
+      ],
+      metadata: {
+        blockSizeBits: 128,
+        keySize: 128,
+        whitening: 'additive_mod_2^128',
+        byteEntropy: 4,
+      },
+    } as never);
+    parsedTextsRepo.findOne.mockResolvedValue({
+      id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      status: ParsedTextStatus.COMPLETED,
+      words: ['kalyna'],
+    });
+
+    const result = await service.createKalynaJob({
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      key: '000102030405060708090a0b0c0d0e0f',
+      blockSizeBits: KalynaBlockSize.BITS_128,
+      mode: AesMode.ECB,
+    });
+
+    expect(result.algorithm).toBe(ComplexCipherAlgorithm.KALYNA);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cipherJobsRepo.update).toHaveBeenCalledWith(
+      '0f50273c-4181-4496-9648-e84f355cedee',
+      expect.objectContaining({
+        status: ComplexCipherJobStatus.COMPLETED,
+        metadata: expect.objectContaining({
+          blockSizeBits: 128,
+          keySize: 128,
+        }),
       }),
     );
   });

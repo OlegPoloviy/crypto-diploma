@@ -20,6 +20,7 @@ import {
 import { decryptAes, formatBytes, parseBytes } from './aes.engine';
 import { computeInteractiveEncryptRoundInsights } from './complex-ciphers.engine';
 import { decryptDes } from './des.engine';
+import { decryptKalyna } from './kalyna.engine';
 import { ComplexCipherJobEntity } from './complex-cipher-job.entity';
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
@@ -27,9 +28,12 @@ import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.d
 import {
   CreateAesCipherJobDto,
   CreateDesCipherJobDto,
+  CreateKalynaCipherJobDto,
 } from './dto/create-complex-cipher-job.dto';
 import { DesDecryptDto, DesEncryptDto } from './dto/des-cipher.dto';
 import { DesResponseDto } from './dto/des-response.dto';
+import { KalynaDecryptDto, KalynaEncryptDto } from './dto/kalyna-cipher.dto';
+import { KalynaResponseDto } from './dto/kalyna-response.dto';
 import {
   AesJobParameters,
   AesMode,
@@ -43,6 +47,8 @@ import {
   ComplexCipherWorkerMessage,
   DesJobParameters,
   DesOperation,
+  KalynaJobParameters,
+  KalynaOperation,
 } from './complex-ciphers.types';
 
 interface QueuedComplexCipherJob {
@@ -163,6 +169,76 @@ export class ComplexCiphersService {
     };
   }
 
+  async encryptKalyna(body: KalynaEncryptDto): Promise<KalynaResponseDto> {
+    const mode = body.mode ?? AesMode.CBC;
+    const inputEncoding = body.inputEncoding ?? BinaryEncoding.UTF8;
+    const keyEncoding = body.keyEncoding ?? BinaryEncoding.HEX;
+    const outputEncoding = body.outputEncoding ?? BinaryEncoding.HEX;
+    const ivEncoding = body.ivEncoding ?? BinaryEncoding.HEX;
+    const parameters: KalynaJobParameters = {
+      key: body.key,
+      blockSizeBits: body.blockSizeBits,
+      keyEncoding,
+      outputEncoding,
+      mode,
+      iv: body.iv,
+      ivEncoding,
+      inputEncoding,
+    };
+    const workerResult = await this.runCipherWorker(
+      {
+        text: body.plaintext,
+        algorithm: ComplexCipherAlgorithm.KALYNA,
+        parameters,
+      },
+      `kalyna-encrypt-${Date.now()}`,
+    );
+    const key = parseBytes(body.key, keyEncoding, 'key');
+
+    return {
+      operation: KalynaOperation.ENCRYPT,
+      mode,
+      blockSizeBits: body.blockSizeBits,
+      keySize: key.length * 8,
+      outputEncoding,
+      result: workerResult.finalText,
+      iv:
+        typeof workerResult.metadata?.iv === 'string'
+          ? workerResult.metadata.iv
+          : undefined,
+      steps: workerResult.steps,
+      metricStats: workerResult.metricStats,
+      metadata: workerResult.metadata,
+    };
+  }
+
+  decryptKalyna(body: KalynaDecryptDto): KalynaResponseDto {
+    const mode = body.mode ?? AesMode.CBC;
+    const inputEncoding = body.inputEncoding ?? BinaryEncoding.HEX;
+    const keyEncoding = body.keyEncoding ?? BinaryEncoding.HEX;
+    const outputEncoding = body.outputEncoding ?? BinaryEncoding.UTF8;
+    const ivEncoding = body.ivEncoding ?? BinaryEncoding.HEX;
+
+    const ciphertext = parseBytes(body.ciphertext, inputEncoding, 'ciphertext');
+    const key = parseBytes(body.key, keyEncoding, 'key');
+    const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
+    const result = decryptKalyna(ciphertext, key, {
+      blockSizeBits: body.blockSizeBits,
+      mode,
+      iv,
+    });
+
+    return {
+      operation: KalynaOperation.DECRYPT,
+      mode,
+      blockSizeBits: body.blockSizeBits,
+      keySize: key.length * 8,
+      outputEncoding,
+      result: formatBytes(result.plaintext, outputEncoding),
+      iv: result.iv ? formatBytes(result.iv, BinaryEncoding.HEX) : undefined,
+    };
+  }
+
   decryptDes(body: DesDecryptDto): DesResponseDto {
     const mode = body.mode ?? AesMode.CBC;
     const inputEncoding = body.inputEncoding ?? BinaryEncoding.HEX;
@@ -204,6 +280,26 @@ export class ComplexCiphersService {
     );
   }
 
+  async createKalynaJob(
+    body: CreateKalynaCipherJobDto,
+  ): Promise<ComplexCipherJobResponseDto> {
+    const parameters: KalynaJobParameters = {
+      key: body.key,
+      blockSizeBits: body.blockSizeBits,
+      keyEncoding: body.keyEncoding,
+      outputEncoding: body.outputEncoding,
+      mode: body.mode,
+      iv: body.iv,
+      ivEncoding: body.ivEncoding,
+    };
+
+    return this.createJob(
+      body.parsedTextId,
+      ComplexCipherAlgorithm.KALYNA,
+      parameters,
+    );
+  }
+
   async createDesJob(
     body: CreateDesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
@@ -238,6 +334,28 @@ export class ComplexCiphersService {
     return Promise.all(
       parsedTexts.map((parsedText) =>
         this.createAesJob({
+          parsedTextId: parsedText.id,
+          ...body,
+        }),
+      ),
+    );
+  }
+
+  async createKalynaJobsFromFiles(
+    title: string,
+    files: { buffer: Buffer; originalname?: string }[] | undefined,
+    fileType: TextFileType,
+    body: Omit<CreateKalynaCipherJobDto, 'parsedTextId'>,
+  ): Promise<ComplexCipherJobResponseDto[]> {
+    const parsedTexts = await this.textParserService.createCompletedFromFiles(
+      title,
+      files,
+      fileType,
+    );
+
+    return Promise.all(
+      parsedTexts.map((parsedText) =>
+        this.createKalynaJob({
           parsedTextId: parsedText.id,
           ...body,
         }),
@@ -339,6 +457,7 @@ export class ComplexCiphersService {
     const jobParameters = [
       ComplexCipherAlgorithm.AES,
       ComplexCipherAlgorithm.DES,
+      ComplexCipherAlgorithm.KALYNA,
     ].includes(algorithm)
       ? {
           ...parameters,
