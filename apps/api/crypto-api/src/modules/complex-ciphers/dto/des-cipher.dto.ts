@@ -1,85 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
-import {
-  AesMode,
-  BinaryEncoding,
-  KalynaBlockSize,
-} from '../complex-ciphers.types';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { AesMode, BinaryEncoding } from '../complex-ciphers.types';
 
-export class CreateAesCipherJobDto {
+export class DesEncryptDto {
   @ApiProperty({
-    example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
-    description: 'Existing parsed text id from text-parser',
-  })
-  @IsUUID('4')
-  parsedTextId: string;
-
-  @ApiProperty({
-    example: '000102030405060708090a0b0c0d0e0f',
-    description: 'AES key. Must decode to 16, 24, or 32 bytes',
+    example: 'hello world',
+    description: 'Plain text to encrypt',
   })
   @IsString()
   @IsNotEmpty()
-  key: string;
-
-  @ApiPropertyOptional({
-    enum: BinaryEncoding,
-    default: BinaryEncoding.HEX,
-    description: 'Encoding used to decode key',
-  })
-  @IsEnum(BinaryEncoding)
-  @IsOptional()
-  keyEncoding?: BinaryEncoding;
-
-  @ApiPropertyOptional({
-    enum: BinaryEncoding,
-    default: BinaryEncoding.HEX,
-    description: 'Encoding used for returned ciphertext',
-  })
-  @IsEnum(BinaryEncoding)
-  @IsOptional()
-  outputEncoding?: BinaryEncoding;
-
-  @ApiPropertyOptional({
-    enum: AesMode,
-    default: AesMode.CBC,
-    description: 'Block cipher mode',
-  })
-  @IsEnum(AesMode)
-  @IsOptional()
-  mode?: AesMode;
-
-  @ApiPropertyOptional({
-    example: '101112131415161718191a1b1c1d1e1f',
-    description: 'Initialization vector for CBC mode. Must decode to 16 bytes',
-  })
-  @IsString()
-  @IsOptional()
-  iv?: string;
-
-  @ApiPropertyOptional({
-    enum: BinaryEncoding,
-    default: BinaryEncoding.HEX,
-    description: 'Encoding used to decode iv',
-  })
-  @IsEnum(BinaryEncoding)
-  @IsOptional()
-  ivEncoding?: BinaryEncoding;
-}
-
-export class CreateDesCipherJobDto {
-  @ApiProperty({
-    example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
-    description: 'Existing parsed text id from text-parser',
-  })
-  @IsUUID('4')
-  parsedTextId: string;
+  plaintext: string;
 
   @ApiProperty({
     example: '133457799bbcdff1',
@@ -88,6 +18,15 @@ export class CreateDesCipherJobDto {
   @IsString()
   @IsNotEmpty()
   key: string;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.UTF8,
+    description: 'Encoding used to decode plaintext',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @ApiPropertyOptional({
     enum: BinaryEncoding,
@@ -134,50 +73,72 @@ export class CreateDesCipherJobDto {
   ivEncoding?: BinaryEncoding;
 }
 
-export class CreateKalynaCipherJobDto {
+export class DesDecryptDto {
   @ApiProperty({
-    example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
-    description: 'Existing parsed text id from text-parser',
+    example: '85e813540f0ab405',
+    description: 'Ciphertext to decrypt',
   })
-  @IsUUID('4')
-  parsedTextId: string;
+  @IsString()
+  @IsNotEmpty()
+  ciphertext: string;
 
   @ApiProperty({
-    example: '000102030405060708090a0b0c0d0e0f',
-    description: 'Kalyna key',
+    example: '133457799bbcdff1',
+    description: 'DES key. Must decode to 8 bytes',
   })
   @IsString()
   @IsNotEmpty()
   key: string;
 
-  @ApiProperty({
-    enum: KalynaBlockSize,
-    example: KalynaBlockSize.BITS_128,
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.HEX,
+    description: 'Encoding used to decode ciphertext',
   })
-  @IsEnum(KalynaBlockSize)
-  blockSizeBits: KalynaBlockSize;
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
-  @ApiPropertyOptional({ enum: BinaryEncoding, default: BinaryEncoding.HEX })
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.HEX,
+    description: 'Encoding used to decode key',
+  })
   @IsEnum(BinaryEncoding)
   @IsOptional()
   keyEncoding?: BinaryEncoding;
 
-  @ApiPropertyOptional({ enum: BinaryEncoding, default: BinaryEncoding.HEX })
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.UTF8,
+    description: 'Encoding used for returned plaintext',
+  })
   @IsEnum(BinaryEncoding)
   @IsOptional()
   outputEncoding?: BinaryEncoding;
 
-  @ApiPropertyOptional({ enum: AesMode, default: AesMode.CBC })
+  @ApiPropertyOptional({
+    enum: AesMode,
+    default: AesMode.CBC,
+    description: 'Block cipher mode',
+  })
   @IsEnum(AesMode)
   @IsOptional()
   mode?: AesMode;
 
-  @ApiPropertyOptional({ example: '101112131415161718191a1b1c1d1e1f' })
+  @ApiPropertyOptional({
+    example: '1234567890abcdef',
+    description: 'Initialization vector for CBC mode. Must decode to 8 bytes',
+  })
   @IsString()
   @IsOptional()
   iv?: string;
 
-  @ApiPropertyOptional({ enum: BinaryEncoding, default: BinaryEncoding.HEX })
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    default: BinaryEncoding.HEX,
+    description: 'Encoding used to decode iv',
+  })
   @IsEnum(BinaryEncoding)
   @IsOptional()
   ivEncoding?: BinaryEncoding;

@@ -3,31 +3,31 @@ import { CipherMetricStatDto } from '../../classical-ciphers/dto/cipher-metric-s
 import { CipherStepResponseDto } from '../../classical-ciphers/dto/cipher-step-response.dto';
 import {
   AesMode,
-  AesOperation,
   BinaryEncoding,
+  DesOperation,
 } from '../complex-ciphers.types';
 
-export class AesResponseDto {
-  @ApiProperty({ enum: AesOperation, example: AesOperation.ENCRYPT })
-  operation: AesOperation;
+export class DesResponseDto {
+  @ApiProperty({ enum: DesOperation, example: DesOperation.ENCRYPT })
+  operation: DesOperation;
 
   @ApiProperty({ enum: AesMode, example: AesMode.CBC })
   mode: AesMode;
 
-  @ApiProperty({ example: 128 })
+  @ApiProperty({ example: 64 })
   keySize: number;
 
   @ApiProperty({ enum: BinaryEncoding, example: BinaryEncoding.HEX })
   outputEncoding: BinaryEncoding;
 
   @ApiProperty({
-    example: '7649abac8119b246cee98e9b12e9197d',
+    example: '85e813540f0ab405',
     description: 'Encoded encryption or decryption result',
   })
   result: string;
 
   @ApiPropertyOptional({
-    example: '101112131415161718191a1b1c1d1e1f',
+    example: '1234567890abcdef',
     description: 'CBC initialization vector encoded as hex',
   })
   iv?: string;
@@ -47,7 +47,7 @@ export class AesResponseDto {
   metricStats?: CipherMetricStatDto[];
 
   @ApiPropertyOptional({
-    example: { byteEntropy: 4.2, ciphertextLength: 16 },
+    example: { byteEntropy: 3.1, ciphertextLength: 16 },
     description: 'Auxiliary encrypt analytics',
   })
   metadata?: Record<string, unknown>;

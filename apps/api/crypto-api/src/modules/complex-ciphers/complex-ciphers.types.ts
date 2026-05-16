@@ -17,8 +17,26 @@ export enum AesOperation {
   DECRYPT = 'decrypt',
 }
 
+export enum DesOperation {
+  ENCRYPT = 'encrypt',
+  DECRYPT = 'decrypt',
+}
+
+export enum KalynaOperation {
+  ENCRYPT = 'encrypt',
+  DECRYPT = 'decrypt',
+}
+
+export enum KalynaBlockSize {
+  BITS_128 = 128,
+  BITS_256 = 256,
+  BITS_512 = 512,
+}
+
 export enum ComplexCipherAlgorithm {
   AES = 'aes',
+  DES = 'des',
+  KALYNA = 'kalyna',
 }
 
 export enum ComplexCipherJobStatus {
@@ -38,7 +56,31 @@ export interface AesJobParameters {
   ivEncoding?: BinaryEncoding;
 }
 
-export type ComplexCipherParameters = AesJobParameters;
+export interface DesJobParameters {
+  key: string;
+  inputEncoding?: BinaryEncoding;
+  keyEncoding?: BinaryEncoding;
+  outputEncoding?: BinaryEncoding;
+  mode?: AesMode;
+  iv?: string;
+  ivEncoding?: BinaryEncoding;
+}
+
+export interface KalynaJobParameters {
+  key: string;
+  blockSizeBits: KalynaBlockSize;
+  inputEncoding?: BinaryEncoding;
+  keyEncoding?: BinaryEncoding;
+  outputEncoding?: BinaryEncoding;
+  mode?: AesMode;
+  iv?: string;
+  ivEncoding?: BinaryEncoding;
+}
+
+export type ComplexCipherParameters =
+  | AesJobParameters
+  | DesJobParameters
+  | KalynaJobParameters;
 
 export interface ComplexCipherWorkerData {
   text: string;

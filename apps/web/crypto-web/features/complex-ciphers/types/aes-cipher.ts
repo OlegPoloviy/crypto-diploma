@@ -4,18 +4,28 @@ export type BinaryEncoding = "utf8" | "hex" | "base64";
 
 export type AesOperation = "encrypt" | "decrypt";
 
+export type ComplexCipherAlgorithm = "aes" | "des" | "kalyna";
+
+export type KalynaBlockSize = 128 | 256 | 512;
+
 export interface AesResponse {
   operation: AesOperation;
   mode: AesMode;
   keySize: number;
+  blockSizeBits?: number;
   outputEncoding: BinaryEncoding;
   result: string;
   iv?: string;
+  /** Present after interactive encrypt when round metrics were computed */
+  steps?: CipherStep[] | null;
+  metricStats?: CipherMetricStat[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface AesEncryptInput {
   plaintext: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   inputEncoding: BinaryEncoding;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
@@ -27,6 +37,7 @@ export interface AesEncryptInput {
 export interface AesDecryptInput {
   ciphertext: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   inputEncoding: BinaryEncoding;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
@@ -34,8 +45,6 @@ export interface AesDecryptInput {
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
-
-export type ComplexCipherAlgorithm = "aes";
 
 export type ComplexCipherJobStatus =
   | "queued"
@@ -86,9 +95,14 @@ export interface CipherStep {
 export interface CreateAesJobInput {
   parsedTextId: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
   mode: AesMode;
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
+
+export type CreateComplexCipherJobInput = CreateAesJobInput & {
+  algorithm: ComplexCipherAlgorithm;
+};
