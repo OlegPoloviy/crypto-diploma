@@ -6,6 +6,10 @@ import {
 import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
 import { calculateByteMetrics } from '../classical-ciphers/classical-ciphers.metrics';
 import {
+  resolveXorWhiteningOptions,
+  type XorWhiteningParameterInput,
+} from './block-cipher-xor-whitening';
+import {
   encryptAes,
   encryptAesCorpusWithSampledSteps,
   formatBytes,
@@ -20,10 +24,13 @@ import {
   ComplexCipherAlgorithm,
   ComplexCipherParameters,
   ComplexCipherWorkerResult,
+  DesJobParameters,
   KalynaJobParameters,
+  WhiteningComparisonMetadata,
 } from './complex-ciphers.types';
 
-const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 50_000;
+/** Padded plaintext above this size skips per-round step metrics (AES only). */
+export const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 12_000_000;
 const FINAL_METRIC_SAMPLE_SIZE = 50_000;
 
 export function runComplexCipher(
@@ -50,6 +57,7 @@ export function computeInteractiveEncryptRoundInsights(
   iv: Uint8Array | undefined,
   algorithm: ComplexCipherAlgorithm,
   outputEncoding: BinaryEncoding,
+  whiteningParameters?: XorWhiteningParameterInput,
 ): {
   ciphertext: Uint8Array;
   steps: CipherStepResponseDto[];
@@ -65,19 +73,100 @@ export function computeInteractiveEncryptRoundInsights(
   const algorithmLabel =
     algorithm === ComplexCipherAlgorithm.AES ? 'AES' : 'DES';
   const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
+  const whiteningEnabled = whiteningParameters?.whiteningEnabled ?? false;
+  const activeWhitening = resolveXorWhiteningOptions(
+    key,
+    blockBytes,
+    whiteningParameters,
+  );
+  const primaryInsights = computeBlockCipherEncryptInsights(
+    plaintext,
+    key,
+    mode,
+    iv,
+    algorithmLabel,
+    outputEncoding,
+    activeWhitening,
+  );
+  const withoutInsights = computeBlockCipherEncryptInsights(
+    plaintext,
+    key,
+    mode,
+    iv,
+    algorithmLabel,
+    outputEncoding,
+    { enabled: false },
+  );
+  const withInsights = whiteningEnabled
+    ? primaryInsights
+    : computeBlockCipherEncryptInsights(
+        plaintext,
+        key,
+        mode,
+        iv,
+        algorithmLabel,
+        outputEncoding,
+        resolveXorWhiteningOptions(key, blockBytes, {
+          ...whiteningParameters,
+          whiteningEnabled: true,
+        }),
+      );
+  const whiteningComparison: WhiteningComparisonMetadata = {
+    withWhitening: {
+      metricStats: withInsights.metricStats,
+      byteEntropy: withInsights.byteEntropy,
+      finalText: formatBytes(withInsights.ciphertext, outputEncoding),
+    },
+    withoutWhitening: {
+      metricStats: withoutInsights.metricStats,
+      byteEntropy: withoutInsights.byteEntropy,
+      finalText: formatBytes(withoutInsights.ciphertext, outputEncoding),
+    },
+  };
+
+  return {
+    ciphertext: primaryInsights.ciphertext,
+    steps: primaryInsights.steps,
+    metricStats: primaryInsights.metricStats,
+    metadata: {
+      ...primaryInsights.metadata,
+      xorWhiteningEnabled: whiteningEnabled,
+      whiteningFormula: 'Y = E_K(X ⊕ K_pre) ⊕ K_post',
+      whiteningComparison,
+    },
+  };
+}
+
+function computeBlockCipherEncryptInsights(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  mode: AesMode,
+  iv: Uint8Array | undefined,
+  algorithmLabel: 'AES' | 'DES',
+  outputEncoding: BinaryEncoding,
+  whitening: ReturnType<typeof resolveXorWhiteningOptions>,
+): {
+  ciphertext: Uint8Array;
+  steps: CipherStepResponseDto[];
+  metricStats: CipherMetricStatDto[];
+  byteEntropy: number;
+  metadata: Record<string, unknown>;
+} {
+  const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
   const paddedLength = getPaddedLength(plaintext.length, blockBytes);
+  const cipherOptions = { mode, iv, whitening };
   const shouldCollectRoundMetrics =
-    algorithm === ComplexCipherAlgorithm.DES ||
+    algorithmLabel === 'DES' ||
     paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
   const result = shouldCollectRoundMetrics
     ? algorithmLabel === 'AES'
-      ? encryptAesCorpusWithSampledSteps(plaintext, key, { mode, iv })
-      : encryptDesCorpusWithSampledSteps(plaintext, key, { mode, iv })
+      ? encryptAesCorpusWithSampledSteps(plaintext, key, cipherOptions)
+      : encryptDesCorpusWithSampledSteps(plaintext, key, cipherOptions)
     : {
         ciphertext:
           algorithmLabel === 'AES'
-            ? encryptAes(plaintext, key, { mode, iv }).ciphertext
-            : encryptDes(plaintext, key, { mode, iv }).ciphertext,
+            ? encryptAes(plaintext, key, cipherOptions).ciphertext
+            : encryptDes(plaintext, key, cipherOptions).ciphertext,
         steps: [],
         sampleSize: 0,
         totalBytes: paddedLength,
@@ -91,6 +180,7 @@ export function computeInteractiveEncryptRoundInsights(
           bytes,
           outputEncoding,
           algorithmLabel,
+          whitening.enabled,
         ),
       )
     : [];
@@ -98,11 +188,16 @@ export function computeInteractiveEncryptRoundInsights(
     sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
   );
   const byteEntropy = finalMetrics.wordFrequencyEntropy;
+  const metricStats =
+    stepResponses.length > 0
+      ? calculateStepMetricStats(stepResponses)
+      : calculateCiphertextMetricStats(ciphertext);
 
   return {
     ciphertext,
     steps: stepResponses,
-    metricStats: calculateStepMetricStats(stepResponses),
+    metricStats,
+    byteEntropy,
     metadata: {
       mode,
       keySize: key.length * 8,
@@ -116,6 +211,7 @@ export function computeInteractiveEncryptRoundInsights(
         shouldCollectRoundMetrics && result.sampleSize < result.totalBytes,
       stepSampleSourceBytes: result.totalBytes,
       byteEntropy,
+      xorWhiteningEnabled: whitening.enabled,
     },
   };
 }
@@ -250,6 +346,7 @@ function encryptTextWithBlockCipher(
     algorithmLabel === 'AES'
       ? ComplexCipherAlgorithm.AES
       : ComplexCipherAlgorithm.DES;
+  const whiteningParameters = parameters as DesJobParameters;
   const insights = computeInteractiveEncryptRoundInsights(
     plaintext,
     key,
@@ -257,6 +354,7 @@ function encryptTextWithBlockCipher(
     iv,
     algorithm,
     outputEncoding,
+    whiteningParameters,
   );
   const encodedIv =
     mode === AesMode.CBC && iv
@@ -290,6 +388,7 @@ function createBlockCipherStep(
   bytes: Uint8Array,
   outputEncoding: BinaryEncoding,
   algorithmLabel: 'AES' | 'DES' | 'Kalyna',
+  xorWhiteningEnabled = false,
 ): CipherStepResponseDto {
   const metrics = calculateByteMetrics(bytes);
 
@@ -299,6 +398,7 @@ function createBlockCipherStep(
       index,
       totalSteps,
       algorithmLabel,
+      xorWhiteningEnabled,
     ),
     text: formatBytes(bytes, outputEncoding),
     hurstExponent: metrics.hurstExponent,
@@ -311,7 +411,12 @@ function createBlockCipherStepDescription(
   index: number,
   totalSteps: number,
   algorithmLabel: 'AES' | 'DES' | 'Kalyna',
+  xorWhiteningEnabled = false,
 ): string {
+  if (xorWhiteningEnabled && index === 0) {
+    return `${algorithmLabel} XOR pre-whitening (X ⊕ K_pre)`;
+  }
+
   if (algorithmLabel === 'AES' && index === 0) {
     return 'AES initial AddRoundKey (whitening)';
   }
@@ -327,6 +432,34 @@ function createBlockCipherStepDescription(
   }
 
   return `${algorithmLabel} round ${round} of ${lastRound}`;
+}
+
+function calculateCiphertextMetricStats(
+  ciphertext: Uint8Array,
+): CipherMetricStatDto[] {
+  const metrics = calculateByteMetrics(
+    sampleBytes(ciphertext, FINAL_METRIC_SAMPLE_SIZE),
+  );
+
+  return (
+    [
+      { key: 'hurstExponent' as const, label: 'Hurst' },
+      { key: 'dfaAlpha' as const, label: 'DFA' },
+      { key: 'wordFrequencyEntropy' as const, label: 'Byte entropy' },
+    ] satisfies Array<{ key: CipherMetricKey; label: string }>
+  ).map((metric) => {
+    const value = metrics[metric.key];
+
+    return {
+      key: metric.key,
+      label: metric.label,
+      final: roundMetric(value),
+      mean: roundMetric(value),
+      standardDeviation: 0,
+      min: roundMetric(value),
+      max: roundMetric(value),
+    };
+  });
 }
 
 function calculateStepMetricStats(

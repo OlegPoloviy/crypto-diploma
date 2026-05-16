@@ -202,6 +202,18 @@ const uk = {
     "Метрики Герста, DFA та ентропії з'являться після завершення воркера.",
   "mean {{mean}} · SD {{sd}}": "середнє {{mean}} · СВ {{sd}}",
   "AES metrics chart": "Графік метрик AES",
+  "XOR whitening": "XOR-вибілювання",
+  "Y = E_K(X ⊕ K_pre) ⊕ K_post": "Y = E_K(X ⊕ K_pre) ⊕ K_post",
+  "Y = E_K(X ⊕ K_pre) ⊕ K_post vs plain E_K(X)":
+    "Y = E_K(X ⊕ K_pre) ⊕ K_post проти звичайного E_K(X)",
+  "Whitening comparison": "Порівняння вибілювання",
+  "Whitening comparison chart": "Графік порівняння вибілювання",
+  "Without whitening": "Без вибілювання",
+  "With whitening": "З вибілюванням",
+  Enabled: "Увімкнено",
+  Disabled: "Вимкнено",
+  "Round metrics were skipped because this corpus is above the detailed-step threshold ({{threshold}} MB).":
+    "Метрики раундів пропущено: корпус перевищує поріг детальних кроків ({{threshold}} МБ).",
   "Normalized against 8 bits per byte.": "Нормалізовано до 8 біт на байт.",
   "AES Lab": "AES-лабораторія",
   "Run the backend AES implementation directly and inspect encoded input, key, IV, and output parameters in one place.":

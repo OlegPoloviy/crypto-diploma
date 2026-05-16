@@ -1,5 +1,6 @@
 import { CipherMetricStatDto } from '../classical-ciphers/dto/cipher-metric-stat.dto';
 import { CipherStepResponseDto } from '../classical-ciphers/dto/cipher-step-response.dto';
+import { XorWhiteningParameterInput } from './block-cipher-xor-whitening';
 
 export enum AesMode {
   ECB = 'ecb',
@@ -46,7 +47,7 @@ export enum ComplexCipherJobStatus {
   FAILED = 'failed',
 }
 
-export interface AesJobParameters {
+export interface AesJobParameters extends XorWhiteningParameterInput {
   key: string;
   inputEncoding?: BinaryEncoding;
   keyEncoding?: BinaryEncoding;
@@ -56,7 +57,7 @@ export interface AesJobParameters {
   ivEncoding?: BinaryEncoding;
 }
 
-export interface DesJobParameters {
+export interface DesJobParameters extends XorWhiteningParameterInput {
   key: string;
   inputEncoding?: BinaryEncoding;
   keyEncoding?: BinaryEncoding;
@@ -64,6 +65,17 @@ export interface DesJobParameters {
   mode?: AesMode;
   iv?: string;
   ivEncoding?: BinaryEncoding;
+}
+
+export interface WhiteningMetricComparison {
+  metricStats: CipherMetricStatDto[];
+  byteEntropy: number;
+  finalText?: string;
+}
+
+export interface WhiteningComparisonMetadata {
+  withWhitening: WhiteningMetricComparison;
+  withoutWhitening: WhiteningMetricComparison;
 }
 
 export interface KalynaJobParameters {

@@ -364,7 +364,7 @@ describe('ComplexCiphersService', () => {
     });
   });
 
-  it('skips round metrics for large AES corpora', () => {
+  it('collects sampled AES round metrics for corpora below the round threshold', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.AES,
@@ -377,14 +377,34 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_016,
-      stepMetricThresholdBytes: 50_000,
-      stepMetricsSkipped: true,
-      stepSampleSize: 0,
-      stepSampled: false,
+      stepMetricThresholdBytes: 12_000_000,
+      stepMetricsSkipped: false,
+      stepSampleSize: 50_000,
+      stepSampled: true,
       stepSampleSourceBytes: 60_016,
     });
+    expect(result.steps.length).toBeGreaterThan(0);
+    expect(result.metricStats?.length).toBe(3);
+  });
+
+  it('skips AES round steps but keeps ciphertext metrics above the round threshold', () => {
+    const result = runComplexCipher(
+      'a'.repeat(12_000_001),
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.ECB,
+      },
+    );
+
+    expect(result.metadata).toMatchObject({
+      stepMetricThresholdBytes: 12_000_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+    });
     expect(result.steps).toEqual([]);
-    expect(result.metricStats).toEqual([]);
+    expect(result.metricStats?.length).toBe(3);
+    expect(result.metadata?.whiteningComparison).toBeDefined();
   });
 
   it('collects sampled Kalyna round metrics for large corpora', () => {
@@ -400,7 +420,7 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_016,
-      stepMetricThresholdBytes: 50_000,
+      stepMetricThresholdBytes: 12_000_000,
       stepMetricsSkipped: false,
       stepSampleSize: 50_000,
       stepSampled: true,
@@ -410,7 +430,7 @@ describe('ComplexCiphersService', () => {
     expect(result.metricStats?.length).toBe(3);
   });
 
-  it('collects sampled DES round metrics for large corpora (above AES round threshold)', () => {
+  it('collects sampled DES round metrics for large corpora (above legacy AES threshold)', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.DES,
@@ -423,7 +443,7 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_008,
-      stepMetricThresholdBytes: 50_000,
+      stepMetricThresholdBytes: 12_000_000,
       stepMetricsSkipped: false,
       stepSampleSize: 1_024,
       stepSampled: true,

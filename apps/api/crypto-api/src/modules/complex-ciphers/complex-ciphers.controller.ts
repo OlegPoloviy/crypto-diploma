@@ -45,8 +45,9 @@ import { DesResponseDto } from './dto/des-response.dto';
 import { KalynaDecryptDto, KalynaEncryptDto } from './dto/kalyna-cipher.dto';
 import { KalynaResponseDto } from './dto/kalyna-response.dto';
 import { KalynaBlockSize } from './complex-ciphers.types';
+import { XorWhiteningFieldsDto } from './dto/xor-whitening-fields.dto';
 
-class BatchAesFileDto {
+class BatchAesFileDto extends XorWhiteningFieldsDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
@@ -119,7 +120,7 @@ class BatchKalynaFileDto {
   ivEncoding?: BinaryEncoding;
 }
 
-class BatchDesFileDto {
+class BatchDesFileDto extends XorWhiteningFieldsDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
@@ -356,6 +357,10 @@ export class ComplexCiphersController {
         mode: body.mode,
         iv: body.mode === AesMode.ECB ? undefined : body.iv,
         ivEncoding: body.ivEncoding,
+        whiteningEnabled: body.whiteningEnabled,
+        kPre: body.kPre,
+        kPost: body.kPost,
+        whiteningKeyEncoding: body.whiteningKeyEncoding,
       },
     );
   }
@@ -427,6 +432,10 @@ export class ComplexCiphersController {
         mode: body.mode,
         iv: body.mode === AesMode.ECB ? undefined : body.iv,
         ivEncoding: body.ivEncoding,
+        whiteningEnabled: body.whiteningEnabled,
+        kPre: body.kPre,
+        kPost: body.kPost,
+        whiteningKeyEncoding: body.whiteningKeyEncoding,
       },
     );
   }

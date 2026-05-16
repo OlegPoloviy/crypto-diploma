@@ -1,4 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  decryptBlockWithXorWhitening,
+  encryptBlockWithXorWhitening,
+  type XorWhiteningOptions,
+} from './block-cipher-xor-whitening';
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
 import {
   AES_BLOCK_SIZE as BLOCK_SIZE,
@@ -11,6 +16,7 @@ import {
 interface AesOptions {
   mode?: AesMode;
   iv?: Uint8Array;
+  whitening?: XorWhiteningOptions;
 }
 
 export interface AesCorpusSampledStepsResult {
@@ -38,7 +44,7 @@ export function encryptAes(
       block = xorBlocks(block, previous);
     }
 
-    const encrypted = encryptBlock(block, roundKeys);
+    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
     output.push(...encrypted);
     previous = encrypted;
   }
@@ -68,7 +74,7 @@ export function decryptAes(
 
   for (let offset = 0; offset < ciphertext.length; offset += BLOCK_SIZE) {
     const block: Uint8Array = ciphertext.slice(offset, offset + BLOCK_SIZE);
-    let decrypted = decryptBlock(block, roundKeys);
+    let decrypted = decryptCipherBlock(block, roundKeys, options.whitening);
     if (mode === AesMode.CBC) {
       decrypted = xorBlocks(decrypted, previous);
     }
@@ -104,7 +110,7 @@ export function encryptAesCorpusWithSteps(
     }
 
     const steps = encryptAesWithSteps(block, roundKeys);
-    const encrypted = getFinalStep(steps, 'AES encryption');
+    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
     steps.forEach((step, index) => roundBuffers[index].push(...step));
     previous = encrypted;
   }
@@ -141,7 +147,7 @@ export function encryptAesCorpusWithSampledSteps(
       collectStepSample(stepSamples[stepIndex], step, offset, samplePlan);
     });
 
-    const encrypted = getFinalStep(steps, 'AES encryption');
+    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
     ciphertext.push(...encrypted);
     previous = encrypted;
   }
@@ -399,6 +405,40 @@ function subWord(word: number[]): number[] {
 
 function xorWords(left: number[], right: number[]): number[] {
   return left.map((byte, index) => byte ^ right[index]);
+}
+
+function encryptCipherBlock(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array {
+  if (whitening?.enabled && whitening.keys) {
+    return encryptBlockWithXorWhitening(
+      block,
+      roundKeys,
+      whitening.keys,
+      encryptBlock,
+    );
+  }
+
+  return encryptBlock(block, roundKeys);
+}
+
+function decryptCipherBlock(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array {
+  if (whitening?.enabled && whitening.keys) {
+    return decryptBlockWithXorWhitening(
+      block,
+      roundKeys,
+      whitening.keys,
+      decryptBlock,
+    );
+  }
+
+  return decryptBlock(block, roundKeys);
 }
 
 function xorBlocks(left: Uint8Array, right: Uint8Array): Uint8Array {

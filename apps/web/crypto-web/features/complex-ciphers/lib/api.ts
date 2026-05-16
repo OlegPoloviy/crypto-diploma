@@ -77,6 +77,7 @@ export async function createAesJobsFromFiles(input: {
   mode: CreateAesJobInput["mode"];
   iv?: string;
   ivEncoding: CreateAesJobInput["ivEncoding"];
+  whiteningEnabled?: CreateAesJobInput["whiteningEnabled"];
 }): Promise<ComplexCipherJob[]> {
   const formData = new FormData();
   formData.append("title", input.title);
@@ -91,6 +92,9 @@ export async function createAesJobsFromFiles(input: {
   }
   if (input.blockSizeBits) {
     formData.append("blockSizeBits", String(input.blockSizeBits));
+  }
+  if (input.whiteningEnabled !== undefined) {
+    formData.append("whiteningEnabled", input.whiteningEnabled ? "true" : "false");
   }
   input.files.forEach((file) => formData.append("files", file));
 

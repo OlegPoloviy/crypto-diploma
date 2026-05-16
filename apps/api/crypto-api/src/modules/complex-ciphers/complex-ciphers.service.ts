@@ -17,6 +17,7 @@ import {
   TextFileType,
   TextParserService,
 } from '../text-parser/text-parser.service';
+import { resolveXorWhiteningOptions } from './block-cipher-xor-whitening';
 import { decryptAes, formatBytes, parseBytes } from './aes.engine';
 import { computeInteractiveEncryptRoundInsights } from './complex-ciphers.engine';
 import { decryptDes } from './des.engine';
@@ -94,6 +95,7 @@ export class ComplexCiphersService {
       iv,
       ComplexCipherAlgorithm.AES,
       outputEncoding,
+      body,
     );
 
     return {
@@ -122,7 +124,8 @@ export class ComplexCiphersService {
     const ciphertext = parseBytes(body.ciphertext, inputEncoding, 'ciphertext');
     const key = parseBytes(body.key, keyEncoding, 'key');
     const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
-    const result = decryptAes(ciphertext, key, { mode, iv });
+    const whitening = resolveXorWhiteningOptions(key, 16, body);
+    const result = decryptAes(ciphertext, key, { mode, iv, whitening });
 
     return {
       operation: AesOperation.DECRYPT,
@@ -151,6 +154,7 @@ export class ComplexCiphersService {
       iv,
       ComplexCipherAlgorithm.DES,
       outputEncoding,
+      body,
     );
 
     return {
@@ -249,7 +253,8 @@ export class ComplexCiphersService {
     const ciphertext = parseBytes(body.ciphertext, inputEncoding, 'ciphertext');
     const key = parseBytes(body.key, keyEncoding, 'key');
     const iv = body.iv ? parseBytes(body.iv, ivEncoding, 'iv') : undefined;
-    const result = decryptDes(ciphertext, key, { mode, iv });
+    const whitening = resolveXorWhiteningOptions(key, 8, body);
+    const result = decryptDes(ciphertext, key, { mode, iv, whitening });
 
     return {
       operation: DesOperation.DECRYPT,
@@ -271,6 +276,10 @@ export class ComplexCiphersService {
       mode: body.mode,
       iv: body.iv,
       ivEncoding: body.ivEncoding,
+      whiteningEnabled: body.whiteningEnabled,
+      kPre: body.kPre,
+      kPost: body.kPost,
+      whiteningKeyEncoding: body.whiteningKeyEncoding,
     };
 
     return this.createJob(
@@ -310,6 +319,10 @@ export class ComplexCiphersService {
       mode: body.mode,
       iv: body.iv,
       ivEncoding: body.ivEncoding,
+      whiteningEnabled: body.whiteningEnabled,
+      kPre: body.kPre,
+      kPost: body.kPost,
+      whiteningKeyEncoding: body.whiteningKeyEncoding,
     };
 
     return this.createJob(

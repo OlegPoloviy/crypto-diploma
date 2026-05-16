@@ -22,7 +22,25 @@ export interface AesResponse {
   metadata?: Record<string, unknown> | null;
 }
 
-export interface AesEncryptInput {
+export interface XorWhiteningInput {
+  whiteningEnabled?: boolean;
+  kPre?: string;
+  kPost?: string;
+  whiteningKeyEncoding?: BinaryEncoding;
+}
+
+export interface WhiteningMetricComparison {
+  metricStats: CipherMetricStat[];
+  byteEntropy: number;
+  finalText?: string;
+}
+
+export interface WhiteningComparisonMetadata {
+  withWhitening: WhiteningMetricComparison;
+  withoutWhitening: WhiteningMetricComparison;
+}
+
+export interface AesEncryptInput extends XorWhiteningInput {
   plaintext: string;
   key: string;
   blockSizeBits?: KalynaBlockSize;
@@ -34,7 +52,7 @@ export interface AesEncryptInput {
   ivEncoding: BinaryEncoding;
 }
 
-export interface AesDecryptInput {
+export interface AesDecryptInput extends XorWhiteningInput {
   ciphertext: string;
   key: string;
   blockSizeBits?: KalynaBlockSize;
@@ -92,7 +110,7 @@ export interface CipherStep {
   wordFrequencyEntropy: number;
 }
 
-export interface CreateAesJobInput {
+export interface CreateAesJobInput extends XorWhiteningInput {
   parsedTextId: string;
   key: string;
   blockSizeBits?: KalynaBlockSize;

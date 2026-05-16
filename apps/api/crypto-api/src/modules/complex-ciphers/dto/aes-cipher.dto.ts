@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AesMode, BinaryEncoding } from '../complex-ciphers.types';
+import { XorWhiteningFieldsDto } from './xor-whitening-fields.dto';
 
-export class AesEncryptDto {
+export class AesEncryptDto extends XorWhiteningFieldsDto {
   @ApiProperty({
     example: 'hello world',
     description: 'Plain text to encrypt',
@@ -73,7 +74,7 @@ export class AesEncryptDto {
   ivEncoding?: BinaryEncoding;
 }
 
-export class AesDecryptDto {
+export class AesDecryptDto extends XorWhiteningFieldsDto {
   @ApiProperty({
     example: '7649abac8119b246cee98e9b12e9197d',
     description: 'Ciphertext to decrypt',

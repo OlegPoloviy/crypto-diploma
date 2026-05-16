@@ -46,7 +46,9 @@ import {
   ComplexCipherAlgorithm,
   ComplexCipherJob,
   ComplexCipherJobStatus,
+  CipherMetricStat,
   CipherStep,
+  WhiteningComparisonMetadata,
 } from "../types/aes-cipher";
 
 const algorithmOptions: ComplexCipherAlgorithm[] = ["aes", "des", "kalyna"];
@@ -465,6 +467,7 @@ function AesJobDetails({
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-3">
+          <WhiteningComparisonChart metadata={job.metadata} />
           <MetricStrip job={job} />
           <AesMetricCharts job={job} />
           <AesRoundSteps job={job} />
@@ -508,6 +511,18 @@ function AesJobDetails({
               icon={<ShieldCheck className="size-4" />}
               label={t("Whitening")}
               value={String(job.metadata.whitening)}
+            />
+          ) : null}
+          {job.algorithm !== "kalyna" ? (
+            <StateTile
+              icon={<ShieldCheck className="size-4" />}
+              label={t("XOR whitening")}
+              value={
+                job.parameters.whiteningEnabled === true ||
+                job.metadata?.xorWhiteningEnabled === true
+                  ? t("Enabled")
+                  : t("Disabled")
+              }
             />
           ) : null}
           <StateTile
@@ -572,7 +587,8 @@ function AesRoundSteps({
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
         {metricsSkipped
           ? t(
-              "Round metrics were skipped because this corpus is above the detailed-step threshold.",
+              "Round metrics were skipped because this corpus is above the detailed-step threshold ({{threshold}} MB).",
+              { threshold: "12" },
             )
           : t("Round states will appear after the corpus worker completes.")}
       </div>
@@ -995,6 +1011,216 @@ function AesMetricCharts({
   );
 }
 
+const WHITENING_METRIC_KEYS: CipherMetricStat["key"][] = [
+  "hurstExponent",
+  "dfaAlpha",
+  "wordFrequencyEntropy",
+];
+
+function parseWhiteningComparison(
+  metadata?: Record<string, unknown> | null,
+): WhiteningComparisonMetadata | null {
+  const comparison = metadata?.whiteningComparison;
+  if (!comparison || typeof comparison !== "object") {
+    return null;
+  }
+
+  const typed = comparison as WhiteningComparisonMetadata;
+  if (!typed.withWhitening || !typed.withoutWhitening) {
+    return null;
+  }
+
+  return typed;
+}
+
+function buildWhiteningComparisonGroups(
+  comparison: WhiteningComparisonMetadata,
+) {
+  return WHITENING_METRIC_KEYS.map((key) => {
+    const withMetric = comparison.withWhitening.metricStats?.find(
+      (metric) => metric.key === key,
+    );
+    const withoutMetric = comparison.withoutWhitening.metricStats?.find(
+      (metric) => metric.key === key,
+    );
+    const withValue =
+      withMetric?.final ??
+      (key === "wordFrequencyEntropy"
+        ? comparison.withWhitening.byteEntropy
+        : undefined);
+    const withoutValue =
+      withoutMetric?.final ??
+      (key === "wordFrequencyEntropy"
+        ? comparison.withoutWhitening.byteEntropy
+        : undefined);
+
+    if (withValue === undefined || withoutValue === undefined) {
+      return null;
+    }
+
+    return {
+      key,
+      label: withMetric?.label ?? withoutMetric?.label ?? key,
+      withValue,
+      withoutValue,
+    };
+  }).filter((group): group is NonNullable<typeof group> => group !== null);
+}
+
+function WhiteningComparisonChart({
+  metadata,
+}: {
+  metadata?: Record<string, unknown> | null;
+}) {
+  const { t } = useTranslation();
+  const comparison = parseWhiteningComparison(metadata);
+  if (!comparison) {
+    return null;
+  }
+
+  const groups = buildWhiteningComparisonGroups(comparison);
+  if (groups.length === 0) {
+    return null;
+  }
+
+  const width = 760;
+  const height = 240;
+  const padding = 40;
+  const groupWidth = (width - padding * 2) / groups.length;
+  const barWidth = Math.min(28, groupWidth / 3);
+  const maxValue = Math.max(
+    1,
+    ...groups.flatMap((group) => [group.withValue, group.withoutValue]),
+  );
+
+  const barHeight = (value: number) =>
+    ((height - padding * 2) * value) / maxValue;
+
+  return (
+    <WhiteningChartFrame t={t}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={t("Whitening comparison chart")}
+        className="h-60 w-full overflow-visible"
+      >
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y = padding + ratio * (height - padding * 2);
+          return (
+            <line
+              key={ratio}
+              x1={padding}
+              x2={width - padding}
+              y1={y}
+              y2={y}
+              stroke="currentColor"
+              className="text-slate-200 dark:text-white/10"
+            />
+          );
+        })}
+        {groups.map((group, index) => {
+          const centerX = padding + groupWidth * index + groupWidth / 2;
+          const withoutX = centerX - barWidth - 4;
+          const withX = centerX + 4;
+          const withoutHeight = barHeight(group.withoutValue);
+          const withHeight = barHeight(group.withValue);
+          const baseY = height - padding;
+
+          return (
+            <g key={group.key}>
+              <rect
+                x={withoutX}
+                y={baseY - withoutHeight}
+                width={barWidth}
+                height={withoutHeight}
+                rx="4"
+                fill="#94a3b8"
+              />
+              <rect
+                x={withX}
+                y={baseY - withHeight}
+                width={barWidth}
+                height={withHeight}
+                rx="4"
+                fill="#22d3ee"
+              />
+              <text
+                x={centerX}
+                y={height - 12}
+                textAnchor="middle"
+                className="fill-slate-500 text-[11px] dark:fill-slate-400"
+              >
+                {t(group.label)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </WhiteningChartFrame>
+  );
+}
+
+function WhiteningChartFrame({
+  children,
+  t,
+}: {
+  children: React.ReactNode;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+        {t("Whitening comparison")}
+      </p>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+        {t("Y = E_K(X ⊕ K_pre) ⊕ K_post vs plain E_K(X)")}
+      </p>
+      <WhiteningChartLegend t={t} />
+      {children}
+    </div>
+  );
+}
+
+function WhiteningChartLegend({ t }: { t: (key: string) => string }) {
+  return (
+    <div className="mb-2 mt-3 flex flex-wrap items-center gap-4 text-sm">
+      <LegendDot color="#94a3b8" label={t("Without whitening")} />
+      <LegendDot color="#22d3ee" label={t("With whitening")} />
+    </div>
+  );
+}
+
+function XorWhiteningToggle({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const inputId = "xor-whitening-enabled";
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5">
+      <label htmlFor={inputId} className="flex-1 cursor-pointer">
+        <p className="font-medium text-slate-950 dark:text-slate-100">
+          {t("XOR whitening")}
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {t("Y = E_K(X ⊕ K_pre) ⊕ K_post")}
+        </p>
+      </label>
+      <input
+        id={inputId}
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onEnabledChange(event.target.checked)}
+        className="size-4 shrink-0 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+      />
+    </div>
+  );
+}
+
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
@@ -1044,7 +1270,11 @@ function JobStatusBadge({ status }: { status: ComplexCipherJobStatus }) {
 function formatJobParameters(job: ComplexCipherJob) {
   const mode = String(job.parameters.mode ?? "cbc").toUpperCase();
   const output = String(job.parameters.outputEncoding ?? "hex").toUpperCase();
-  return `${mode}; out=${output}`;
+  const whitening =
+    job.algorithm !== "kalyna" && job.parameters.whiteningEnabled === true
+      ? "; WH=on"
+      : "";
+  return `${mode}; out=${output}${whitening}`;
 }
 
 function formatJobAlgorithm(job: { algorithm: ComplexCipherAlgorithm }) {
@@ -1375,6 +1605,13 @@ function AesControlPanel({
           </select>
         </div>
 
+        {workspace.algorithm !== "kalyna" ? (
+          <XorWhiteningToggle
+            enabled={workspace.whiteningEnabled}
+            onEnabledChange={workspace.setWhiteningEnabled}
+          />
+        ) : null}
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <EncodingSelect
             id="aes-input-encoding"
@@ -1556,6 +1793,7 @@ function AesIOPanel({
               (result.steps?.length ?? 0) > 0 ||
               typeof result.metadata?.byteEntropy === "number") ? (
               <>
+                <WhiteningComparisonChart metadata={result.metadata} />
                 {(result.metricStats?.length ?? 0) > 0 ? (
                   <MetricStrip
                     job={{ metricStats: result.metricStats ?? [] }}
