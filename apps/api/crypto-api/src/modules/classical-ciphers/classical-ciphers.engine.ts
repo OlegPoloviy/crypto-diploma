@@ -14,18 +14,31 @@ import {
   ClassicalCipherParameters,
 } from './classical-ciphers.types';
 
+interface CipherProgress {
+  processed: number;
+  total: number;
+  message: string;
+}
+
+interface CipherRunOptions {
+  onProgress?: (progress: CipherProgress) => void;
+}
+
 const DEFAULT_CAESAR_JOB_MAX_STEPS = 40;
 const MAX_STORED_STEP_TEXT_LENGTH = 8000;
 
 const METRIC_DESCRIPTORS: Array<{ key: CipherMetricKey; label: string }> = [
   { key: 'hurstExponent', label: 'Hurst' },
   { key: 'dfaAlpha', label: 'DFA' },
+  { key: 'deaDelta', label: 'DEA' },
   { key: 'wordFrequencyEntropy', label: 'Entropy' },
   { key: 'wordHurstExponent', label: 'Word Hurst' },
   { key: 'wordDfaAlpha', label: 'Word DFA' },
+  { key: 'wordDeaDelta', label: 'Word DEA' },
   { key: 'wordEntropy', label: 'Word entropy' },
   { key: 'byteHurstExponent', label: 'Byte Hurst' },
   { key: 'byteDfaAlpha', label: 'Byte DFA' },
+  { key: 'byteDeaDelta', label: 'Byte DEA' },
   { key: 'byteEntropy', label: 'Byte entropy' },
 ];
 
@@ -36,6 +49,7 @@ interface ClassicalWhiteningOptions {
 interface ByteMetricSnapshot {
   byteHurstExponent: number;
   byteDfaAlpha: number;
+  byteDeaDelta: number;
   byteEntropy: number;
   status: 'random-like' | 'structured';
 }
@@ -50,8 +64,18 @@ interface WhiteningImpactMetadata {
     delta: Omit<ByteMetricSnapshot, 'status'>;
     wordHurstExponent?: number;
     wordDfaAlpha?: number;
+    wordDeaDelta?: number;
     wordEntropy?: number;
   };
+}
+
+interface WhiteningMetadataInput {
+  whiteningEnabled: boolean;
+  beforeBytes: Uint8Array;
+  afterBytes?: Uint8Array;
+  wordMetricText?: string;
+  mode: 'text' | 'byte';
+  formula: 'post-only' | 'pre-post';
 }
 
 interface Alphabet {
@@ -76,9 +100,10 @@ export function runClassicalCipher(
   text: string,
   algorithm: ClassicalCipherAlgorithm,
   parameters: ClassicalCipherParameters,
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   if (getInputEncoding(parameters) === 'hex') {
-    return runClassicalByteCipher(text, algorithm, parameters);
+    return runClassicalByteCipher(text, algorithm, parameters, options);
   }
 
   switch (algorithm) {
@@ -88,12 +113,14 @@ export function runClassicalCipher(
         getShift(parameters),
         getMaxSteps(parameters),
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     case ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS:
       return encryptVigenereByKeySymbols(
         text,
         getKey(parameters),
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     case ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS:
       return encryptVigenereByKeyLengths(
@@ -101,6 +128,7 @@ export function runClassicalCipher(
         getKey(parameters),
         'keyLengths' in parameters ? parameters.keyLengths : undefined,
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     default:
       throw new BadRequestException('Unsupported classical cipher algorithm');
@@ -111,6 +139,7 @@ function runClassicalByteCipher(
   text: string,
   algorithm: ClassicalCipherAlgorithm,
   parameters: ClassicalCipherParameters,
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   const bytes = parseHexBytes(text);
 
@@ -121,12 +150,14 @@ function runClassicalByteCipher(
         getShift(parameters),
         getMaxSteps(parameters),
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     case ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS:
       return encryptVigenereBytesByKeySymbols(
         bytes,
         getKey(parameters),
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     case ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS:
       return encryptVigenereBytesByKeyLengths(
@@ -134,6 +165,7 @@ function runClassicalByteCipher(
         getKey(parameters),
         'keyLengths' in parameters ? parameters.keyLengths : undefined,
         getClassicalWhiteningOptions(parameters),
+        options,
       );
     default:
       throw new BadRequestException('Unsupported classical cipher algorithm');
@@ -145,6 +177,7 @@ function encryptCaesarBytes(
   shift: number,
   maxSteps = DEFAULT_CAESAR_JOB_MAX_STEPS,
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertBytes(bytes);
 
@@ -166,6 +199,7 @@ function encryptCaesarBytes(
         MAX_STORED_STEP_TEXT_LENGTH,
       ),
     );
+    reportProgress(options, 0, input.length, 'Classical pre-whitening complete');
   }
 
   for (let index = 0; index < output.length; index += 1) {
@@ -187,6 +221,12 @@ function encryptCaesarBytes(
           MAX_STORED_STEP_TEXT_LENGTH,
         ),
       );
+      reportProgress(
+        options,
+        processedBytes,
+        input.length,
+        `Encrypted ${processedBytes} of ${input.length} bytes`,
+      );
     }
   }
 
@@ -202,6 +242,7 @@ function encryptCaesarBytes(
         MAX_STORED_STEP_TEXT_LENGTH,
       ),
     );
+    reportProgress(options, input.length, input.length, 'Classical post-whitening complete');
   }
 
   return {
@@ -222,6 +263,7 @@ function encryptVigenereBytesByKeySymbols(
   bytes: Uint8Array,
   key: string,
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertBytes(bytes);
   const keyBytes = normalizeByteKey(key);
@@ -233,6 +275,7 @@ function encryptVigenereBytesByKeySymbols(
 
   if (whiteningEnabled) {
     steps.push(createByteStep(1, 'Classical pre-whitening', input));
+    reportProgress(options, 0, keyBytes.length, 'Classical pre-whitening complete');
   }
 
   Array.from(keyBytes).forEach((keyByte, index) => {
@@ -242,6 +285,12 @@ function encryptVigenereBytesByKeySymbols(
         `Applied key byte 0x${keyByte.toString(16).padStart(2, '0')} (${index + 1} of ${keyBytes.length})`,
         encryptVigenereBytesPartial(input, keyBytes, index),
       ),
+    );
+    reportProgress(
+      options,
+      index + 1,
+      keyBytes.length,
+      `Applied key byte ${index + 1} of ${keyBytes.length}`,
     );
   });
 
@@ -253,6 +302,7 @@ function encryptVigenereBytesByKeySymbols(
     steps.push(
       createByteStep(steps.length + 1, 'Classical post-whitening', finalBytes),
     );
+    reportProgress(options, keyBytes.length, keyBytes.length, 'Classical post-whitening complete');
   }
 
   return {
@@ -276,6 +326,7 @@ function encryptVigenereBytesByKeyLengths(
   key: string,
   keyLengths = [1, 3, 5, 10, 20],
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertBytes(bytes);
   const keyBytes = normalizeByteKey(key);
@@ -288,9 +339,10 @@ function encryptVigenereBytesByKeyLengths(
 
   if (whiteningEnabled) {
     steps.push(createByteStep(1, 'Classical pre-whitening', input));
+    reportProgress(options, 0, uniqueLengths.length, 'Classical pre-whitening complete');
   }
 
-  uniqueLengths.forEach((length) => {
+  uniqueLengths.forEach((length, index) => {
     const encrypted = encryptVigenereBytesFull(
       input,
       expandByteKey(keyBytes, length),
@@ -306,6 +358,12 @@ function encryptVigenereBytesByKeyLengths(
         undefined,
         { keyLength: length },
       ),
+    );
+    reportProgress(
+      options,
+      index + 1,
+      uniqueLengths.length,
+      `Encrypted with key length ${length}`,
     );
   });
 
@@ -335,6 +393,7 @@ export function encryptCaesar(
   text: string,
   shift: number,
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertText(text);
 
@@ -361,6 +420,12 @@ export function encryptCaesar(
         currentText,
       ),
     );
+    reportProgress(
+      options,
+      index + 1,
+      matches.length,
+      `Encrypted word ${index + 1} of ${matches.length}`,
+    );
   });
 
   if (whiteningEnabled) {
@@ -381,6 +446,7 @@ export function encryptCaesar(
         wordMetricText,
       ),
     );
+    reportProgress(options, matches.length, matches.length, 'Classical byte post-whitening complete');
   }
 
   return {
@@ -403,6 +469,7 @@ export function encryptCaesarCheckpoints(
   shift: number,
   maxSteps = DEFAULT_CAESAR_JOB_MAX_STEPS,
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertText(text);
 
@@ -447,6 +514,12 @@ export function encryptCaesarCheckpoints(
           MAX_STORED_STEP_TEXT_LENGTH,
         ),
       );
+      reportProgress(
+        options,
+        encryptedWords,
+        totalWords,
+        `Encrypted ${encryptedWords} of ${totalWords} words`,
+      );
     }
   }
 
@@ -470,6 +543,7 @@ export function encryptCaesarCheckpoints(
         encryptedText,
       ),
     );
+    reportProgress(options, totalWords, totalWords, 'Classical byte post-whitening complete');
   }
 
   return {
@@ -483,6 +557,7 @@ export function encryptVigenereByKeySymbols(
   text: string,
   key: string,
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertText(text);
   const keySymbols = normalizeKey(key);
@@ -499,6 +574,12 @@ export function encryptVigenereByKeySymbols(
         `Applied key symbol '${symbol.original}' (${index + 1} of ${keySymbols.length})`,
         encryptedText,
       ),
+    );
+    reportProgress(
+      options,
+      index + 1,
+      keySymbols.length,
+      `Applied key symbol ${index + 1} of ${keySymbols.length}`,
     );
   });
 
@@ -522,6 +603,7 @@ export function encryptVigenereByKeySymbols(
         encryptedText,
       ),
     );
+    reportProgress(options, keySymbols.length, keySymbols.length, 'Classical byte post-whitening complete');
   }
 
   return {
@@ -536,6 +618,7 @@ export function encryptVigenereByKeyLengths(
   key: string,
   keyLengths = [1, 3, 5, 10, 20],
   whitening: ClassicalWhiteningOptions = {},
+  options: CipherRunOptions = {},
 ): CipherResponseDto {
   assertText(text);
   const normalizedKey = normalizeKey(key);
@@ -544,7 +627,7 @@ export function encryptVigenereByKeyLengths(
   const uniqueLengths = Array.from(new Set(keyLengths)).sort((a, b) => a - b);
   const steps: CipherStepResponseDto[] = [];
 
-  uniqueLengths.forEach((length) => {
+  uniqueLengths.forEach((length, index) => {
     const effectiveKey = expandKey(normalizedKey, length);
     const encryptedText = encryptVigenereFull(input, effectiveKey);
     const postBytes = whiteningEnabled
@@ -565,6 +648,12 @@ export function encryptVigenereByKeyLengths(
         postBytes,
         encryptedText,
       ),
+    );
+    reportProgress(
+      options,
+      index + 1,
+      uniqueLengths.length,
+      `Encrypted with key length ${length}`,
     );
   });
 
@@ -802,9 +891,11 @@ function createStep(
     ...wordMetrics,
     wordHurstExponent: wordMetrics.hurstExponent,
     wordDfaAlpha: wordMetrics.dfaAlpha,
+    wordDeaDelta: wordMetrics.deaDelta,
     wordEntropy: wordMetrics.wordFrequencyEntropy,
     byteHurstExponent: byteMetrics.hurstExponent,
     byteDfaAlpha: byteMetrics.dfaAlpha,
+    byteDeaDelta: byteMetrics.deaDelta,
     byteEntropy: byteMetrics.wordFrequencyEntropy,
   };
 }
@@ -827,8 +918,77 @@ function createByteStep(
     ...byteMetrics,
     byteHurstExponent: byteMetrics.hurstExponent,
     byteDfaAlpha: byteMetrics.dfaAlpha,
+    byteDeaDelta: byteMetrics.deaDelta,
     byteEntropy: byteMetrics.wordFrequencyEntropy,
   };
+}
+
+function createWhiteningMetadata(
+  input: WhiteningMetadataInput,
+): WhiteningImpactMetadata & Record<string, unknown> {
+  if (!input.whiteningEnabled || !input.afterBytes) {
+    return { whiteningEnabled: input.whiteningEnabled };
+  }
+
+  const withoutWhitening = createByteMetricSnapshot(input.beforeBytes);
+  const withWhitening = createByteMetricSnapshot(input.afterBytes);
+  const wordMetrics = input.wordMetricText
+    ? calculateTextMetrics(input.wordMetricText)
+    : undefined;
+
+  return {
+    whiteningEnabled: true,
+    whiteningImpact: {
+      formula: input.formula,
+      mode: input.mode,
+      withoutWhitening,
+      withWhitening,
+      delta: {
+        byteHurstExponent: roundMetric(
+          withWhitening.byteHurstExponent - withoutWhitening.byteHurstExponent,
+        ),
+        byteDfaAlpha: roundMetric(
+          withWhitening.byteDfaAlpha - withoutWhitening.byteDfaAlpha,
+        ),
+        byteDeaDelta: roundMetric(
+          withWhitening.byteDeaDelta - withoutWhitening.byteDeaDelta,
+        ),
+        byteEntropy: roundMetric(
+          withWhitening.byteEntropy - withoutWhitening.byteEntropy,
+        ),
+      },
+      wordHurstExponent: wordMetrics?.hurstExponent,
+      wordDfaAlpha: wordMetrics?.dfaAlpha,
+      wordDeaDelta: wordMetrics?.deaDelta,
+      wordEntropy: wordMetrics?.wordFrequencyEntropy,
+    },
+  };
+}
+
+function createByteMetricSnapshot(bytes: Uint8Array): ByteMetricSnapshot {
+  const metrics = calculateByteMetrics(bytes);
+
+  return {
+    byteHurstExponent: metrics.hurstExponent,
+    byteDfaAlpha: metrics.dfaAlpha,
+    byteDeaDelta: metrics.deaDelta,
+    byteEntropy: metrics.wordFrequencyEntropy,
+    status: isRandomLikeByteMetrics(metrics) ? 'random-like' : 'structured',
+  };
+}
+
+function isRandomLikeByteMetrics(metrics: {
+  hurstExponent: number;
+  dfaAlpha: number;
+  deaDelta: number;
+  wordFrequencyEntropy: number;
+}): boolean {
+  return (
+    Math.abs(metrics.hurstExponent - 0.5) <= 0.08 &&
+    Math.abs(metrics.dfaAlpha - 0.5) <= 0.12 &&
+    Math.abs(metrics.deaDelta - 0.5) <= 0.18 &&
+    metrics.wordFrequencyEntropy >= 6
+  );
 }
 
 function assertText(text: string): void {
@@ -894,6 +1054,19 @@ interface KeySymbol {
 
 function modulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
+}
+
+function reportProgress(
+  options: CipherRunOptions,
+  processed: number,
+  total: number,
+  message: string,
+): void {
+  options.onProgress?.({
+    processed,
+    total: Math.max(1, total),
+    message,
+  });
 }
 
 function countWords(text: string): number {

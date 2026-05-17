@@ -74,6 +74,7 @@ describe('TextParserService', () => {
       uniqueWords: 6,
       hurstExponent: expect.any(Number),
       dfaAlpha: expect.any(Number),
+      deaDelta: expect.any(Number),
       wordFrequencyEntropy: expect.any(Number),
     });
   });
@@ -103,6 +104,7 @@ describe('TextParserService', () => {
     expect(result.status).toBe(ParsedTextStatus.COMPLETED);
     expect(result.corpusKind).toBe(ParsedTextCorpusKind.NATURAL_TEXT);
     expect(result.hurstExponent).toEqual(expect.any(Number));
+    expect(result.deaDelta).toEqual(expect.any(Number));
   });
 
   it('queues one parsing job per large uploaded file', async () => {
@@ -145,6 +147,7 @@ describe('TextParserService', () => {
         corpusKind: ParsedTextCorpusKind.RANDOM_BYTES,
         source: ParsedTextSource.UPLOAD,
         status: ParsedTextStatus.COMPLETED,
+        deaDelta: expect.any(Number),
         wordFrequencyEntropy: 8,
       }),
     );
@@ -160,6 +163,7 @@ describe('TextParserService', () => {
     expect(result.status).toBe(ParsedTextStatus.COMPLETED);
     expect(result.corpusKind).toBe(ParsedTextCorpusKind.RANDOM_BYTES);
     expect(result.source).toBe(ParsedTextSource.GENERATED);
+    expect(result.deaDelta).toEqual(expect.any(Number));
     expect(result.wordFrequencyEntropy).toEqual(expect.any(Number));
   });
 

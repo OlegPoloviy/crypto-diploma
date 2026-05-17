@@ -23,6 +23,9 @@ export class CipherStepResponseDto {
   @ApiProperty({ example: 0.68 })
   dfaAlpha: number;
 
+  @ApiProperty({ example: 0.5 })
+  deaDelta: number;
+
   @ApiProperty({ example: 4.2 })
   wordFrequencyEntropy: number;
 
@@ -32,6 +35,9 @@ export class CipherStepResponseDto {
   @ApiProperty({ example: 0.68, required: false })
   wordDfaAlpha?: number;
 
+  @ApiProperty({ example: 0.5, required: false })
+  wordDeaDelta?: number;
+
   @ApiProperty({ example: 4.2, required: false })
   wordEntropy?: number;
 
@@ -40,6 +46,9 @@ export class CipherStepResponseDto {
 
   @ApiProperty({ example: 0.51, required: false })
   byteDfaAlpha?: number;
+
+  @ApiProperty({ example: 0.5, required: false })
+  byteDeaDelta?: number;
 
   @ApiProperty({ example: 7.8, required: false })
   byteEntropy?: number;

@@ -440,7 +440,7 @@ describe('ComplexCiphersService', () => {
       stepSampleSourceBytes: 60_016,
     });
     expect(result.steps.length).toBeGreaterThan(0);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
   });
 
   it('skips AES round steps but keeps ciphertext metrics above the round threshold', () => {
@@ -460,7 +460,7 @@ describe('ComplexCiphersService', () => {
       whiteningComparisonSkipped: true,
     });
     expect(result.steps).toEqual([]);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
     expect(result.metadata?.whiteningComparison).toBeUndefined();
   });
 
@@ -484,7 +484,7 @@ describe('ComplexCiphersService', () => {
       stepSampleSourceBytes: 60_016,
     });
     expect(result.steps.length).toBeGreaterThan(0);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
   });
 
   it('collects sampled DES round metrics for corpora below the round threshold', () => {
@@ -508,7 +508,7 @@ describe('ComplexCiphersService', () => {
     });
     expect(result.steps).toHaveLength(16);
     expect(result.steps?.every((step) => step.text.length > 0)).toBe(true);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
   });
 
   it('skips DES round steps above the round threshold but still returns ciphertext', () => {
@@ -530,7 +530,7 @@ describe('ComplexCiphersService', () => {
       whiteningComparisonSkipped: true,
     });
     expect(result.steps).toEqual([]);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
   });
 
   it('skips Kalyna round steps above the round threshold but still returns ciphertext', () => {
@@ -551,7 +551,7 @@ describe('ComplexCiphersService', () => {
       stepSampleSize: 0,
     });
     expect(result.steps).toEqual([]);
-    expect(result.metricStats?.length).toBe(3);
+    expect(result.metricStats?.length).toBe(4);
   });
 
   it('exposes AES encryption through the service DTO contract', () => {

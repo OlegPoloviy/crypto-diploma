@@ -74,6 +74,7 @@ describe('ClassicalCiphersService', () => {
     });
     expect(result.steps[0].hurstExponent).toEqual(expect.any(Number));
     expect(result.steps[0].dfaAlpha).toEqual(expect.any(Number));
+    expect(result.steps[0].deaDelta).toEqual(expect.any(Number));
     expect(result.steps[0].wordFrequencyEntropy).toEqual(expect.any(Number));
     expect(result.metricStats).toEqual(
       expect.arrayContaining([
@@ -117,6 +118,7 @@ describe('ClassicalCiphersService', () => {
     );
     expect(caesarFinal?.byteHurstExponent).toEqual(expect.any(Number));
     expect(whitenedFinal?.byteHurstExponent).toEqual(expect.any(Number));
+    expect(whitenedFinal?.byteDeaDelta).toEqual(expect.any(Number));
     expect(caesarFinal?.hurstExponent).toBe(caesarFinal?.wordHurstExponent);
     expect(whitenedFinal?.byteEntropy ?? 0).toBeGreaterThan(
       caesarFinal?.byteEntropy ?? 0,
@@ -218,6 +220,7 @@ describe('ClassicalCiphersService', () => {
 
     expect(result.finalText).toBe(bytes.toString('hex'));
     expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].deaDelta).toEqual(expect.any(Number));
     expect(result.steps[0].wordFrequencyEntropy).toBe(8);
     expect(result.metricStats).toEqual(
       expect.arrayContaining([

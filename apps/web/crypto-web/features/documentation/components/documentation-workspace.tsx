@@ -46,6 +46,16 @@ const metricDocs = [
       "Use it to compare structure before and after encryption. Strong ciphers should reduce visible structure in byte-level data.",
   },
   {
+    title: "DEA delta",
+    value: "entropy slope",
+    icon: Workflow,
+    tone: "amber",
+    body:
+      "Diffusion entropy analysis builds overlapping trajectories, computes Shannon entropy at each scale, and estimates the slope of S(t) against ln(t).",
+    use:
+      "DEA complements Hurst and DFA by reading distribution spreading through entropy rather than variance.",
+  },
+  {
     title: "Entropy",
     value: "0 - 8 bits",
     icon: BarChart3,
@@ -86,7 +96,7 @@ const workflowDocs = [
     title: "Read charts",
     icon: Layers3,
     body:
-      "Step charts show how Hurst, DFA, and entropy evolve through intermediate states.",
+      "Step charts show how Hurst, DFA, DEA, and entropy evolve through intermediate states.",
     details:
       "When a job has one stored step, the UI switches to compact bars because a line chart with one point has no progression.",
   },
@@ -239,6 +249,8 @@ function MetricDocCard({
       ? "text-cyan-700 dark:text-cyan-200 border-cyan-200 bg-cyan-50 dark:border-cyan-400/20 dark:bg-cyan-400/10"
       : metric.tone === "emerald"
         ? "text-emerald-700 dark:text-emerald-200 border-emerald-200 bg-emerald-50 dark:border-emerald-400/20 dark:bg-emerald-400/10"
+        : metric.tone === "amber"
+          ? "text-amber-700 dark:text-amber-200 border-amber-200 bg-amber-50 dark:border-amber-400/20 dark:bg-amber-400/10"
         : "text-slate-700 dark:text-slate-200 border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5";
 
   return (

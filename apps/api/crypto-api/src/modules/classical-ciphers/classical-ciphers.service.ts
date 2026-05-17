@@ -27,6 +27,7 @@ import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
   ClassicalCipherParameters,
+  CipherWorkerProgress,
   ClassicalCipherWorkerData,
   ClassicalCipherWorkerResult,
 } from './classical-ciphers.types';
@@ -283,6 +284,10 @@ export class ClassicalCiphersService {
         algorithm,
         parameters: jobParameters,
         status: ClassicalCipherJobStatus.QUEUED,
+        progressPercent: 0,
+        progressProcessed: 0,
+        progressTotal: Math.max(1, text.length),
+        progressMessage: 'Queued',
       }),
     );
 
@@ -328,6 +333,10 @@ export class ClassicalCiphersService {
     await this.cipherJobsRepo.update(job.id, {
       status: ClassicalCipherJobStatus.PROCESSING,
       errorMessage: null,
+      progressPercent: 1,
+      progressProcessed: 0,
+      progressTotal: Math.max(1, job.text.length),
+      progressMessage: 'Worker started',
     });
 
     try {
@@ -348,6 +357,10 @@ export class ClassicalCiphersService {
         steps: result.steps,
         metricStats: result.metricStats,
         status: ClassicalCipherJobStatus.COMPLETED,
+        progressPercent: 100,
+        progressProcessed: Math.max(1, job.text.length),
+        progressTotal: Math.max(1, job.text.length),
+        progressMessage: 'Completed',
       });
     } catch (error) {
       if (this.deletedJobIds.has(job.id)) {
@@ -363,6 +376,7 @@ export class ClassicalCiphersService {
       await this.cipherJobsRepo.update(job.id, {
         status: ClassicalCipherJobStatus.FAILED,
         errorMessage: message,
+        progressMessage: 'Failed',
       });
     } finally {
       this.deletedJobIds.delete(job.id);
@@ -381,6 +395,7 @@ export class ClassicalCiphersService {
         },
       );
       let settled = false;
+      let progressWrites: Promise<void> = Promise.resolve();
 
       this.currentJobId = jobId;
       this.currentWorker = worker;
@@ -392,15 +407,38 @@ export class ClassicalCiphersService {
         }
       };
 
-      worker.once('message', (message: ClassicalCipherWorkerResult) => {
-        settled = true;
-        cleanup();
-        if ('error' in message) {
-          reject(new Error(message.error));
+      worker.on('message', (message: ClassicalCipherWorkerResult) => {
+        if (isWorkerProgress(message)) {
+          progressWrites = progressWrites
+            .then(() =>
+              this.cipherJobsRepo.update(jobId, {
+                progressPercent: message.percent,
+                progressProcessed: message.processed,
+                progressTotal: message.total,
+                progressMessage: message.message,
+              }),
+            )
+            .then(
+              () => undefined,
+              () => undefined,
+            );
           return;
         }
 
-        resolve(message);
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        void progressWrites.finally(() => {
+          cleanup();
+          if ('error' in message) {
+            reject(new Error(message.error));
+            return;
+          }
+
+          resolve(message);
+        });
       });
       worker.once('error', (error) => {
         settled = true;
@@ -426,9 +464,19 @@ export class ClassicalCiphersService {
       finalText: job.finalText,
       steps: job.steps,
       metricStats: job.metricStats,
+      progressPercent: job.progressPercent ?? 0,
+      progressProcessed: job.progressProcessed ?? 0,
+      progressTotal: job.progressTotal ?? 0,
+      progressMessage: job.progressMessage,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     };
   }
+}
+
+function isWorkerProgress(
+  message: ClassicalCipherWorkerResult,
+): message is CipherWorkerProgress {
+  return 'type' in message && message.type === 'progress';
 }

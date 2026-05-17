@@ -31,6 +31,18 @@ export class CipherJobResponseDto {
   @ApiProperty({ type: CipherMetricStatDto, isArray: true, nullable: true })
   metricStats?: CipherMetricStatDto[] | null;
 
+  @ApiProperty({ example: 42 })
+  progressPercent: number;
+
+  @ApiProperty({ example: 4200 })
+  progressProcessed: number;
+
+  @ApiProperty({ example: 10000 })
+  progressTotal: number;
+
+  @ApiProperty({ example: 'Encrypted 4200 of 10000 words', nullable: true })
+  progressMessage?: string | null;
+
   @ApiProperty({ example: null, nullable: true })
   errorMessage?: string | null;
 

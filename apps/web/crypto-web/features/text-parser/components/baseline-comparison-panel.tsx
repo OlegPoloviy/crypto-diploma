@@ -15,6 +15,7 @@ interface MetricRow {
   label: string;
   hurst?: number | null;
   dfa?: number | null;
+  dea?: number | null;
   entropy?: number | null;
   note?: string;
 }
@@ -25,7 +26,7 @@ function formatMetric(value?: number | null): string {
 
 function pickEncryptedMetrics(
   job: ComplexCipherJob | ClassicalCipherJob | undefined,
-): Pick<MetricRow, "hurst" | "dfa" | "entropy"> {
+): Pick<MetricRow, "hurst" | "dfa" | "dea" | "entropy"> {
   if (!job?.metricStats?.length) {
     return {};
   }
@@ -37,6 +38,7 @@ function pickEncryptedMetrics(
   return {
     hurst: byKey.hurstExponent,
     dfa: byKey.dfaAlpha,
+    dea: byKey.deaDelta,
     entropy: byKey.wordFrequencyEntropy,
   };
 }
@@ -152,6 +154,7 @@ export function BaselineComparisonPanel({
       label: t("Natural text"),
       hurst: natural?.hurstExponent,
       dfa: natural?.dfaAlpha,
+      dea: natural?.deaDelta,
       entropy: natural?.wordFrequencyEntropy,
       note: natural?.status !== "completed" ? t("Pending") : undefined,
     },
@@ -168,6 +171,7 @@ export function BaselineComparisonPanel({
       label: t("Random bytes"),
       hurst: random?.hurstExponent,
       dfa: random?.dfaAlpha,
+      dea: random?.deaDelta,
       entropy: random?.wordFrequencyEntropy,
       note: random ? undefined : t("No random sibling"),
     },
@@ -200,16 +204,16 @@ function ComparisonHeader({
   subtitle: string;
 }) {
   return (
-    <motionlessHeaderWrap>
+    <MotionlessHeaderWrap>
       <ComparisonTitle title={title} />
       <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
         {subtitle}
       </span>
-    </motionlessHeaderWrap>
+    </MotionlessHeaderWrap>
   );
 }
 
-function motionlessHeaderWrap({ children }: { children: React.ReactNode }) {
+function MotionlessHeaderWrap({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">{children}</div>
   );
@@ -235,6 +239,7 @@ function ComparisonTable({ rows }: { rows: MetricRow[] }) {
             <th className="px-4 py-3 font-medium"> </th>
             <th className="px-4 py-3 font-medium">Hurst</th>
             <th className="px-4 py-3 font-medium">DFA α</th>
+            <th className="px-4 py-3 font-medium">DEA</th>
             <th className="px-4 py-3 font-medium">Entropy</th>
           </tr>
         </thead>
@@ -254,6 +259,9 @@ function ComparisonTable({ rows }: { rows: MetricRow[] }) {
               </td>
               <td className="px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300">
                 {formatMetric(row.dfa)}
+              </td>
+              <td className="px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300">
+                {formatMetric(row.dea)}
               </td>
               <td className="px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300">
                 {formatMetric(row.entropy)}

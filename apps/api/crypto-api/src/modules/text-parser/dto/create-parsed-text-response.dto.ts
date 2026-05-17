@@ -46,6 +46,9 @@ export class CreateParsedTextResponseDto {
   @ApiProperty({ example: 0.68, required: false, nullable: true })
   dfaAlpha?: number | null;
 
+  @ApiProperty({ example: 0.5, required: false, nullable: true })
+  deaDelta?: number | null;
+
   @ApiProperty({ example: 4.2, required: false, nullable: true })
   wordFrequencyEntropy?: number | null;
 

@@ -21,6 +21,7 @@ export interface ParsedText {
   contentEncoding: ParsedTextContentEncoding;
   hurstExponent?: number | null;
   dfaAlpha?: number | null;
+  deaDelta?: number | null;
   wordFrequencyEntropy?: number | null;
   originalFileName?: string;
   errorMessage?: string;
