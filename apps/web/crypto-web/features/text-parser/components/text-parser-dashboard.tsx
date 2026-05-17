@@ -1,16 +1,19 @@
 "use client";
 
 import { Activity, FileText, Hash, Type } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { useParsedTexts } from "../hooks/use-parsed-texts";
 import { DashboardHero } from "./dashboard-hero";
 import { MetricCard } from "./metric-card";
+import { BaselineComparisonPanel } from "./baseline-comparison-panel";
 import { ParsedTextDetails } from "./parsed-text-details";
 import { ParsedTextTable } from "./parsed-text-table";
 import { ParserFormCard } from "./parser-form-card";
 import { ParserSidebar } from "./parser-sidebar";
 
 export function TextParserDashboard() {
+  const { t } = useTranslation();
   const {
     items,
     selected,
@@ -22,6 +25,8 @@ export function TextParserDashboard() {
     refresh,
     createFromFile,
     createFromText,
+    createRandom,
+    createBaselineSet,
   } = useParsedTexts();
 
   const completed = items.filter((item) => item.status === "completed").length;
@@ -49,6 +54,8 @@ export function TextParserDashboard() {
                 message={message}
                 onCreateFromFile={createFromFile}
                 onCreateFromText={createFromText}
+                onCreateRandom={createRandom}
+                onCreateBaselineSet={createBaselineSet}
               />
             </div>
 
@@ -64,40 +71,35 @@ export function TextParserDashboard() {
 
           <section className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              label="Completed"
+              label={t("Completed")}
               value={completed}
-              caption="Ready for encryption"
+              caption={t("Ready for encryption")}
             />
             <MetricCard
-              label="Queued"
+              label={t("Queued")}
               value={queued}
-              caption="Worker backlog"
+              caption={t("Worker backlog")}
             />
             <MetricCard
-              label="Total words"
+              label={t("Total words")}
               value={totalWords}
-              caption="Stored across corpora"
+              caption={t("Stored across corpora")}
             />
             <MetricCard
-              label="Unique"
+              label={t("Unique")}
               value={uniqueWords}
-              caption="Selected corpus vocabulary"
+              caption={t("Selected corpus vocabulary")}
             />
           </section>
 
           <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2">
             <PlaceholderPanel
               icon={<Activity className="size-4" />}
-              label="Visualization"
-              title="Parser throughput"
-              footer="Live preview"
+              label={t("Visualization")}
+              title={t("Parser throughput")}
+              footer={t("Live preview")}
             />
-            <PlaceholderPanel
-              icon={<FileText className="size-4" />}
-              label="Comparison"
-              title="Corpus preparation"
-              footer="Side-by-side"
-            />
+            <BaselineComparisonPanel items={items} selected={selected} />
           </section>
         </div>
       </div>

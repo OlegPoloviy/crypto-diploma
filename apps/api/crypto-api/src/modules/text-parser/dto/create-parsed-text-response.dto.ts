@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   ParsedTextContentEncoding,
+  ParsedTextCorpusKind,
   ParsedTextSource,
   ParsedTextStatus,
 } from '../parsed-text.entity';
@@ -14,6 +15,15 @@ export class CreateParsedTextResponseDto {
 
   @ApiProperty({ enum: ParsedTextSource, example: ParsedTextSource.UPLOAD })
   source: ParsedTextSource;
+
+  @ApiProperty({
+    enum: ParsedTextCorpusKind,
+    example: ParsedTextCorpusKind.NATURAL_TEXT,
+  })
+  corpusKind: ParsedTextCorpusKind;
+
+  @ApiProperty({ format: 'uuid', required: false, nullable: true })
+  baselineSetId?: string | null;
 
   @ApiProperty({
     enum: ParsedTextStatus,
@@ -35,6 +45,9 @@ export class CreateParsedTextResponseDto {
 
   @ApiProperty({ example: 0.68, required: false, nullable: true })
   dfaAlpha?: number | null;
+
+  @ApiProperty({ example: 0.5, required: false, nullable: true })
+  deaDelta?: number | null;
 
   @ApiProperty({ example: 4.2, required: false, nullable: true })
   wordFrequencyEntropy?: number | null;

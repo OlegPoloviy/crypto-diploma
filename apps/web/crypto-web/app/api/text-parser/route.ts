@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";
 
-export async function GET() {
-  const response = await fetch(`${API_URL}/text-parser`, {
-    cache: "no-store",
-  });
+export async function GET(request: NextRequest) {
+  const query = request.nextUrl.searchParams.toString();
+  const url = query
+    ? `${API_URL}/text-parser?${query}`
+    : `${API_URL}/text-parser`;
+
+  const response = await fetch(url, { cache: "no-store" });
 
   return proxyResponse(response);
 }

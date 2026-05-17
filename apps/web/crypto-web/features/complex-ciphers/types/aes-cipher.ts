@@ -4,18 +4,46 @@ export type BinaryEncoding = "utf8" | "hex" | "base64";
 
 export type AesOperation = "encrypt" | "decrypt";
 
+export type ComplexCipherAlgorithm = "aes" | "des" | "kalyna";
+
+export type KalynaBlockSize = 128 | 256 | 512;
+
 export interface AesResponse {
   operation: AesOperation;
   mode: AesMode;
   keySize: number;
+  blockSizeBits?: number;
   outputEncoding: BinaryEncoding;
   result: string;
   iv?: string;
+  /** Present after interactive encrypt when round metrics were computed */
+  steps?: CipherStep[] | null;
+  metricStats?: CipherMetricStat[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
-export interface AesEncryptInput {
+export interface XorWhiteningInput {
+  whiteningEnabled?: boolean;
+  kPre?: string;
+  kPost?: string;
+  whiteningKeyEncoding?: BinaryEncoding;
+}
+
+export interface WhiteningMetricComparison {
+  metricStats: CipherMetricStat[];
+  byteEntropy: number;
+  finalText?: string;
+}
+
+export interface WhiteningComparisonMetadata {
+  withWhitening: WhiteningMetricComparison;
+  withoutWhitening: WhiteningMetricComparison;
+}
+
+export interface AesEncryptInput extends XorWhiteningInput {
   plaintext: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   inputEncoding: BinaryEncoding;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
@@ -24,9 +52,10 @@ export interface AesEncryptInput {
   ivEncoding: BinaryEncoding;
 }
 
-export interface AesDecryptInput {
+export interface AesDecryptInput extends XorWhiteningInput {
   ciphertext: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   inputEncoding: BinaryEncoding;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
@@ -34,8 +63,6 @@ export interface AesDecryptInput {
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
-
-export type ComplexCipherAlgorithm = "aes";
 
 export type ComplexCipherJobStatus =
   | "queued"
@@ -53,6 +80,10 @@ export interface ComplexCipherJob {
   steps?: CipherStep[] | null;
   metadata?: Record<string, unknown> | null;
   metricStats?: CipherMetricStat[] | null;
+  progressPercent: number;
+  progressProcessed: number;
+  progressTotal: number;
+  progressMessage?: string | null;
   errorMessage?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +92,7 @@ export interface ComplexCipherJob {
 export type CipherMetricKey =
   | "hurstExponent"
   | "dfaAlpha"
+  | "deaDelta"
   | "wordFrequencyEntropy";
 
 export interface CipherMetricStat {
@@ -80,15 +112,21 @@ export interface CipherStep {
   text: string;
   hurstExponent: number;
   dfaAlpha: number;
+  deaDelta: number;
   wordFrequencyEntropy: number;
 }
 
-export interface CreateAesJobInput {
+export interface CreateAesJobInput extends XorWhiteningInput {
   parsedTextId: string;
   key: string;
+  blockSizeBits?: KalynaBlockSize;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
   mode: AesMode;
   iv?: string;
   ivEncoding: BinaryEncoding;
 }
+
+export type CreateComplexCipherJobInput = CreateAesJobInput & {
+  algorithm: ComplexCipherAlgorithm;
+};

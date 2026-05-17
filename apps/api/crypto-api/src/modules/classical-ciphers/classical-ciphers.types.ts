@@ -14,8 +14,18 @@ export enum ClassicalCipherJobStatus {
 }
 
 export type ClassicalCipherParameters =
-  | { shift: number; maxSteps?: number; inputEncoding?: 'utf8' | 'hex' }
-  | { key: string; keyLengths?: number[]; inputEncoding?: 'utf8' | 'hex' };
+  | {
+      shift: number;
+      maxSteps?: number;
+      inputEncoding?: 'utf8' | 'hex';
+      whiteningEnabled?: boolean;
+    }
+  | {
+      key: string;
+      keyLengths?: number[];
+      inputEncoding?: 'utf8' | 'hex';
+      whiteningEnabled?: boolean;
+    };
 
 export interface ClassicalCipherWorkerData {
   text: string;
@@ -23,4 +33,15 @@ export interface ClassicalCipherWorkerData {
   parameters: ClassicalCipherParameters;
 }
 
-export type ClassicalCipherWorkerResult = CipherResponseDto | { error: string };
+export interface CipherWorkerProgress {
+  type: 'progress';
+  percent: number;
+  processed: number;
+  total: number;
+  message: string;
+}
+
+export type ClassicalCipherWorkerResult =
+  | CipherResponseDto
+  | CipherWorkerProgress
+  | { error: string };

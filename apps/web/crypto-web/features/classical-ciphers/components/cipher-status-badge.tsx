@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
 
 import { ClassicalCipherJobStatus } from "../types/classical-cipher";
 
@@ -17,9 +18,11 @@ export function CipherStatusBadge({
 }: {
   status: ClassicalCipherJobStatus;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Badge variant={statusVariant[status]} className="capitalize">
-      {status}
+      {t(status)}
     </Badge>
   );
 }

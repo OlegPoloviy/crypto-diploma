@@ -56,6 +56,18 @@ export class ComplexCipherJobEntity {
   @Column({ type: 'jsonb', nullable: true })
   metricStats?: CipherMetricStatDto[] | null;
 
+  @Column({ type: 'double precision', default: 0 })
+  progressPercent: number;
+
+  @Column({ default: 0 })
+  progressProcessed: number;
+
+  @Column({ default: 0 })
+  progressTotal: number;
+
+  @Column({ type: 'text', nullable: true })
+  progressMessage?: string | null;
+
   @Column({ type: 'text', nullable: true })
   errorMessage?: string | null;
 

@@ -1,4 +1,5 @@
 import { RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
@@ -10,19 +11,22 @@ export function DashboardHero({
   isRefreshing: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#12192b] dark:shadow-2xl dark:shadow-black/20">
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0 max-w-2xl">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.34em] text-cyan-700 dark:text-cyan-300">
-            Corpus Builder
+            {t("Corpus Builder")}
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-950 dark:text-slate-50">
-            Prepare texts for encryption analysis
+            {t("Prepare texts for encryption analysis")}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-            Upload Gutenberg files or paste raw text, queue parsing in the API,
-            and reuse completed corpora in later cipher experiments.
+            {t(
+              "Upload Gutenberg files or paste raw text, queue parsing in the API, and reuse completed corpora in later cipher experiments.",
+            )}
           </p>
         </div>
 
@@ -34,14 +38,14 @@ export function DashboardHero({
             disabled={isRefreshing}
           >
             <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-            Refresh
+            {t("Refresh")}
           </Button>
           <Button
             type="button"
             variant="outline"
             className="w-full rounded-md border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10 xl:w-auto"
           >
-            View history
+            {t("View history")}
           </Button>
           <ThemeToggle />
         </div>

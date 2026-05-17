@@ -7,11 +7,26 @@ import {
 
 try {
   const data = workerData as ComplexCipherWorkerData;
+  const total = Math.max(1, data.text.length);
+  parentPort?.postMessage({
+    type: 'progress',
+    percent: 5,
+    processed: 0,
+    total,
+    message: 'Preparing cipher worker',
+  });
   const result: ComplexCipherWorkerMessage = runComplexCipher(
     data.text,
     data.algorithm,
     data.parameters,
   );
+  parentPort?.postMessage({
+    type: 'progress',
+    percent: 95,
+    processed: total,
+    total,
+    message: 'Finalizing metrics',
+  });
   parentPort?.postMessage(result);
 } catch (error) {
   parentPort?.postMessage({

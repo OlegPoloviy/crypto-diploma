@@ -27,6 +27,7 @@ import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
   ClassicalCipherParameters,
+  CipherWorkerProgress,
   ClassicalCipherWorkerData,
   ClassicalCipherWorkerResult,
 } from './classical-ciphers.types';
@@ -57,30 +58,45 @@ export class ClassicalCiphersService {
     private readonly textParserService: TextParserService,
   ) {}
 
-  encryptCaesar(text: string, shift: number): CipherResponseDto {
-    return encryptCaesar(text, shift);
+  encryptCaesar(
+    text: string,
+    shift: number,
+    whiteningEnabled?: boolean,
+  ): CipherResponseDto {
+    return encryptCaesar(text, shift, { enabled: whiteningEnabled === true });
   }
 
-  encryptVigenereByKeySymbols(text: string, key: string): CipherResponseDto {
-    return encryptVigenereByKeySymbols(text, key);
+  encryptVigenereByKeySymbols(
+    text: string,
+    key: string,
+    whiteningEnabled?: boolean,
+  ): CipherResponseDto {
+    return encryptVigenereByKeySymbols(text, key, {
+      enabled: whiteningEnabled === true,
+    });
   }
 
   encryptVigenereByKeyLengths(
     text: string,
     key: string,
     keyLengths = [1, 3, 5, 10, 20],
+    whiteningEnabled?: boolean,
   ): CipherResponseDto {
-    return encryptVigenereByKeyLengths(text, key, keyLengths);
+    return encryptVigenereByKeyLengths(text, key, keyLengths, {
+      enabled: whiteningEnabled === true,
+    });
   }
 
   async createCaesarJob(
     parsedTextId: string,
     shift: number,
     maxSteps?: number,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(parsedTextId, ClassicalCipherAlgorithm.CAESAR, {
       shift,
       maxSteps,
+      whiteningEnabled,
     });
   }
 
@@ -90,6 +106,7 @@ export class ClassicalCiphersService {
     fileType: TextFileType,
     shift: number,
     maxSteps?: number,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -99,7 +116,12 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createCaesarJob(parsedText.id, shift, maxSteps),
+        this.createCaesarJob(
+          parsedText.id,
+          shift,
+          maxSteps,
+          whiteningEnabled,
+        ),
       ),
     );
   }
@@ -107,11 +129,12 @@ export class ClassicalCiphersService {
   async createVigenereKeySymbolsJob(
     parsedTextId: string,
     key: string,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
-      { key },
+      { key, whiteningEnabled },
     );
   }
 
@@ -120,6 +143,7 @@ export class ClassicalCiphersService {
     files: { buffer: Buffer; originalname?: string }[] | undefined,
     fileType: TextFileType,
     key: string,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -129,7 +153,11 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createVigenereKeySymbolsJob(parsedText.id, key),
+        this.createVigenereKeySymbolsJob(
+          parsedText.id,
+          key,
+          whiteningEnabled,
+        ),
       ),
     );
   }
@@ -138,11 +166,12 @@ export class ClassicalCiphersService {
     parsedTextId: string,
     key: string,
     keyLengths?: number[],
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
-      { key, keyLengths },
+      { key, keyLengths, whiteningEnabled },
     );
   }
 
@@ -152,6 +181,7 @@ export class ClassicalCiphersService {
     fileType: TextFileType,
     key: string,
     keyLengths?: number[],
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -161,7 +191,12 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createVigenereKeyLengthsJob(parsedText.id, key, keyLengths),
+        this.createVigenereKeyLengthsJob(
+          parsedText.id,
+          key,
+          keyLengths,
+          whiteningEnabled,
+        ),
       ),
     );
   }
@@ -249,6 +284,10 @@ export class ClassicalCiphersService {
         algorithm,
         parameters: jobParameters,
         status: ClassicalCipherJobStatus.QUEUED,
+        progressPercent: 0,
+        progressProcessed: 0,
+        progressTotal: Math.max(1, text.length),
+        progressMessage: 'Queued',
       }),
     );
 
@@ -294,6 +333,10 @@ export class ClassicalCiphersService {
     await this.cipherJobsRepo.update(job.id, {
       status: ClassicalCipherJobStatus.PROCESSING,
       errorMessage: null,
+      progressPercent: 1,
+      progressProcessed: 0,
+      progressTotal: Math.max(1, job.text.length),
+      progressMessage: 'Worker started',
     });
 
     try {
@@ -314,6 +357,10 @@ export class ClassicalCiphersService {
         steps: result.steps,
         metricStats: result.metricStats,
         status: ClassicalCipherJobStatus.COMPLETED,
+        progressPercent: 100,
+        progressProcessed: Math.max(1, job.text.length),
+        progressTotal: Math.max(1, job.text.length),
+        progressMessage: 'Completed',
       });
     } catch (error) {
       if (this.deletedJobIds.has(job.id)) {
@@ -329,6 +376,7 @@ export class ClassicalCiphersService {
       await this.cipherJobsRepo.update(job.id, {
         status: ClassicalCipherJobStatus.FAILED,
         errorMessage: message,
+        progressMessage: 'Failed',
       });
     } finally {
       this.deletedJobIds.delete(job.id);
@@ -347,6 +395,7 @@ export class ClassicalCiphersService {
         },
       );
       let settled = false;
+      let progressWrites: Promise<void> = Promise.resolve();
 
       this.currentJobId = jobId;
       this.currentWorker = worker;
@@ -358,15 +407,38 @@ export class ClassicalCiphersService {
         }
       };
 
-      worker.once('message', (message: ClassicalCipherWorkerResult) => {
-        settled = true;
-        cleanup();
-        if ('error' in message) {
-          reject(new Error(message.error));
+      worker.on('message', (message: ClassicalCipherWorkerResult) => {
+        if (isWorkerProgress(message)) {
+          progressWrites = progressWrites
+            .then(() =>
+              this.cipherJobsRepo.update(jobId, {
+                progressPercent: message.percent,
+                progressProcessed: message.processed,
+                progressTotal: message.total,
+                progressMessage: message.message,
+              }),
+            )
+            .then(
+              () => undefined,
+              () => undefined,
+            );
           return;
         }
 
-        resolve(message);
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        void progressWrites.finally(() => {
+          cleanup();
+          if ('error' in message) {
+            reject(new Error(message.error));
+            return;
+          }
+
+          resolve(message);
+        });
       });
       worker.once('error', (error) => {
         settled = true;
@@ -392,9 +464,19 @@ export class ClassicalCiphersService {
       finalText: job.finalText,
       steps: job.steps,
       metricStats: job.metricStats,
+      progressPercent: job.progressPercent ?? 0,
+      progressProcessed: job.progressProcessed ?? 0,
+      progressTotal: job.progressTotal ?? 0,
+      progressMessage: job.progressMessage,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     };
   }
+}
+
+function isWorkerProgress(
+  message: ClassicalCipherWorkerResult,
+): message is CipherWorkerProgress {
+  return 'type' in message && message.type === 'progress';
 }

@@ -11,4 +11,7 @@ export class CipherResponseDto {
 
   @ApiProperty({ type: CipherMetricStatDto, isArray: true })
   metricStats: CipherMetricStatDto[];
+
+  @ApiProperty({ required: false })
+  metadata?: Record<string, unknown>;
 }

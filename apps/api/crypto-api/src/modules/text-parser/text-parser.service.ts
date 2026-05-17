@@ -5,23 +5,35 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomBytes, randomUUID } from 'crypto';
 import { join } from 'path';
 import { Worker } from 'worker_threads';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { calculateByteMetrics } from '../classical-ciphers/classical-ciphers.metrics';
+import { BaselineSetResponseDto } from './dto/baseline-set-response.dto';
+import { BaselineSetTextDto } from './dto/baseline-set-text.dto';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
+import { GenerateRandomBytesDto } from './dto/generate-random.dto';
+import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParsedTextResponseDto } from './dto/parsed-text-response.dto';
 import {
   ParsedTextContentEncoding,
+  ParsedTextCorpusKind,
   ParsedTextEntity,
   ParsedTextSource,
   ParsedTextStatus,
 } from './parsed-text.entity';
-import { ParsedTextResult, parseBookText } from './text-parser.util';
+import {
+  ParsedTextResult,
+  parsePlainText,
+  preprocessRawText,
+  TextPreprocessMode,
+} from './text-parser.util';
 
 interface QueuedParseJob {
   id: string;
   text: string;
+  preprocess: TextPreprocessMode;
 }
 
 interface PreparedUpload {
@@ -29,6 +41,11 @@ interface PreparedUpload {
   text: string;
   encoding: ParsedTextContentEncoding;
   words?: string[];
+}
+
+export interface ListParsedTextsQuery {
+  corpusKind?: ParsedTextCorpusKind;
+  baselineSetId?: string;
 }
 
 export enum TextFileType {
@@ -47,6 +64,9 @@ const TEXT_FILE_EXTENSIONS: Record<TextFileType, string[]> = {
   [TextFileType.BINARY]: [],
 };
 
+const SYNC_PARSE_BYTE_THRESHOLD = 512 * 1024;
+const HEX_CHUNK_SIZE = 64;
+
 @Injectable()
 export class TextParserService {
   private readonly logger = new Logger(TextParserService.name);
@@ -58,55 +78,120 @@ export class TextParserService {
     private readonly parsedTextsRepo: Repository<ParsedTextEntity>,
   ) {}
 
-  parse(rawText: string): ParsedTextResponseDto {
+  parse(
+    rawText: string,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
+  ): ParsedTextResponseDto {
     if (!rawText?.trim()) {
       throw new BadRequestException('Text cannot be empty');
     }
 
-    return parseBookText(rawText);
+    return parsePlainText(rawText, { preprocess });
   }
 
   async createFromText(
     title: string,
     text: string,
     originalFileName?: string,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
+    baselineSetId?: string,
   ): Promise<CreateParsedTextResponseDto> {
     if (!text?.trim()) {
       throw new BadRequestException('Text cannot be empty');
     }
 
-    const parsedText = await this.parsedTextsRepo.save(
-      this.parsedTextsRepo.create({
-        title,
-        source: ParsedTextSource.MANUAL,
-        originalFileName,
-        content: text,
-        contentEncoding: ParsedTextContentEncoding.UTF8,
-        status: ParsedTextStatus.QUEUED,
-      }),
+    if (this.shouldQueueText(text)) {
+      const parsedText = await this.parsedTextsRepo.save(
+        this.parsedTextsRepo.create({
+          title,
+          source: ParsedTextSource.MANUAL,
+          corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+          baselineSetId: baselineSetId ?? null,
+          originalFileName,
+          content: text,
+          contentEncoding: ParsedTextContentEncoding.UTF8,
+          status: ParsedTextStatus.QUEUED,
+        }),
+      );
+
+      this.enqueue({ id: parsedText.id, text, preprocess });
+
+      return this.toResponse(parsedText);
+    }
+
+    return this.createCompletedNaturalText({
+      title,
+      text,
+      source: ParsedTextSource.MANUAL,
+      originalFileName,
+      preprocess,
+      baselineSetId,
+    });
+  }
+
+  async createRandomBytes(
+    body: GenerateRandomBytesDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    const bytes = generateRandomBuffer(body.byteLength, body.seed);
+
+    return this.saveRandomBytesRecord({
+      title: body.title,
+      bytes,
+      baselineSetId: body.baselineSetId,
+    });
+  }
+
+  async createBaselineSetFromText(
+    body: BaselineSetTextDto,
+  ): Promise<BaselineSetResponseDto> {
+    const preprocess = body.preprocess ?? TextPreprocessMode.AUTO;
+    const baselineSetId = randomUUID();
+    const natural = await this.createFromText(
+      body.title,
+      body.text,
+      body.originalFileName,
+      preprocess,
+      baselineSetId,
     );
 
-    this.enqueue({ id: parsedText.id, text });
+    const preprocessed = preprocessNaturalContent(body.text, preprocess);
+    const randomByteLength =
+      body.randomByteLength ?? Buffer.byteLength(preprocessed, 'utf8');
 
-    return this.toResponse(parsedText);
+    const random = await this.createRandomBytes({
+      title: `${body.title} (random)`,
+      byteLength: randomByteLength,
+      baselineSetId,
+      seed: body.seed,
+    });
+
+    return { baselineSetId, natural, random };
   }
 
   async createFromFile(
     title: string,
     file?: { buffer: Buffer; originalname?: string },
     fileType = TextFileType.PLAIN_TEXT,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
+    baselineSetId?: string,
   ): Promise<CreateParsedTextResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
-    return this.createUploadJob(title, this.prepareUpload(file, fileType));
+    return this.createUploadJob(
+      title,
+      this.prepareUpload(file, fileType),
+      preprocess,
+      baselineSetId,
+    );
   }
 
   async createFromFiles(
     title: string,
     files?: { buffer: Buffer; originalname?: string }[],
     fileType = TextFileType.PLAIN_TEXT,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
   ): Promise<CreateParsedTextResponseDto[]> {
     if (!files?.length) {
       throw new BadRequestException('At least one file is required');
@@ -119,6 +204,7 @@ export class TextParserService {
         this.createUploadJob(
           this.buildBatchTitle(title, upload.file, uploads.length),
           upload,
+          preprocess,
         ),
       ),
     );
@@ -128,6 +214,7 @@ export class TextParserService {
     title: string,
     files?: { buffer: Buffer; originalname?: string }[],
     fileType = TextFileType.PLAIN_TEXT,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
   ): Promise<CreateParsedTextResponseDto[]> {
     if (!files?.length) {
       throw new BadRequestException('At least one file is required');
@@ -140,18 +227,34 @@ export class TextParserService {
         this.createCompletedUpload(
           this.buildBatchTitle(title, upload.file, uploads.length),
           upload,
+          preprocess,
         ),
       ),
     );
   }
 
-  async findAll(): Promise<CreateParsedTextResponseDto[]> {
+  async findAll(
+    query: ListParsedTextsQuery = {},
+  ): Promise<CreateParsedTextResponseDto[]> {
+    const where: FindOptionsWhere<ParsedTextEntity> = {};
+
+    if (query.corpusKind) {
+      where.corpusKind = query.corpusKind;
+    }
+
+    if (query.baselineSetId) {
+      where.baselineSetId = query.baselineSetId;
+    }
+
     const rows = await this.parsedTextsRepo.find({
+      where,
       order: { createdAt: 'DESC' },
       select: {
         id: true,
         title: true,
         source: true,
+        corpusKind: true,
+        baselineSetId: true,
         originalFileName: true,
         contentEncoding: true,
         status: true,
@@ -160,6 +263,7 @@ export class TextParserService {
         uniqueWords: true,
         hurstExponent: true,
         dfaAlpha: true,
+        deaDelta: true,
         wordFrequencyEntropy: true,
         errorMessage: true,
         createdAt: true,
@@ -177,6 +281,8 @@ export class TextParserService {
         id: true,
         title: true,
         source: true,
+        corpusKind: true,
+        baselineSetId: true,
         originalFileName: true,
         contentEncoding: true,
         status: true,
@@ -185,6 +291,7 @@ export class TextParserService {
         uniqueWords: true,
         hurstExponent: true,
         dfaAlpha: true,
+        deaDelta: true,
         wordFrequencyEntropy: true,
         errorMessage: true,
         createdAt: true,
@@ -222,76 +329,200 @@ export class TextParserService {
     return parsedText.words ?? [];
   }
 
+  async getContent(id: string): Promise<ParsedTextContentResponseDto> {
+    const parsedText = await this.parsedTextsRepo.findOne({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        content: true,
+        contentEncoding: true,
+        originalFileName: true,
+        corpusKind: true,
+      },
+    });
+
+    if (!parsedText) {
+      throw new NotFoundException(`Parsed text ${id} not found`);
+    }
+
+    if (parsedText.status !== ParsedTextStatus.COMPLETED) {
+      throw new BadRequestException(
+        `Parsed text ${id} is not ready yet: ${parsedText.status}`,
+      );
+    }
+
+    const storedContent = parsedText.content?.trim();
+    if (!storedContent) {
+      throw new BadRequestException(
+        `Parsed text ${id} has no stored content to download`,
+      );
+    }
+
+    const isHex = parsedText.contentEncoding === ParsedTextContentEncoding.HEX;
+
+    return {
+      filename: buildDownloadFilename(parsedText),
+      contentEncoding: parsedText.contentEncoding,
+      content: storedContent,
+      mimeType: isHex ? 'application/octet-stream' : 'text/plain; charset=utf-8',
+    };
+  }
+
+  private async createCompletedNaturalText(input: {
+    title: string;
+    text: string;
+    source: ParsedTextSource;
+    originalFileName?: string;
+    preprocess: TextPreprocessMode;
+    baselineSetId?: string;
+  }): Promise<CreateParsedTextResponseDto> {
+    const metrics = parsePlainText(input.text, {
+      preprocess: input.preprocess,
+    });
+    const preprocessed = preprocessNaturalContent(input.text, input.preprocess);
+
+    const parsedText = await this.parsedTextsRepo.save(
+      this.parsedTextsRepo.create({
+        title: input.title,
+        source: input.source,
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+        baselineSetId: input.baselineSetId ?? null,
+        originalFileName: input.originalFileName,
+        content: preprocessed,
+        contentEncoding: ParsedTextContentEncoding.UTF8,
+        status: ParsedTextStatus.COMPLETED,
+        words: metrics.words,
+        totalWords: metrics.totalWords,
+        totalChars: metrics.totalChars,
+        uniqueWords: metrics.uniqueWords,
+        hurstExponent: metrics.hurstExponent,
+        dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
+        wordFrequencyEntropy: metrics.wordFrequencyEntropy,
+      }),
+    );
+
+    return this.toResponse(parsedText);
+  }
+
+  private async saveRandomBytesRecord(input: {
+    title: string;
+    bytes: Buffer;
+    baselineSetId?: string;
+    source?: ParsedTextSource;
+    originalFileName?: string;
+  }): Promise<CreateParsedTextResponseDto> {
+    const hex = input.bytes.toString('hex');
+    const metrics = calculateByteMetrics(input.bytes);
+    const words = chunkText(hex, HEX_CHUNK_SIZE);
+
+    const parsedText = await this.parsedTextsRepo.save(
+      this.parsedTextsRepo.create({
+        title: input.title,
+        source: input.source ?? ParsedTextSource.GENERATED,
+        corpusKind: ParsedTextCorpusKind.RANDOM_BYTES,
+        originalFileName: input.originalFileName,
+        baselineSetId: input.baselineSetId ?? null,
+        content: hex,
+        contentEncoding: ParsedTextContentEncoding.HEX,
+        status: ParsedTextStatus.COMPLETED,
+        words,
+        totalWords: words.length,
+        totalChars: input.bytes.length,
+        uniqueWords: new Set(words).size,
+        hurstExponent: metrics.hurstExponent,
+        dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
+        wordFrequencyEntropy: metrics.wordFrequencyEntropy,
+      }),
+    );
+
+    return this.toResponse(parsedText);
+  }
+
   private enqueue(job: QueuedParseJob): void {
     this.queue.push(job);
     void this.processQueue();
   }
 
+  private shouldQueueText(text: string): boolean {
+    return Buffer.byteLength(text, 'utf8') > SYNC_PARSE_BYTE_THRESHOLD;
+  }
+
   private async createUploadJob(
     title: string,
     upload: PreparedUpload,
+    preprocess: TextPreprocessMode,
+    baselineSetId?: string,
   ): Promise<CreateParsedTextResponseDto> {
-    const metrics =
-      upload.encoding === ParsedTextContentEncoding.HEX
-        ? calculateByteMetrics(Buffer.from(upload.text, 'hex'))
-        : undefined;
-    const parsedText = await this.parsedTextsRepo.save(
-      this.parsedTextsRepo.create({
-        title,
-        source: ParsedTextSource.UPLOAD,
-        originalFileName: upload.file.originalname,
-        content: upload.text,
-        contentEncoding: upload.encoding,
-        status:
-          upload.encoding === ParsedTextContentEncoding.HEX
-            ? ParsedTextStatus.COMPLETED
-            : ParsedTextStatus.QUEUED,
-        words: upload.words,
-        totalWords: upload.words?.length ?? 0,
-        totalChars: upload.text.length,
-        uniqueWords: upload.words ? new Set(upload.words).size : 0,
-        hurstExponent: metrics?.hurstExponent,
-        dfaAlpha: metrics?.dfaAlpha,
-        wordFrequencyEntropy: metrics?.wordFrequencyEntropy,
-      }),
-    );
-
-    if (upload.encoding === ParsedTextContentEncoding.UTF8) {
-      this.enqueue({ id: parsedText.id, text: upload.text });
+    if (upload.encoding === ParsedTextContentEncoding.HEX) {
+      return this.createCompletedUpload(title, upload, preprocess);
     }
 
-    return this.toResponse(parsedText);
+    if (this.shouldQueueText(upload.text)) {
+      const parsedText = await this.parsedTextsRepo.save(
+        this.parsedTextsRepo.create({
+          title,
+          source: ParsedTextSource.UPLOAD,
+          corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+          baselineSetId: baselineSetId ?? null,
+          originalFileName: upload.file.originalname,
+          content: upload.text,
+          contentEncoding: upload.encoding,
+          status: ParsedTextStatus.QUEUED,
+        }),
+      );
+
+      this.enqueue({ id: parsedText.id, text: upload.text, preprocess });
+
+      return this.toResponse(parsedText);
+    }
+
+    return this.createCompletedNaturalText({
+      title,
+      text: upload.text,
+      source: ParsedTextSource.UPLOAD,
+      originalFileName: upload.file.originalname,
+      preprocess,
+      baselineSetId,
+    });
   }
 
   private async createCompletedUpload(
     title: string,
     upload: PreparedUpload,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
   ): Promise<CreateParsedTextResponseDto> {
-    const metrics =
-      upload.encoding === ParsedTextContentEncoding.HEX
-        ? calculateByteMetrics(Buffer.from(upload.text, 'hex'))
-        : parseBookText(upload.text);
-    const words =
-      upload.encoding === ParsedTextContentEncoding.HEX
-        ? upload.words
-        : (metrics as ParsedTextResult).words;
+    if (upload.encoding === ParsedTextContentEncoding.HEX) {
+      const bytes = Buffer.from(upload.text, 'hex');
+      return this.saveRandomBytesRecord({
+        title,
+        bytes,
+        source: ParsedTextSource.UPLOAD,
+        originalFileName: upload.file.originalname,
+      });
+    }
+
+    const metrics = parsePlainText(upload.text, { preprocess });
+    const preprocessed = preprocessNaturalContent(upload.text, preprocess);
     const parsedText = await this.parsedTextsRepo.save(
       this.parsedTextsRepo.create({
         title,
         source: ParsedTextSource.UPLOAD,
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
         originalFileName: upload.file.originalname,
-        content: upload.text,
+        content: preprocessed,
         contentEncoding: upload.encoding,
         status: ParsedTextStatus.COMPLETED,
-        words,
-        totalWords: words?.length ?? 0,
-        totalChars:
-          upload.encoding === ParsedTextContentEncoding.HEX
-            ? upload.text.length
-            : (metrics as ParsedTextResult).totalChars,
-        uniqueWords: words ? new Set(words).size : 0,
+        words: metrics.words,
+        totalWords: metrics.totalWords,
+        totalChars: metrics.totalChars,
+        uniqueWords: metrics.uniqueWords,
         hurstExponent: metrics.hurstExponent,
         dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
         wordFrequencyEntropy: metrics.wordFrequencyEntropy,
       }),
     );
@@ -319,7 +550,7 @@ export class TextParserService {
       encoding: isBinary
         ? ParsedTextContentEncoding.HEX
         : ParsedTextContentEncoding.UTF8,
-      words: isBinary ? chunkText(text, 64) : undefined,
+      words: isBinary ? chunkText(text, HEX_CHUNK_SIZE) : undefined,
     };
   }
 
@@ -387,9 +618,10 @@ export class TextParserService {
     });
 
     try {
-      const result = await this.runParserWorker(job.text);
+      const result = await this.runParserWorker(job.text, job.preprocess);
+      const preprocessed = preprocessNaturalContent(job.text, job.preprocess);
       await this.parsedTextsRepo.update(job.id, {
-        content: job.text,
+        content: preprocessed,
         contentEncoding: ParsedTextContentEncoding.UTF8,
         words: result.words,
         totalWords: result.totalWords,
@@ -397,6 +629,7 @@ export class TextParserService {
         uniqueWords: result.uniqueWords,
         hurstExponent: result.hurstExponent,
         dfaAlpha: result.dfaAlpha,
+        deaDelta: result.deaDelta,
         wordFrequencyEntropy: result.wordFrequencyEntropy,
         status: ParsedTextStatus.COMPLETED,
       });
@@ -412,10 +645,13 @@ export class TextParserService {
     }
   }
 
-  private runParserWorker(text: string): Promise<ParsedTextResult> {
+  private runParserWorker(
+    text: string,
+    preprocess: TextPreprocessMode,
+  ): Promise<ParsedTextResult> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(join(__dirname, 'text-parser.worker.js'), {
-        workerData: { text },
+        workerData: { text, preprocess },
       });
 
       worker.once(
@@ -443,6 +679,8 @@ export class TextParserService {
       id: entity.id,
       title: entity.title,
       source: entity.source,
+      corpusKind: entity.corpusKind,
+      baselineSetId: entity.baselineSetId,
       originalFileName: entity.originalFileName,
       contentEncoding: entity.contentEncoding,
       status: entity.status,
@@ -451,12 +689,20 @@ export class TextParserService {
       uniqueWords: entity.uniqueWords,
       hurstExponent: entity.hurstExponent,
       dfaAlpha: entity.dfaAlpha,
+      deaDelta: entity.deaDelta,
       wordFrequencyEntropy: entity.wordFrequencyEntropy,
       errorMessage: entity.errorMessage,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
   }
+}
+
+function preprocessNaturalContent(
+  text: string,
+  preprocess: TextPreprocessMode,
+): string {
+  return preprocessRawText(text, preprocess);
 }
 
 function chunkText(text: string, chunkSize: number): string[] {
@@ -466,4 +712,50 @@ function chunkText(text: string, chunkSize: number): string[] {
   }
 
   return chunks;
+}
+
+function buildDownloadFilename(parsedText: {
+  title: string;
+  originalFileName?: string;
+  contentEncoding: ParsedTextContentEncoding;
+  corpusKind: ParsedTextCorpusKind;
+}): string {
+  if (parsedText.originalFileName?.trim()) {
+    return sanitizeFilename(parsedText.originalFileName);
+  }
+
+  const slug = parsedText.title
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+  const base = slug || 'corpus';
+
+  if (parsedText.contentEncoding === ParsedTextContentEncoding.HEX) {
+    return `${base}.bin`;
+  }
+
+  return `${base}.txt`;
+}
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').slice(0, 150);
+}
+
+function generateRandomBuffer(byteLength: number, seed?: number): Buffer {
+  if (seed === undefined) {
+    return randomBytes(byteLength);
+  }
+
+  const buffer = Buffer.alloc(byteLength);
+  let state = seed >>> 0;
+
+  for (let index = 0; index < byteLength; index += 1) {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    buffer[index] = state & 0xff;
+  }
+
+  return buffer;
 }
