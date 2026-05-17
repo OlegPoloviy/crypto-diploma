@@ -33,4 +33,15 @@ export interface ClassicalCipherWorkerData {
   parameters: ClassicalCipherParameters;
 }
 
-export type ClassicalCipherWorkerResult = CipherResponseDto | { error: string };
+export interface CipherWorkerProgress {
+  type: 'progress';
+  percent: number;
+  processed: number;
+  total: number;
+  message: string;
+}
+
+export type ClassicalCipherWorkerResult =
+  | CipherResponseDto
+  | CipherWorkerProgress
+  | { error: string };

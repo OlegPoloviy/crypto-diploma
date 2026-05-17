@@ -14,6 +14,7 @@ import {
   Download,
   KeyRound,
   Layers3,
+  Loader2,
   LockKeyhole,
   Play,
   RefreshCw,
@@ -340,11 +341,12 @@ function AesJobsPanel({
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
                 <tr>
                   <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
                   <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Progress")}</th>
                   <th className="px-4 py-3 font-medium">{t("Parameters")}</th>
                   <th className="px-4 py-3 font-medium">{t("Output")}</th>
                   <th className="px-4 py-3 font-medium">{t("Updated")}</th>
@@ -373,6 +375,9 @@ function AesJobsPanel({
                     <td className="px-4 py-4">
                       <JobStatusBadge status={job.status} />
                     </td>
+                    <td className="px-4 py-4">
+                      <ComplexWorkerProgressBar job={job} compact />
+                    </td>
                     <td className="px-4 py-4 font-mono text-xs text-slate-600 dark:text-slate-300">
                       {formatJobParameters(job)}
                     </td>
@@ -400,7 +405,7 @@ function AesJobsPanel({
                 ))}
                 {workspace.jobs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-14 text-center">
+                    <td colSpan={7} className="px-5 py-14 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                         <ShieldCheck className="size-8" />
                         <p>{t("No complex cipher corpus jobs yet.")}</p>
@@ -472,6 +477,7 @@ function AesJobDetails({
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-3">
+          <ComplexWorkerProgressBar job={job} />
           <WhiteningComparisonChart metadata={job.metadata} />
           <MetricStrip job={job} />
           <AesMetricCharts job={job} />
@@ -633,13 +639,14 @@ function AesRoundSteps({
         </div>
 
         <div className="max-h-96 overflow-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[840px] text-left text-sm">
             <thead className="sticky top-0 border-b border-slate-200 bg-slate-100 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("Step")}</th>
                 <th className="px-4 py-3 font-medium">{t("State")}</th>
                 <th className="px-4 py-3 font-medium">{t("Hurst")}</th>
                 <th className="px-4 py-3 font-medium">{t("DFA")}</th>
+                <th className="px-4 py-3 font-medium">{t("DEA")}</th>
                 <th className="px-4 py-3 font-medium">{t("Entropy")}</th>
               </tr>
             </thead>
@@ -661,6 +668,7 @@ function AesRoundSteps({
                   </td>
                   <MetricCell value={step.hurstExponent} />
                   <MetricCell value={step.dfaAlpha} />
+                  <MetricCell value={step.deaDelta ?? 0} />
                   <MetricCell value={step.wordFrequencyEntropy} />
                 </tr>
               ))}
@@ -680,6 +688,7 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
   const metrics = [
     { key: "hurstExponent", label: "Hurst", color: "#22d3ee" },
     { key: "dfaAlpha", label: "DFA", color: "#cbd5e1" },
+    { key: "deaDelta", label: "DEA", color: "#f59e0b" },
     { key: "wordFrequencyEntropy", label: "Byte entropy", color: "#34d399" },
   ] as const;
 
@@ -690,6 +699,7 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
   const allValues = steps.flatMap((step) => [
     step.hurstExponent,
     step.dfaAlpha,
+    step.deaDelta ?? 0,
     step.wordFrequencyEntropy,
   ]);
   const maxValue = Math.max(1, ...allValues);
@@ -739,7 +749,7 @@ function AesRoundMetricChart({ steps }: { steps: CipherStep[] }) {
         {metrics.map((metric) => {
           const path = steps
             .map((step, index) => {
-              const point = pointFor(index, step[metric.key]);
+              const point = pointFor(index, step[metric.key] ?? 0);
               return `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
             })
             .join(" ");
@@ -783,7 +793,7 @@ function AesSingleRoundMetricBars({
 }: {
   step: CipherStep;
   metrics: readonly {
-    key: "hurstExponent" | "dfaAlpha" | "wordFrequencyEntropy";
+    key: "hurstExponent" | "dfaAlpha" | "deaDelta" | "wordFrequencyEntropy";
     label: string;
     color: string;
   }[];
@@ -792,9 +802,9 @@ function AesSingleRoundMetricBars({
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         {metrics.map((metric) => {
-          const value = step[metric.key];
+          const value = step[metric.key] ?? 0;
           const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
           const percent = Math.min(100, Math.max(0, (value / max) * 100));
 
@@ -835,6 +845,71 @@ function MetricCell({ value }: { value: number }) {
   );
 }
 
+function ComplexWorkerProgressBar({
+  job,
+  compact = false,
+}: {
+  job: Pick<
+    ComplexCipherJob,
+    | "status"
+    | "progressPercent"
+    | "progressProcessed"
+    | "progressTotal"
+    | "progressMessage"
+  >;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  const percent =
+    job.status === "completed"
+      ? 100
+      : Math.max(0, Math.min(100, job.progressPercent ?? 0));
+  const isActive = job.status === "queued" || job.status === "processing";
+  const message =
+    job.progressMessage ??
+    (job.status === "queued"
+      ? t("Queued")
+      : job.status === "processing"
+        ? t("Processing")
+        : t(job.status));
+  const processed = job.progressProcessed ?? 0;
+  const total = job.progressTotal ?? 0;
+
+  return (
+    <div className={compact ? "min-w-[180px]" : "rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]"}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {isActive ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-cyan-600 dark:text-cyan-300" />
+          ) : null}
+          <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+            {message}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-xs tabular-nums text-slate-500">
+          {percent.toFixed(0)}%
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        <div
+          className="h-full rounded-full bg-cyan-400 transition-[width]"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {!compact ? (
+        <p className="mt-2 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+          {total > 0
+            ? t("Processed {{processed}} of {{total}}", {
+                processed: formatNumber(processed),
+                total: formatNumber(total),
+              })
+            : t("Waiting for worker progress.")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function MetricStrip({ job }: { job: Pick<ComplexCipherJob, "metricStats"> }) {
   const { t } = useTranslation();
   const stats = job.metricStats ?? [];
@@ -842,14 +917,14 @@ function MetricStrip({ job }: { job: Pick<ComplexCipherJob, "metricStats"> }) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
         {t(
-          "Hurst, DFA, and entropy metrics will appear after the worker completes.",
+          "Hurst, DFA, DEA, and entropy metrics will appear after the worker completes.",
         )}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((metric) => (
         <div
           key={metric.key}
@@ -897,6 +972,8 @@ function AesMetricCharts({
     color:
       metric.key === "hurstExponent"
         ? "#22d3ee"
+        : metric.key === "deaDelta"
+          ? "#f59e0b"
         : metric.key === "wordFrequencyEntropy"
           ? "#34d399"
           : "#cbd5e1",
@@ -1023,6 +1100,7 @@ function AesMetricCharts({
 const WHITENING_METRIC_KEYS: CipherMetricStat["key"][] = [
   "hurstExponent",
   "dfaAlpha",
+  "deaDelta",
   "wordFrequencyEntropy",
 ];
 

@@ -75,7 +75,7 @@ const fileTypeOptions: {
 interface MetricDescriptor {
   key: Extract<
     CipherMetricKey,
-    "hurstExponent" | "dfaAlpha" | "wordFrequencyEntropy"
+    "hurstExponent" | "dfaAlpha" | "deaDelta" | "wordFrequencyEntropy"
   >;
   label: string;
   shortLabel: string;
@@ -100,6 +100,14 @@ const metricDescriptors: MetricDescriptor[] = [
     stroke: "#cbd5e1",
     swatch: "bg-slate-300",
     textClass: "text-slate-700 dark:text-slate-300",
+  },
+  {
+    key: "deaDelta",
+    label: "DEA delta",
+    shortLabel: "DEA",
+    stroke: "#f59e0b",
+    swatch: "bg-amber-400",
+    textClass: "text-amber-700 dark:text-amber-200",
   },
   {
     key: "wordFrequencyEntropy",
@@ -310,7 +318,7 @@ function CipherHero({
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             {t(
-              "Select a parsed corpus from the database, queue a cipher job, and inspect how Hurst, DFA alpha, and word entropy move step by step.",
+              "Select a parsed corpus from the database, queue a cipher job, and inspect how Hurst, DFA alpha, DEA, and word entropy move step by step.",
             )}
           </p>
         </div>
@@ -688,11 +696,12 @@ function CipherJobsTable({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
                 <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                <th className="px-4 py-3 font-medium">{t("Progress")}</th>
                 <th className="px-4 py-3 font-medium">{t("Parameters")}</th>
                 <th className="px-4 py-3 font-medium">{t("Steps")}</th>
                 <th className="px-4 py-3 font-medium">{t("Updated")}</th>
@@ -719,6 +728,9 @@ function CipherJobsTable({
                   </td>
                   <td className="px-4 py-4">
                     <CipherStatusBadge status={job.status} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <WorkerProgressBar job={job} compact />
                   </td>
                   <td className="px-4 py-4 font-mono text-xs text-slate-600 dark:text-slate-300">
                     {formatParameters(job.parameters)}
@@ -747,7 +759,7 @@ function CipherJobsTable({
               ))}
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-14 text-center">
+                  <td colSpan={7} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Binary className="size-8" />
                       <p>{t("No cipher jobs yet.")}</p>
@@ -806,14 +818,20 @@ function CipherJobDetails({
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-4">
+          <WorkerProgressBar job={job} />
           <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(300px,0.72fr)_minmax(360px,1.28fr)]">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
               <MiniMetric
                 label={t("Hurst")}
                 value={lastStep?.hurstExponent ?? 0}
                 accent="cyan"
               />
               <MiniMetric label={t("DFA alpha")} value={lastStep?.dfaAlpha ?? 0} />
+              <MiniMetric
+                label={t("DEA")}
+                value={lastStep?.deaDelta ?? 0}
+                accent="amber"
+              />
               <MiniMetric
                 label={t("Entropy")}
                 value={lastStep?.wordFrequencyEntropy ?? 0}
@@ -924,7 +942,7 @@ function StepStatistics({ stats }: { stats: CipherMetricStat[] }) {
         </div>
         <Badge variant="outline">{t("mean +/- SD")}</Badge>
       </div>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-4 xl:grid-cols-1 2xl:grid-cols-4">
         {stats.map((metric) => (
           <div
             key={metric.key}
@@ -950,11 +968,13 @@ function MiniMetric({
 }: {
   label: string;
   value: number;
-  accent?: "slate" | "cyan" | "emerald";
+  accent?: "slate" | "cyan" | "amber" | "emerald";
 }) {
   const color =
     accent === "cyan"
       ? "text-cyan-700 dark:text-cyan-200"
+      : accent === "amber"
+        ? "text-amber-700 dark:text-amber-200"
       : accent === "emerald"
         ? "text-emerald-700 dark:text-emerald-200"
         : "text-slate-950 dark:text-slate-50";
@@ -965,6 +985,71 @@ function MiniMetric({
       <p className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>
         {value.toFixed(4)}
       </p>
+    </div>
+  );
+}
+
+function WorkerProgressBar({
+  job,
+  compact = false,
+}: {
+  job: Pick<
+    ClassicalCipherJob,
+    | "status"
+    | "progressPercent"
+    | "progressProcessed"
+    | "progressTotal"
+    | "progressMessage"
+  >;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  const percent =
+    job.status === "completed"
+      ? 100
+      : Math.max(0, Math.min(100, job.progressPercent ?? 0));
+  const isActive = job.status === "queued" || job.status === "processing";
+  const message =
+    job.progressMessage ??
+    (job.status === "queued"
+      ? t("Queued")
+      : job.status === "processing"
+        ? t("Processing")
+        : t(job.status));
+  const processed = job.progressProcessed ?? 0;
+  const total = job.progressTotal ?? 0;
+
+  return (
+    <div className={compact ? "min-w-[180px]" : "rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]"}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {isActive ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-cyan-600 dark:text-cyan-300" />
+          ) : null}
+          <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+            {message}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-xs tabular-nums text-slate-500">
+          {percent.toFixed(0)}%
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        <div
+          className="h-full rounded-full bg-cyan-400 transition-[width]"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {!compact ? (
+        <p className="mt-2 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+          {total > 0
+            ? t("Processed {{processed}} of {{total}}", {
+                processed: formatNumber(processed),
+                total: formatNumber(total),
+              })
+            : t("Waiting for worker progress.")}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1072,7 +1157,7 @@ function MetricSmallMultiples({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
       {metricDescriptors.map((metric) => (
         <SingleMetricChart
           key={metric.key}
@@ -1147,7 +1232,7 @@ function SingleMetricChart({
   const minX = Math.min(...xValues, 0);
   const maxX = Math.max(...xValues, 1);
   const xSpan = Math.max(1, maxX - minX);
-  const values = steps.map((step) => step[metric.key]);
+  const values = steps.map((step) => step[metric.key] ?? 0);
   const minValue = Math.min(...values, stats?.mean ?? 0);
   const maxValue = Math.max(...values, stats?.mean ?? 1);
   const valuePadding = Math.max((maxValue - minValue) * 0.12, 0.02);
@@ -1167,7 +1252,7 @@ function SingleMetricChart({
     const y =
       height -
       padding -
-      ((step[metric.key] - chartMin) / span) * (height - padding * 2);
+      (((step[metric.key] ?? 0) - chartMin) / span) * (height - padding * 2);
 
     return { x, y, xValue };
   };
@@ -1290,6 +1375,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
   const allValues = steps.flatMap((step) => [
     step.hurstExponent,
     step.dfaAlpha,
+    step.deaDelta ?? 0,
     step.wordFrequencyEntropy,
   ]);
   const maxValue = Math.max(1, ...allValues);
@@ -1335,6 +1421,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
       <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
         <Legend swatch="bg-cyan-400" label={t("Hurst")} />
         <Legend swatch="bg-slate-300" label={t("DFA alpha")} />
+        <Legend swatch="bg-amber-400" label={t("DEA")} />
         <Legend swatch="bg-emerald-400" label={t("Entropy")} />
         <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
           {t("X: {{axis}}", { axis: t(isKeyLengthChart ? "key length" : "step") })}
@@ -1380,6 +1467,14 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
           d={pathFor((step) => step.dfaAlpha)}
           fill="none"
           stroke="#cbd5e1"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d={pathFor((step) => step.deaDelta ?? 0)}
+          fill="none"
+          stroke="#f59e0b"
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -1436,7 +1531,7 @@ function MetricsChart({ job }: { job: ClassicalCipherJob }) {
 function SingleStepMetricBars({ step }: { step: CipherStep }) {
   const { t } = useTranslation();
   const values = metricDescriptors.map((metric) => {
-    const value = step[metric.key];
+    const value = step[metric.key] ?? 0;
     const max = metric.key === "wordFrequencyEntropy" ? 8 : 1;
 
     return {
@@ -1449,7 +1544,7 @@ function SingleStepMetricBars({ step }: { step: CipherStep }) {
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#080b16]">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         {values.map((metric) => (
           <div key={metric.key} className="min-w-0">
             <div className="mb-2 flex items-center justify-between gap-3">
@@ -1480,14 +1575,19 @@ function calculateStepMetricStats(steps: CipherStep[]): CipherMetricStat[] {
     return [];
   }
 
-  return metricDescriptors.map((metric) => {
-    const values = steps.map((step) => step[metric.key]);
+  return metricDescriptors.flatMap((metric) => {
+    const values = steps
+      .map((step) => step[metric.key])
+      .filter((value): value is number => typeof value === "number");
+    if (values.length === 0) {
+      return [];
+    }
     const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
     const variance =
       values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
       values.length;
 
-    return {
+    return [{
       key: metric.key,
       label: metric.shortLabel,
       final: values.at(-1) ?? 0,
@@ -1495,7 +1595,7 @@ function calculateStepMetricStats(steps: CipherStep[]): CipherMetricStat[] {
       standardDeviation: Math.sqrt(variance),
       min: Math.min(...values),
       max: Math.max(...values),
-    };
+    }];
   });
 }
 
@@ -1513,7 +1613,7 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
 
   return (
     <div className="max-h-[460px] overflow-auto">
-      <table className="w-full min-w-[980px] text-left text-sm">
+      <table className="w-full min-w-[1060px] text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
           <tr>
             <th className="px-4 py-3 font-medium">{t("Step")}</th>
@@ -1522,6 +1622,7 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
             <th className="px-4 py-3 font-medium">{t("Word H")}</th>
             <th className="px-4 py-3 font-medium">{t("Byte H")}</th>
             <th className="px-4 py-3 font-medium">{t("DFA")}</th>
+            <th className="px-4 py-3 font-medium">{t("DEA")}</th>
             <th className="px-4 py-3 font-medium">{t("Entropy")}</th>
             <th className="px-4 py-3 font-medium">{t("Text preview")}</th>
           </tr>
@@ -1547,6 +1648,9 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
               <td className="px-4 py-4 tabular-nums text-slate-700 dark:text-slate-300">
                 {step.dfaAlpha.toFixed(4)}
               </td>
+              <td className="px-4 py-4 tabular-nums text-amber-700 dark:text-amber-200">
+                {formatOptionalMetric(step.deaDelta)}
+              </td>
               <td className="px-4 py-4 tabular-nums text-emerald-700 dark:text-emerald-200">
                 {step.wordFrequencyEntropy.toFixed(4)}
               </td>
@@ -1557,7 +1661,7 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
           ))}
           {steps.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-5 py-12 text-center text-slate-500">
+              <td colSpan={9} className="px-5 py-12 text-center text-slate-500">
                 {t("Waiting for worker steps.")}
               </td>
             </tr>

@@ -97,7 +97,7 @@ function CorpusDetailsBody({
         <DetailMetric label={t("Unique")} value={formatNumber(selected.uniqueWords)} />
         <DetailMetric label={t("Updated")} value={formatTime(selected.updatedAt)} />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DetailMetric
           label={t("Hurst")}
           value={
@@ -111,6 +111,14 @@ function CorpusDetailsBody({
           value={
             typeof selected.dfaAlpha === "number"
               ? selected.dfaAlpha.toFixed(4)
+              : t("Pending")
+          }
+        />
+        <DetailMetric
+          label={t("DEA")}
+          value={
+            typeof selected.deaDelta === "number"
+              ? selected.deaDelta.toFixed(4)
               : t("Pending")
           }
         />

@@ -451,6 +451,7 @@ function createBlockCipherStep(
     text: formatBytes(bytes, outputEncoding),
     hurstExponent: metrics.hurstExponent,
     dfaAlpha: metrics.dfaAlpha,
+    deaDelta: metrics.deaDelta,
     wordFrequencyEntropy: metrics.wordFrequencyEntropy,
   };
 }
@@ -501,6 +502,7 @@ function calculateCiphertextMetricStats(
     [
       { key: 'hurstExponent' as const, label: 'Hurst' },
       { key: 'dfaAlpha' as const, label: 'DFA' },
+      { key: 'deaDelta' as const, label: 'DEA' },
       { key: 'wordFrequencyEntropy' as const, label: 'Byte entropy' },
     ] satisfies Array<{ key: CipherMetricKey; label: string }>
   ).map((metric) => {
@@ -528,6 +530,7 @@ function calculateStepMetricStats(
   const metricLabels: Array<{ key: CipherMetricKey; label: string }> = [
     { key: 'hurstExponent', label: 'Hurst' },
     { key: 'dfaAlpha', label: 'DFA' },
+    { key: 'deaDelta', label: 'DEA' },
     { key: 'wordFrequencyEntropy', label: 'Byte entropy' },
   ];
 

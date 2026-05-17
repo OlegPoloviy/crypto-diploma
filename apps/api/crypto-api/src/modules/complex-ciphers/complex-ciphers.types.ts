@@ -107,6 +107,15 @@ export interface ComplexCipherWorkerResult {
   metadata: Record<string, unknown>;
 }
 
+export interface ComplexCipherWorkerProgress {
+  type: 'progress';
+  percent: number;
+  processed: number;
+  total: number;
+  message: string;
+}
+
 export type ComplexCipherWorkerMessage =
   | ComplexCipherWorkerResult
+  | ComplexCipherWorkerProgress
   | { error: string };

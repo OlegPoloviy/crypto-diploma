@@ -17,6 +17,7 @@ export interface ParsedTextResult {
   uniqueWords: number;
   hurstExponent: number;
   dfaAlpha: number;
+  deaDelta: number;
   wordFrequencyEntropy: number;
 }
 

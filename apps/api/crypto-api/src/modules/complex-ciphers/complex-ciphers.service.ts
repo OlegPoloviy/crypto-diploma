@@ -46,6 +46,7 @@ import {
   ComplexCipherWorkerData,
   ComplexCipherWorkerResult,
   ComplexCipherWorkerMessage,
+  ComplexCipherWorkerProgress,
   DesJobParameters,
   DesOperation,
   KalynaJobParameters,
@@ -487,6 +488,10 @@ export class ComplexCiphersService {
         algorithm,
         parameters: jobParameters,
         status: ComplexCipherJobStatus.QUEUED,
+        progressPercent: 0,
+        progressProcessed: 0,
+        progressTotal: Math.max(1, text.length),
+        progressMessage: 'Queued',
       }),
     );
 
@@ -532,6 +537,10 @@ export class ComplexCiphersService {
     await this.cipherJobsRepo.update(job.id, {
       status: ComplexCipherJobStatus.PROCESSING,
       errorMessage: null,
+      progressPercent: 1,
+      progressProcessed: 0,
+      progressTotal: Math.max(1, job.text.length),
+      progressMessage: 'Worker started',
     });
 
     try {
@@ -553,6 +562,10 @@ export class ComplexCiphersService {
         metadata: result.metadata,
         metricStats: result.metricStats,
         status: ComplexCipherJobStatus.COMPLETED,
+        progressPercent: 100,
+        progressProcessed: Math.max(1, job.text.length),
+        progressTotal: Math.max(1, job.text.length),
+        progressMessage: 'Completed',
       });
     } catch (error) {
       if (this.deletedJobIds.has(job.id)) {
@@ -568,6 +581,7 @@ export class ComplexCiphersService {
       await this.cipherJobsRepo.update(job.id, {
         status: ComplexCipherJobStatus.FAILED,
         errorMessage: message,
+        progressMessage: 'Failed',
       });
     } finally {
       this.deletedJobIds.delete(job.id);
@@ -587,6 +601,7 @@ export class ComplexCiphersService {
         },
       });
       let settled = false;
+      let progressWrites: Promise<void> = Promise.resolve();
       const timeout = setTimeout(() => {
         if (settled) {
           return;
@@ -613,19 +628,38 @@ export class ComplexCiphersService {
         }
       };
 
-      worker.once('message', (message: ComplexCipherWorkerMessage) => {
+      worker.on('message', (message: ComplexCipherWorkerMessage) => {
         if (settled) {
           return;
         }
 
-        settled = true;
-        cleanup();
-        if ('error' in message) {
-          reject(new Error(message.error));
+        if (isWorkerProgress(message)) {
+          progressWrites = progressWrites
+            .then(() =>
+              this.cipherJobsRepo.update(jobId, {
+                progressPercent: message.percent,
+                progressProcessed: message.processed,
+                progressTotal: message.total,
+                progressMessage: message.message,
+              }),
+            )
+            .then(
+              () => undefined,
+              () => undefined,
+            );
           return;
         }
 
-        resolve(message);
+        settled = true;
+        void progressWrites.finally(() => {
+          cleanup();
+          if ('error' in message) {
+            reject(new Error(message.error));
+            return;
+          }
+
+          resolve(message);
+        });
       });
       worker.once('error', (error) => {
         if (settled) {
@@ -658,9 +692,19 @@ export class ComplexCiphersService {
       steps: job.steps,
       metadata: job.metadata,
       metricStats: job.metricStats,
+      progressPercent: job.progressPercent ?? 0,
+      progressProcessed: job.progressProcessed ?? 0,
+      progressTotal: job.progressTotal ?? 0,
+      progressMessage: job.progressMessage,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     };
   }
+}
+
+function isWorkerProgress(
+  message: ComplexCipherWorkerMessage,
+): message is ComplexCipherWorkerProgress {
+  return 'type' in message && message.type === 'progress';
 }

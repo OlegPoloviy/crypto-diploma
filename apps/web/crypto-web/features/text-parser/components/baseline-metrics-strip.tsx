@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { ParsedText } from "../types/parsed-text";
 
 function formatMetric(value?: number | null): string {
-  return typeof value === "number" ? value.toFixed(3) : "—";
+  return typeof value === "number" ? value.toFixed(3) : "-";
 }
 
 export function BaselineMetricsStrip({
@@ -75,11 +75,12 @@ function BaselineColumn({
       <p className="text-slate-600 dark:text-slate-400">{label}</p>
       {item ? (
         <p className="mt-1 tabular-nums text-slate-800 dark:text-slate-200">
-          H {formatMetric(item.hurstExponent)} · α {formatMetric(item.dfaAlpha)}{" "}
-          · S {formatMetric(item.wordFrequencyEntropy)}
+          H {formatMetric(item.hurstExponent)} | alpha{" "}
+          {formatMetric(item.dfaAlpha)} | DEA {formatMetric(item.deaDelta)} | S{" "}
+          {formatMetric(item.wordFrequencyEntropy)}
         </p>
       ) : (
-        <p className="mt-1 text-slate-400">—</p>
+        <p className="mt-1 text-slate-400">-</p>
       )}
     </div>
   );

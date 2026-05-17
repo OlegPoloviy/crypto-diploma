@@ -94,6 +94,9 @@ export class ParsedTextEntity {
   dfaAlpha?: number | null;
 
   @Column({ type: 'double precision', nullable: true })
+  deaDelta?: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
   wordFrequencyEntropy?: number | null;
 
   @Column({ type: 'text', nullable: true })

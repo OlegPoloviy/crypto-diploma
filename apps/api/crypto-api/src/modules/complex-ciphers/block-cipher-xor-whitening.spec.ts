@@ -8,7 +8,7 @@ import { encryptAesBlock, decryptAesBlock } from './aes.engine';
 
 describe('block-cipher-xor-whitening', () => {
   const key = Uint8Array.from({ length: 16 }, (_, index) => index);
-  const block = Uint8Array.from({ length: 16 }, (_, index) => index + 0x10 });
+  const block = Uint8Array.from({ length: 16 }, (_, index) => index + 0x10);
   const whitening = deriveXorWhiteningKeys(key, 16);
 
   it('inverts XOR pre/post whitening around AES block encryption', () => {

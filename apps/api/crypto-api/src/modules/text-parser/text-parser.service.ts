@@ -263,6 +263,7 @@ export class TextParserService {
         uniqueWords: true,
         hurstExponent: true,
         dfaAlpha: true,
+        deaDelta: true,
         wordFrequencyEntropy: true,
         errorMessage: true,
         createdAt: true,
@@ -290,6 +291,7 @@ export class TextParserService {
         uniqueWords: true,
         hurstExponent: true,
         dfaAlpha: true,
+        deaDelta: true,
         wordFrequencyEntropy: true,
         errorMessage: true,
         createdAt: true,
@@ -397,6 +399,7 @@ export class TextParserService {
         uniqueWords: metrics.uniqueWords,
         hurstExponent: metrics.hurstExponent,
         dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
         wordFrequencyEntropy: metrics.wordFrequencyEntropy,
       }),
     );
@@ -431,6 +434,7 @@ export class TextParserService {
         uniqueWords: new Set(words).size,
         hurstExponent: metrics.hurstExponent,
         dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
         wordFrequencyEntropy: metrics.wordFrequencyEntropy,
       }),
     );
@@ -518,6 +522,7 @@ export class TextParserService {
         uniqueWords: metrics.uniqueWords,
         hurstExponent: metrics.hurstExponent,
         dfaAlpha: metrics.dfaAlpha,
+        deaDelta: metrics.deaDelta,
         wordFrequencyEntropy: metrics.wordFrequencyEntropy,
       }),
     );
@@ -624,6 +629,7 @@ export class TextParserService {
         uniqueWords: result.uniqueWords,
         hurstExponent: result.hurstExponent,
         dfaAlpha: result.dfaAlpha,
+        deaDelta: result.deaDelta,
         wordFrequencyEntropy: result.wordFrequencyEntropy,
         status: ParsedTextStatus.COMPLETED,
       });
@@ -683,6 +689,7 @@ export class TextParserService {
       uniqueWords: entity.uniqueWords,
       hurstExponent: entity.hurstExponent,
       dfaAlpha: entity.dfaAlpha,
+      deaDelta: entity.deaDelta,
       wordFrequencyEntropy: entity.wordFrequencyEntropy,
       errorMessage: entity.errorMessage,
       createdAt: entity.createdAt,

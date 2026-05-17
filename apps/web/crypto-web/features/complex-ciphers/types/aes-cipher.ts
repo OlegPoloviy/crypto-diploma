@@ -80,6 +80,10 @@ export interface ComplexCipherJob {
   steps?: CipherStep[] | null;
   metadata?: Record<string, unknown> | null;
   metricStats?: CipherMetricStat[] | null;
+  progressPercent: number;
+  progressProcessed: number;
+  progressTotal: number;
+  progressMessage?: string | null;
   errorMessage?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +92,7 @@ export interface ComplexCipherJob {
 export type CipherMetricKey =
   | "hurstExponent"
   | "dfaAlpha"
+  | "deaDelta"
   | "wordFrequencyEntropy";
 
 export interface CipherMetricStat {
@@ -107,6 +112,7 @@ export interface CipherStep {
   text: string;
   hurstExponent: number;
   dfaAlpha: number;
+  deaDelta: number;
   wordFrequencyEntropy: number;
 }
 

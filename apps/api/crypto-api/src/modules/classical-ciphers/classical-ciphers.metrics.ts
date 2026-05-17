@@ -1,15 +1,18 @@
 export interface TextMetrics {
   hurstExponent: number;
   dfaAlpha: number;
+  deaDelta: number;
   wordFrequencyEntropy: number;
 }
 
 export function calculateTextMetrics(text: string): TextMetrics {
-  const series = textToWordLengthSeries(text);
+  const wordLengthSeries = textToWordLengthSeries(text);
+  const deaSeries = textToLetterValueSeries(text);
 
   return {
-    hurstExponent: roundMetric(calculateHurstExponent(series)),
-    dfaAlpha: roundMetric(calculateDfaAlpha(series)),
+    hurstExponent: roundMetric(calculateHurstExponent(wordLengthSeries)),
+    dfaAlpha: roundMetric(calculateDfaAlpha(wordLengthSeries)),
+    deaDelta: roundMetric(calculateDeaDelta(deaSeries)),
     wordFrequencyEntropy: roundMetric(calculateWordFrequencyEntropy(text)),
   };
 }
@@ -20,6 +23,7 @@ export function calculateByteMetrics(bytes: Uint8Array): TextMetrics {
   return {
     hurstExponent: roundMetric(calculateHurstExponent(series)),
     dfaAlpha: roundMetric(calculateDfaAlpha(series)),
+    deaDelta: roundMetric(calculateDeaDelta(series)),
     wordFrequencyEntropy: roundMetric(calculateSeriesEntropy(series)),
   };
 }
@@ -28,6 +32,12 @@ function textToWordLengthSeries(text: string): number[] {
   const words = text.toLowerCase().match(/\p{L}+/gu) ?? [];
 
   return words.map((word) => Array.from(word).length);
+}
+
+function textToLetterValueSeries(text: string): number[] {
+  const letters = text.toLowerCase().match(/\p{L}/gu) ?? [];
+
+  return letters.map((letter) => letter.codePointAt(0) ?? 0);
 }
 
 function bytesToNumericSeries(bytes: Uint8Array): number[] {
@@ -116,6 +126,43 @@ function calculateDfaAlpha(series: number[]): number {
   return slopeOrDefault(points, 0.5);
 }
 
+function calculateDeaDelta(series: number[]): number {
+  if (series.length < 8) {
+    return 0.5;
+  }
+
+  const points: Array<{ x: number; y: number }> = [];
+  const prefixSums = new Array<number>(series.length + 1).fill(0);
+
+  for (let index = 0; index < series.length; index += 1) {
+    prefixSums[index + 1] = prefixSums[index] + series[index];
+  }
+
+  const maxScale = Math.min(Math.floor(series.length / 4), 4096);
+  const binWidth = estimateHistogramBinWidth(series);
+
+  for (let scale = 2; scale <= maxScale; scale *= 2) {
+    const trajectoryCount = series.length - scale + 1;
+    if (trajectoryCount < 2) {
+      continue;
+    }
+
+    const bins = new Map<number, number>();
+    for (let start = 0; start < trajectoryCount; start += 1) {
+      const position = prefixSums[start + scale] - prefixSums[start];
+      const bin = Math.floor(position / binWidth);
+      bins.set(bin, (bins.get(bin) ?? 0) + 1);
+    }
+
+    const entropy = calculateHistogramEntropy(bins, trajectoryCount);
+    if (entropy > 0) {
+      points.push({ x: Math.log(scale), y: entropy });
+    }
+  }
+
+  return slopeOrDefault(points, points.length === 0 ? 0 : 0.5);
+}
+
 function calculateWordFrequencyEntropy(text: string): number {
   const words =
     text
@@ -158,6 +205,33 @@ function calculateSeriesEntropy(series: number[]): number {
   }
 
   return entropy;
+}
+
+function calculateHistogramEntropy(
+  bins: Map<number, number>,
+  total: number,
+): number {
+  let entropy = 0;
+  for (const count of bins.values()) {
+    const probability = count / total;
+    entropy -= probability * Math.log(probability);
+  }
+
+  return entropy;
+}
+
+function estimateHistogramBinWidth(series: number[]): number {
+  const sortedUnique = Array.from(new Set(series)).sort((a, b) => a - b);
+  let minPositiveDiff = Number.POSITIVE_INFINITY;
+
+  for (let index = 1; index < sortedUnique.length; index += 1) {
+    const diff = sortedUnique[index] - sortedUnique[index - 1];
+    if (diff > 0 && diff < minPositiveDiff) {
+      minPositiveDiff = diff;
+    }
+  }
+
+  return Number.isFinite(minPositiveDiff) ? minPositiveDiff : 1;
 }
 
 function detrendedSquaredError(segment: number[]): {
