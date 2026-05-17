@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";
 
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.toString();
-  const url = query
-    ? `${API_URL}/text-parser?${query}`
-    : `${API_URL}/text-parser`;
-
-  const response = await fetch(url, { cache: "no-store" });
+export async function POST(request: NextRequest) {
+  const body = await request.text();
+  const response = await fetch(`${API_URL}/text-parser/baseline-set`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
 
   return proxyResponse(response);
 }

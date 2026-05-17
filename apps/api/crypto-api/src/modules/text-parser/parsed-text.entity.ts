@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -9,6 +10,12 @@ import {
 export enum ParsedTextSource {
   MANUAL = 'manual',
   UPLOAD = 'upload',
+  GENERATED = 'generated',
+}
+
+export enum ParsedTextCorpusKind {
+  NATURAL_TEXT = 'natural_text',
+  RANDOM_BYTES = 'random_bytes',
 }
 
 export enum ParsedTextStatus {
@@ -24,6 +31,7 @@ export enum ParsedTextContentEncoding {
 }
 
 @Entity('parsed_texts')
+@Index('IDX_parsed_texts_baseline_set', ['baselineSetId'])
 export class ParsedTextEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -36,6 +44,16 @@ export class ParsedTextEntity {
     enum: ParsedTextSource,
   })
   source: ParsedTextSource;
+
+  @Column({
+    type: 'enum',
+    enum: ParsedTextCorpusKind,
+    default: ParsedTextCorpusKind.NATURAL_TEXT,
+  })
+  corpusKind: ParsedTextCorpusKind;
+
+  @Column({ type: 'uuid', nullable: true })
+  baselineSetId?: string | null;
 
   @Column({ nullable: true })
   originalFileName?: string;

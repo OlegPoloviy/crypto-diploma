@@ -4,13 +4,8 @@ export interface TextMetrics {
   wordFrequencyEntropy: number;
 }
 
-const ALPHABETS = [
-  'abcdefghijklmnopqrstuvwxyz',
-  '\u0430\u0431\u0432\u0433\u0491\u0434\u0435\u0454\u0436\u0437\u0438\u0456\u0457\u0439\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044c\u044e\u044f',
-];
-
 export function calculateTextMetrics(text: string): TextMetrics {
-  const series = textToNumericSeries(text);
+  const series = textToWordLengthSeries(text);
 
   return {
     hurstExponent: roundMetric(calculateHurstExponent(series)),
@@ -29,27 +24,14 @@ export function calculateByteMetrics(bytes: Uint8Array): TextMetrics {
   };
 }
 
-function textToNumericSeries(text: string): number[] {
-  const letters = text.toLowerCase().match(/\p{L}/gu) ?? [];
+function textToWordLengthSeries(text: string): number[] {
+  const words = text.toLowerCase().match(/\p{L}+/gu) ?? [];
 
-  return letters
-    .map((letter) => letterToAlphabetIndex(letter))
-    .filter((index): index is number => index !== null);
+  return words.map((word) => Array.from(word).length);
 }
 
 function bytesToNumericSeries(bytes: Uint8Array): number[] {
   return Array.from(bytes);
-}
-
-function letterToAlphabetIndex(letter: string): number | null {
-  for (const alphabet of ALPHABETS) {
-    const index = alphabet.indexOf(letter);
-    if (index >= 0) {
-      return index;
-    }
-  }
-
-  return null;
 }
 
 function calculateHurstExponent(series: number[]): number {
@@ -58,7 +40,7 @@ function calculateHurstExponent(series: number[]): number {
   }
 
   const points: Array<{ x: number; y: number }> = [];
-  const maxWindow = Math.min(Math.floor(series.length / 4), 2048);
+  const maxWindow = Math.min(Math.floor(series.length / 4), 65536);
 
   for (let windowSize = 8; windowSize <= maxWindow; windowSize *= 2) {
     const ranges: number[] = [];

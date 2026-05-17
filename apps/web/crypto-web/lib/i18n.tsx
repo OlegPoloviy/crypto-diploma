@@ -202,6 +202,18 @@ const uk = {
     "Метрики Герста, DFA та ентропії з'являться після завершення воркера.",
   "mean {{mean}} · SD {{sd}}": "середнє {{mean}} · СВ {{sd}}",
   "AES metrics chart": "Графік метрик AES",
+  "XOR whitening": "XOR-вибілювання",
+  "Y = E_K(X ⊕ K_pre) ⊕ K_post": "Y = E_K(X ⊕ K_pre) ⊕ K_post",
+  "Y = E_K(X ⊕ K_pre) ⊕ K_post vs plain E_K(X)":
+    "Y = E_K(X ⊕ K_pre) ⊕ K_post проти звичайного E_K(X)",
+  "Whitening comparison": "Порівняння вибілювання",
+  "Whitening comparison chart": "Графік порівняння вибілювання",
+  "Without whitening": "Без вибілювання",
+  "With whitening": "З вибілюванням",
+  Enabled: "Увімкнено",
+  Disabled: "Вимкнено",
+  "Round metrics were skipped because this corpus is above the detailed-step threshold ({{threshold}} MB).":
+    "Метрики раундів пропущено: корпус перевищує поріг детальних кроків ({{threshold}} МБ).",
   "Normalized against 8 bits per byte.": "Нормалізовано до 8 біт на байт.",
   "AES Lab": "AES-лабораторія",
   "Run the backend AES implementation directly and inspect encoded input, key, IV, and output parameters in one place.":
@@ -300,6 +312,43 @@ const uk = {
     "Ентропія вимірює невизначеність. Текстові завдання використовують розподіл слів/літер; бінарні - розподіл байтів.",
   "For binary files, random-looking encrypted output should often land near 6-8 depending on file size and source data.":
     "Для бінарних файлів випадкоподібний зашифрований вихід часто має бути близько 6-8 залежно від розміру файлу та вихідних даних.",
+  "Random baseline": "Рандомний baseline",
+  "Baseline pair": "Пара baseline",
+  Preprocess: "Препроцесинг",
+  "Auto (detect Gutenberg)": "Авто (виявити Gutenberg)",
+  None: "Без обробки",
+  Gutenberg: "Gutenberg",
+  "Paste plain text here...": "Вставте звичайний текст тут...",
+  "Saving...": "Збереження...",
+  "Save & compute metrics": "Зберегти й порахувати метрики",
+  "Generate random baseline": "Згенерувати рандомний baseline",
+  "Create baseline pair": "Створити пару baseline",
+  'Saved "{{title}}" with metrics.': 'Збережено «{{title}}» з метриками.',
+  "Saved {{count}} corpora for {{title}}.":
+    "Збережено {{count}} корпусів для «{{title}}».",
+  "Failed to save corpus": "Не вдалося зберегти корпус",
+  "Text or file is required for baseline pair":
+    "Для пари baseline потрібен текст або файл",
+  "Byte length": "Довжина у байтах",
+  "Optional seed": "Необовʼязковий seed",
+  "Leave empty for crypto random": "Залиште порожнім для crypto random",
+  "Or upload plain text file": "Або завантажте файл plain text",
+  Kind: "Тип",
+  "Natural text": "Природний текст",
+  "Random bytes": "Випадкові байти",
+  "Baseline comparison": "Порівняння baseline",
+  "Select a natural text corpus to compare baselines.":
+    "Оберіть корпус природного тексту для порівняння baseline.",
+  Encrypted: "Зашифрований",
+  "No completed cipher job": "Немає завершеного job шифрування",
+  "No random sibling": "Немає парного random корпусу",
+  generated: "згенеровано",
+  natural_text: "природний текст",
+  random_bytes: "випадкові байти",
+  "Baseline metrics": "Метрики baseline",
+  "Download corpus text": "Завантажити текст корпусу",
+  "Downloading...": "Завантаження...",
+  "Failed to download text": "Не вдалося завантажити текст",
 };
 
 const i18n = i18next.createInstance();
