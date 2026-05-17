@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
@@ -20,22 +22,37 @@ import {
   ApiOperation,
   ApiParam,
   ApiProperty,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
+import { BaselineSetResponseDto } from './dto/baseline-set-response.dto';
+import { BaselineSetTextDto } from './dto/baseline-set-text.dto';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
+import { GenerateRandomBytesDto } from './dto/generate-random.dto';
+import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParseTextDto } from './dto/parse-text.dto';
-import { TextFileType, TextParserService } from './text-parser.service';
+import { ParsedTextCorpusKind } from './parsed-text.entity';
+import {
+  ListParsedTextsQuery,
+  TextFileType,
+  TextParserService,
+} from './text-parser.service';
+import { TextPreprocessMode } from './text-parser.util';
+import { MAX_RANDOM_BYTE_LENGTH } from './dto/generate-random.dto';
 
 class ParseFileDto {
   @ApiProperty({
-    example: 'Moby Dick',
+    example: 'Sample corpus',
     maxLength: 150,
     description: 'Human-readable title for the parsed text',
   })
@@ -47,11 +64,48 @@ class ParseFileDto {
   @ApiProperty({
     enum: TextFileType,
     default: TextFileType.PLAIN_TEXT,
-    description: 'Declared text file type. Binary support will be added later.',
+    description: 'Declared text file type',
   })
   @IsEnum(TextFileType)
   @IsOptional()
   fileType?: TextFileType;
+
+  @ApiProperty({
+    enum: TextPreprocessMode,
+    default: TextPreprocessMode.AUTO,
+    required: false,
+  })
+  @IsEnum(TextPreprocessMode)
+  @IsOptional()
+  preprocess?: TextPreprocessMode;
+}
+
+class BaselineSetFileDto extends ParseFileDto {
+  @ApiProperty({
+    required: false,
+    description: 'Random byte length; defaults to file UTF-8 byte length',
+  })
+  @IsInt()
+  @Min(1)
+  @Max(MAX_RANDOM_BYTE_LENGTH)
+  @IsOptional()
+  randomByteLength?: number;
+
+  @ApiProperty({ required: false })
+  @IsInt()
+  @IsOptional()
+  seed?: number;
+}
+
+class ListParsedTextsQueryDto {
+  @ApiProperty({ enum: ParsedTextCorpusKind, required: false })
+  @IsEnum(ParsedTextCorpusKind)
+  @IsOptional()
+  corpusKind?: ParsedTextCorpusKind;
+
+  @ApiProperty({ format: 'uuid', required: false })
+  @IsOptional()
+  baselineSetId?: string;
 }
 
 @ApiTags('text-parser')
@@ -61,13 +115,31 @@ export class TextParserController {
 
   @Get()
   @ApiOperation({ summary: 'List parsed text jobs' })
+  @ApiQuery({ name: 'corpusKind', enum: ParsedTextCorpusKind, required: false })
+  @ApiQuery({ name: 'baselineSetId', required: false, format: 'uuid' })
   @ApiOkResponse({
     description: 'Parsed texts ordered by newest first',
     type: CreateParsedTextResponseDto,
     isArray: true,
   })
-  findAll(): Promise<CreateParsedTextResponseDto[]> {
-    return this.textParserService.findAll();
+  findAll(
+    @Query() query: ListParsedTextsQueryDto,
+  ): Promise<CreateParsedTextResponseDto[]> {
+    return this.textParserService.findAll(query as ListParsedTextsQuery);
+  }
+
+  @Get(':id/content')
+  @ApiOperation({ summary: 'Get stored corpus content for download' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Parsed text id' })
+  @ApiOkResponse({ type: ParsedTextContentResponseDto })
+  @ApiNotFoundResponse({ description: 'Parsed text not found' })
+  @ApiBadRequestResponse({
+    description: 'Corpus is not ready or has no stored content',
+  })
+  getContent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<ParsedTextContentResponseDto> {
+    return this.textParserService.getContent(id);
   }
 
   @Get(':id')
@@ -82,9 +154,11 @@ export class TextParserController {
   }
 
   @Post('text')
-  @ApiOperation({ summary: 'Queue raw text parsing' })
+  @ApiOperation({
+    summary: 'Parse plain text and compute baseline metrics synchronously',
+  })
   @ApiCreatedResponse({
-    description: 'Text parsing job queued',
+    description: 'Parsed text with metrics',
     type: CreateParsedTextResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Validation failed' })
@@ -93,32 +167,79 @@ export class TextParserController {
       body.title,
       body.text,
       body.originalFileName,
+      body.preprocess,
     );
+  }
+
+  @Post('random')
+  @ApiOperation({ summary: 'Generate random bytes baseline with metrics' })
+  @ApiCreatedResponse({ type: CreateParsedTextResponseDto })
+  createRandom(
+    @Body() body: GenerateRandomBytesDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    return this.textParserService.createRandomBytes(body);
+  }
+
+  @Post('baseline-set')
+  @ApiOperation({
+    summary: 'Create natural text + random bytes baseline pair',
+  })
+  @ApiCreatedResponse({ type: BaselineSetResponseDto })
+  createBaselineSet(
+    @Body() body: BaselineSetTextDto,
+  ): Promise<BaselineSetResponseDto> {
+    return this.textParserService.createBaselineSetFromText(body);
+  }
+
+  @Post('baseline-set/file')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Create baseline pair from an uploaded plain text file',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreatedResponse({ type: BaselineSetResponseDto })
+  async createBaselineSetFromFile(
+    @Body() body: BaselineSetFileDto,
+    @UploadedFile() file?: { buffer: Buffer; originalname?: string },
+  ): Promise<BaselineSetResponseDto> {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    return this.textParserService.createBaselineSetFromText({
+      title: body.title,
+      text: file.buffer.toString('utf8'),
+      preprocess: body.preprocess,
+      randomByteLength: body.randomByteLength,
+      seed: body.seed,
+      originalFileName: file.originalname,
+    });
   }
 
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload and queue a .txt file parsing' })
+  @ApiOperation({ summary: 'Upload and parse a text file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        title: {
+        title: { type: 'string', example: 'Sample corpus' },
+        fileType: {
           type: 'string',
-          example: 'Moby Dick',
+          enum: Object.values(TextFileType),
         },
-        file: {
+        preprocess: {
           type: 'string',
-          format: 'binary',
-          description: 'Project Gutenberg .txt file',
+          enum: Object.values(TextPreprocessMode),
         },
+        file: { type: 'string', format: 'binary' },
       },
       required: ['title', 'file'],
     },
   })
   @ApiCreatedResponse({
-    description: 'File parsing job queued',
+    description: 'File parsed with metrics',
     type: CreateParsedTextResponseDto,
   })
   @ApiBadRequestResponse({ description: 'File is missing or invalid' })
@@ -130,41 +251,37 @@ export class TextParserController {
       body.title,
       file,
       body.fileType,
+      body.preprocess,
     );
   }
 
   @Post('files')
   @UseInterceptors(FilesInterceptor('files'))
-  @ApiOperation({ summary: 'Upload and queue multiple text files for parsing' })
+  @ApiOperation({ summary: 'Upload and parse multiple text files' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        title: {
-          type: 'string',
-          example: 'Gutenberg batch',
-        },
+        title: { type: 'string', example: 'Batch upload' },
         fileType: {
           type: 'string',
           enum: Object.values(TextFileType),
-          default: TextFileType.PLAIN_TEXT,
-          description:
-            'Declared text file type. Binary support will be added later.',
+        },
+        preprocess: {
+          type: 'string',
+          enum: Object.values(TextPreprocessMode),
         },
         files: {
           type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
+          items: { type: 'string', format: 'binary' },
         },
       },
       required: ['title', 'files'],
     },
   })
   @ApiCreatedResponse({
-    description: 'File parsing jobs queued',
+    description: 'Files parsed with metrics',
     type: CreateParsedTextResponseDto,
     isArray: true,
   })
@@ -177,6 +294,7 @@ export class TextParserController {
       body.title,
       files,
       body.fileType,
+      body.preprocess,
     );
   }
 }

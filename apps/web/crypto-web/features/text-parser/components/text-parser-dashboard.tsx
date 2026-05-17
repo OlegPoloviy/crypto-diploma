@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useParsedTexts } from "../hooks/use-parsed-texts";
 import { DashboardHero } from "./dashboard-hero";
 import { MetricCard } from "./metric-card";
+import { BaselineComparisonPanel } from "./baseline-comparison-panel";
 import { ParsedTextDetails } from "./parsed-text-details";
 import { ParsedTextTable } from "./parsed-text-table";
 import { ParserFormCard } from "./parser-form-card";
@@ -24,6 +25,8 @@ export function TextParserDashboard() {
     refresh,
     createFromFile,
     createFromText,
+    createRandom,
+    createBaselineSet,
   } = useParsedTexts();
 
   const completed = items.filter((item) => item.status === "completed").length;
@@ -51,6 +54,8 @@ export function TextParserDashboard() {
                 message={message}
                 onCreateFromFile={createFromFile}
                 onCreateFromText={createFromText}
+                onCreateRandom={createRandom}
+                onCreateBaselineSet={createBaselineSet}
               />
             </div>
 
@@ -94,12 +99,7 @@ export function TextParserDashboard() {
               title={t("Parser throughput")}
               footer={t("Live preview")}
             />
-            <PlaceholderPanel
-              icon={<FileText className="size-4" />}
-              label={t("Comparison")}
-              title={t("Corpus preparation")}
-              footer={t("Side-by-side")}
-            />
+            <BaselineComparisonPanel items={items} selected={selected} />
           </section>
         </div>
       </div>

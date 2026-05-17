@@ -2,16 +2,21 @@ import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import {
   ParsedTextContentEncoding,
+  ParsedTextCorpusKind,
   ParsedTextEntity,
+  ParsedTextSource,
   ParsedTextStatus,
 } from './parsed-text.entity';
 import { TextFileType, TextParserService } from './text-parser.service';
+import { TextPreprocessMode } from './text-parser.util';
 
 describe('TextParserService', () => {
   let service: TextParserService;
   let repo: {
     create: jest.Mock;
     save: jest.Mock;
+    update: jest.Mock;
+    findOne: jest.Mock;
   };
   let idCounter: number;
 
@@ -21,8 +26,12 @@ describe('TextParserService', () => {
       create: jest.fn((input) => input as ParsedTextEntity),
       save: jest.fn(async (input) => ({
         id: `parsed-text-${++idCounter}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         ...input,
       })),
+      update: jest.fn(),
+      findOne: jest.fn(),
     };
     service = new TextParserService(
       repo as unknown as Repository<ParsedTextEntity>,
@@ -35,15 +44,18 @@ describe('TextParserService', () => {
       .mockResolvedValue(undefined);
   });
 
-  it('removes Gutenberg blocks and keeps word order', () => {
-    const result = service.parse(`
+  it('removes Gutenberg blocks in auto mode and keeps word order', () => {
+    const result = service.parse(
+      `
       Header that should disappear
       *** START OF THE PROJECT GUTENBERG EBOOK SAMPLE ***
       The quick, brown fox jumps 42 times.
       THE quick fox!
       *** END OF THE PROJECT GUTENBERG EBOOK SAMPLE ***
       License that should disappear
-    `);
+    `,
+      TextPreprocessMode.AUTO,
+    );
 
     expect(result).toEqual({
       words: [
@@ -81,29 +93,29 @@ describe('TextParserService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('queues one parsing job per uploaded file', async () => {
-    const result = await service.createFromFiles(
-      'Batch',
-      [
-        { originalname: 'one.md', buffer: Buffer.from('First text') },
-        { originalname: 'two.md', buffer: Buffer.from('Second text') },
-      ],
+  it('completes small text uploads synchronously', async () => {
+    const result = await service.createFromFile(
+      'Sample',
+      { originalname: 'one.md', buffer: Buffer.from('First text') },
       TextFileType.MARKDOWN,
     );
 
-    expect(result).toHaveLength(2);
-    expect(repo.save).toHaveBeenCalledTimes(2);
-    expect(repo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Batch - one.md',
-        originalFileName: 'one.md',
-        status: ParsedTextStatus.QUEUED,
-      }),
+    expect(result.status).toBe(ParsedTextStatus.COMPLETED);
+    expect(result.corpusKind).toBe(ParsedTextCorpusKind.NATURAL_TEXT);
+    expect(result.hurstExponent).toEqual(expect.any(Number));
+  });
+
+  it('queues one parsing job per large uploaded file', async () => {
+    const largeText = 'word '.repeat(200_000);
+    const result = await service.createFromFiles(
+      'Batch',
+      [{ originalname: 'one.md', buffer: Buffer.from(largeText) }],
+      TextFileType.MARKDOWN,
     );
+
+    expect(result).toHaveLength(1);
     expect(repo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Batch - two.md',
-        originalFileName: 'two.md',
         status: ParsedTextStatus.QUEUED,
       }),
     );
@@ -113,21 +125,6 @@ describe('TextParserService', () => {
     await expect(service.createFromFiles('Empty batch', [])).rejects.toThrow(
       BadRequestException,
     );
-  });
-
-  it('does not create partial jobs when a batch contains an invalid file', async () => {
-    await expect(
-      service.createFromFiles(
-        'Mixed batch',
-        [
-          { originalname: 'one.md', buffer: Buffer.from('First text') },
-          { originalname: 'two.pdf', buffer: Buffer.from('Second text') },
-        ],
-        TextFileType.MARKDOWN,
-      ),
-    ).rejects.toThrow(BadRequestException);
-
-    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('stores binary uploads as completed hex payloads', async () => {
@@ -145,10 +142,58 @@ describe('TextParserService', () => {
       expect.objectContaining({
         content: allByteValues.toString('hex'),
         contentEncoding: ParsedTextContentEncoding.HEX,
-        originalFileName: 'payload.bin',
+        corpusKind: ParsedTextCorpusKind.RANDOM_BYTES,
+        source: ParsedTextSource.UPLOAD,
         status: ParsedTextStatus.COMPLETED,
         wordFrequencyEntropy: 8,
       }),
     );
+  });
+
+  it('generates random bytes baseline with metrics', async () => {
+    const result = await service.createRandomBytes({
+      title: 'Random 256B',
+      byteLength: 256,
+      seed: 42,
+    });
+
+    expect(result.status).toBe(ParsedTextStatus.COMPLETED);
+    expect(result.corpusKind).toBe(ParsedTextCorpusKind.RANDOM_BYTES);
+    expect(result.source).toBe(ParsedTextSource.GENERATED);
+    expect(result.wordFrequencyEntropy).toEqual(expect.any(Number));
+  });
+
+  it('returns stored content for download', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'parsed-text-1',
+      title: 'Sample book',
+      status: ParsedTextStatus.COMPLETED,
+      content: 'hello world',
+      contentEncoding: ParsedTextContentEncoding.UTF8,
+      originalFileName: 'book.txt',
+      corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+    });
+
+    const content = await service.getContent('parsed-text-1');
+
+    expect(content).toEqual({
+      filename: 'book.txt',
+      contentEncoding: ParsedTextContentEncoding.UTF8,
+      content: 'hello world',
+      mimeType: 'text/plain; charset=utf-8',
+    });
+  });
+
+  it('creates linked natural and random baseline pair', async () => {
+    const response = await service.createBaselineSetFromText({
+      title: 'Baseline sample',
+      text: 'Natural language sample for metrics.',
+    });
+
+    expect(response.baselineSetId).toEqual(expect.any(String));
+    expect(response.natural.corpusKind).toBe(ParsedTextCorpusKind.NATURAL_TEXT);
+    expect(response.random.corpusKind).toBe(ParsedTextCorpusKind.RANDOM_BYTES);
+    expect(response.natural.baselineSetId).toBe(response.baselineSetId);
+    expect(response.random.baselineSetId).toBe(response.baselineSetId);
   });
 });

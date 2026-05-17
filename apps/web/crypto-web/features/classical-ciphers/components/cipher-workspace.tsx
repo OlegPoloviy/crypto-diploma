@@ -37,8 +37,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { BaselineMetricsStrip } from "@/features/text-parser/components/baseline-metrics-strip";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
 import { TextFileType } from "@/features/text-parser/lib/api";
+import { ParsedText } from "@/features/text-parser/types/parsed-text";
 import { useTranslation } from "react-i18next";
 
 import { useCipherWorkspace } from "../hooks/use-cipher-workspace";
@@ -163,6 +165,8 @@ export function CipherWorkspace() {
             <div className="min-w-0 self-stretch">
               <CipherJobForm
                 completedParsedTexts={workspace.completedParsedTexts}
+                parsedTexts={workspace.parsedTexts}
+                selectedParsedText={workspace.selectedParsedText}
                 selectedParsedTextId={
                   workspace.selectedParsedTextId ??
                   workspace.selectedParsedText?.id ??
@@ -356,6 +360,8 @@ function MetricTile({
 
 function CipherJobForm({
   completedParsedTexts,
+  parsedTexts,
+  selectedParsedText,
   selectedParsedTextId,
   mode,
   shift,
@@ -372,6 +378,8 @@ function CipherJobForm({
   onSubmitFiles,
 }: {
   completedParsedTexts: { id: string; title: string; totalWords: number }[];
+  parsedTexts: ParsedText[];
+  selectedParsedText?: ParsedText;
   selectedParsedTextId: string;
   mode: CipherMode;
   shift: number;
@@ -442,6 +450,10 @@ function CipherJobForm({
               </option>
             ))}
           </select>
+          <BaselineMetricsStrip
+            parsedTexts={parsedTexts}
+            selectedParsedText={selectedParsedText}
+          />
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
