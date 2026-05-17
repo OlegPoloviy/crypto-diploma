@@ -25,4 +25,22 @@ export class CipherStepResponseDto {
 
   @ApiProperty({ example: 4.2 })
   wordFrequencyEntropy: number;
+
+  @ApiProperty({ example: 0.66, required: false })
+  wordHurstExponent?: number;
+
+  @ApiProperty({ example: 0.68, required: false })
+  wordDfaAlpha?: number;
+
+  @ApiProperty({ example: 4.2, required: false })
+  wordEntropy?: number;
+
+  @ApiProperty({ example: 0.52, required: false })
+  byteHurstExponent?: number;
+
+  @ApiProperty({ example: 0.51, required: false })
+  byteDfaAlpha?: number;
+
+  @ApiProperty({ example: 7.8, required: false })
+  byteEntropy?: number;
 }

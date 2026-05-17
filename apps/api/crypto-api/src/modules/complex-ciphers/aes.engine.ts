@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   decryptBlockWithXorWhitening,
   encryptBlockWithXorWhitening,
+  xorBytes,
   type XorWhiteningOptions,
 } from './block-cipher-xor-whitening';
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
@@ -95,10 +96,8 @@ export function encryptAesCorpusWithSteps(
 ): Uint8Array[] {
   const mode = options.mode ?? AesMode.CBC;
   const roundKeys = expandKey(key);
-  const roundBuffers: number[][] = Array.from(
-    { length: roundKeys.length },
-    () => [],
-  );
+  const stepCount = getAesStepCount(roundKeys.length, options.whitening);
+  const roundBuffers: number[][] = Array.from({ length: stepCount }, () => []);
   const padded = addPkcs7Padding(plaintext);
   const iv = getIv(mode, options.iv);
   let previous = iv;
@@ -109,8 +108,12 @@ export function encryptAesCorpusWithSteps(
       block = xorBlocks(block, previous);
     }
 
-    const steps = encryptAesWithSteps(block, roundKeys);
-    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
+    const steps = encryptAesWithOptionalWhiteningSteps(
+      block,
+      roundKeys,
+      options.whitening,
+    );
+    const encrypted = getFinalStep(steps, 'AES encryption');
     steps.forEach((step, index) => roundBuffers[index].push(...step));
     previous = encrypted;
   }
@@ -128,10 +131,8 @@ export function encryptAesCorpusWithSampledSteps(
   const roundKeys = expandKey(key);
   const padded = addPkcs7Padding(plaintext);
   const samplePlan = createSamplePlan(padded.length, maxSampleSize);
-  const stepSamples: number[][] = Array.from(
-    { length: roundKeys.length },
-    () => [],
-  );
+  const stepCount = getAesStepCount(roundKeys.length, options.whitening);
+  const stepSamples: number[][] = Array.from({ length: stepCount }, () => []);
   const ciphertext: number[] = [];
   const iv = getIv(mode, options.iv);
   let previous = iv;
@@ -142,12 +143,16 @@ export function encryptAesCorpusWithSampledSteps(
       block = xorBlocks(block, previous);
     }
 
-    const steps = encryptAesWithSteps(block, roundKeys);
+    const steps = encryptAesWithOptionalWhiteningSteps(
+      block,
+      roundKeys,
+      options.whitening,
+    );
     steps.forEach((step, stepIndex) => {
       collectStepSample(stepSamples[stepIndex], step, offset, samplePlan);
     });
 
-    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
+    const encrypted = getFinalStep(steps, 'AES encryption');
     ciphertext.push(...encrypted);
     previous = encrypted;
   }
@@ -422,6 +427,32 @@ function encryptCipherBlock(
   }
 
   return encryptBlock(block, roundKeys);
+}
+
+function encryptAesWithOptionalWhiteningSteps(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array[] {
+  if (!whitening?.enabled || !whitening.keys) {
+    return encryptAesWithSteps(block, roundKeys);
+  }
+
+  const preWhitened = xorBytes(block, whitening.keys.kPre);
+  const roundSteps = encryptAesWithSteps(preWhitened, roundKeys);
+  const encrypted = getFinalStep(roundSteps, 'AES encryption');
+  const postWhitened = xorBytes(encrypted, whitening.keys.kPost);
+
+  return [preWhitened, ...roundSteps, postWhitened];
+}
+
+function getAesStepCount(
+  roundStepCount: number,
+  whitening?: XorWhiteningOptions,
+): number {
+  return whitening?.enabled && whitening.keys
+    ? roundStepCount + 2
+    : roundStepCount;
 }
 
 function decryptCipherBlock(

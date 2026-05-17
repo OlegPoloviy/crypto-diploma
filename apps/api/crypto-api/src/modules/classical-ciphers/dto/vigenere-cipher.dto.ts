@@ -10,8 +10,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { ClassicalWhiteningFieldsDto } from './classical-whitening-fields.dto';
 
-export class VigenereCipherDto {
+export class VigenereCipherDto extends ClassicalWhiteningFieldsDto {
   @ApiProperty({
     example: 'hello world',
     description: 'Plain text encrypted with a Vigenere key',

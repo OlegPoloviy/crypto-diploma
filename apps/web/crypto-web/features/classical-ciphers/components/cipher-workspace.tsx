@@ -73,7 +73,10 @@ const fileTypeOptions: {
 ];
 
 interface MetricDescriptor {
-  key: CipherMetricKey;
+  key: Extract<
+    CipherMetricKey,
+    "hurstExponent" | "dfaAlpha" | "wordFrequencyEntropy"
+  >;
   label: string;
   shortLabel: string;
   stroke: string;
@@ -176,6 +179,7 @@ export function CipherWorkspace() {
                 shift={workspace.shift}
                 vigenereKey={workspace.key}
                 keyLengthsText={workspace.keyLengthsText}
+                whiteningEnabled={workspace.whiteningEnabled}
                 isSubmitting={workspace.isSubmitting}
                 message={workspace.message}
                 onParsedTextChange={workspace.setSelectedParsedTextId}
@@ -183,6 +187,7 @@ export function CipherWorkspace() {
                 onShiftChange={workspace.setShift}
                 onKeyChange={workspace.setKey}
                 onKeyLengthsChange={workspace.setKeyLengthsText}
+                onWhiteningEnabledChange={workspace.setWhiteningEnabled}
                 onSubmit={() => void workspace.submitJob()}
                 onSubmitFiles={workspace.submitFileJobs}
               />
@@ -367,6 +372,7 @@ function CipherJobForm({
   shift,
   vigenereKey,
   keyLengthsText,
+  whiteningEnabled,
   isSubmitting,
   message,
   onParsedTextChange,
@@ -374,6 +380,7 @@ function CipherJobForm({
   onShiftChange,
   onKeyChange,
   onKeyLengthsChange,
+  onWhiteningEnabledChange,
   onSubmit,
   onSubmitFiles,
 }: {
@@ -385,6 +392,7 @@ function CipherJobForm({
   shift: number;
   vigenereKey: string;
   keyLengthsText: string;
+  whiteningEnabled: boolean;
   isSubmitting: boolean;
   message: string | null;
   onParsedTextChange: (id: string) => void;
@@ -392,6 +400,7 @@ function CipherJobForm({
   onShiftChange: (shift: number) => void;
   onKeyChange: (key: string) => void;
   onKeyLengthsChange: (value: string) => void;
+  onWhiteningEnabledChange: (enabled: boolean) => void;
   onSubmit: () => void;
   onSubmitFiles: (input: {
     title: string;
@@ -594,6 +603,11 @@ function CipherJobForm({
           </div>
         ) : null}
 
+        <ClassicalWhiteningToggle
+          enabled={whiteningEnabled}
+          onEnabledChange={onWhiteningEnabledChange}
+        />
+
         {message ? (
           <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-100">
             {message}
@@ -615,6 +629,37 @@ function CipherJobForm({
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+function ClassicalWhiteningToggle({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const inputId = "classical-whitening-enabled";
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5">
+      <label htmlFor={inputId} className="flex-1 cursor-pointer">
+        <p className="font-medium text-slate-950 dark:text-slate-100">
+          {t("Whitening")}
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {t("Extra pre/post modular shifts around Caesar or Vigenere.")}
+        </p>
+      </label>
+      <input
+        id={inputId}
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onEnabledChange(event.target.checked)}
+        className="size-4 shrink-0 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+      />
+    </div>
   );
 }
 
@@ -777,6 +822,7 @@ function CipherJobDetails({
             </div>
             <StepStatistics stats={stepStats} />
           </div>
+          <DualHurstPanel step={lastStep} />
           <MetricsChart job={job} />
           <MetricSmallMultiples job={job} stats={stepStats} />
         </CardContent>
@@ -918,6 +964,95 @@ function MiniMetric({
       <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
       <p className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>
         {value.toFixed(4)}
+      </p>
+    </div>
+  );
+}
+
+function DualHurstPanel({ step }: { step?: CipherStep }) {
+  const { t } = useTranslation();
+  if (!step) {
+    return null;
+  }
+
+  const wordH = step.wordHurstExponent;
+  const byteH = step.byteHurstExponent;
+  if (typeof wordH !== "number" && typeof byteH !== "number") {
+    return null;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <HurstInterpretationCard
+        label={t("Language structure")}
+        value={wordH}
+        unavailableLabel={t("No word series")}
+        caption={t("Word-level H answers whether language structure survived.")}
+        kind="word"
+      />
+      <HurstInterpretationCard
+        label={t("Byte stream")}
+        value={byteH}
+        unavailableLabel={t("No byte series")}
+        caption={t("Byte-level H answers whether ciphertext resembles random bytes.")}
+        kind="byte"
+      />
+    </div>
+  );
+}
+
+function HurstInterpretationCard({
+  label,
+  value,
+  unavailableLabel,
+  caption,
+  kind,
+}: {
+  label: string;
+  value?: number;
+  unavailableLabel: string;
+  caption: string;
+  kind: "word" | "byte";
+}) {
+  const { t } = useTranslation();
+  const hasValue = typeof value === "number";
+  const distance = hasValue ? Math.abs(value - 0.5) : 1;
+  const isRandomLike = hasValue && distance <= 0.06;
+  const status =
+    !hasValue
+      ? unavailableLabel
+      : kind === "word"
+        ? isRandomLike
+          ? t("Language structure reduced")
+          : t("Language structure preserved")
+        : isRandomLike
+          ? t("Random-like byte stream")
+          : t("Structured byte stream");
+  const statusClass = !hasValue
+    ? "text-slate-500 dark:text-slate-400"
+    : isRandomLike
+      ? "text-emerald-700 dark:text-emerald-200"
+      : kind === "word"
+        ? "text-rose-700 dark:text-rose-200"
+        : "text-amber-700 dark:text-amber-200";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            {label}
+          </p>
+          <p className={cn("mt-1 text-sm font-semibold", statusClass)}>
+            {status}
+          </p>
+        </div>
+        <p className="font-mono text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-50">
+          {hasValue ? value.toFixed(4) : "-"}
+        </p>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+        {caption}
       </p>
     </div>
   );
@@ -1384,7 +1519,8 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
             <th className="px-4 py-3 font-medium">{t("Step")}</th>
             <th className="px-4 py-3 font-medium">{t("Key length")}</th>
             <th className="px-4 py-3 font-medium">{t("Description")}</th>
-            <th className="px-4 py-3 font-medium">{t("Hurst")}</th>
+            <th className="px-4 py-3 font-medium">{t("Word H")}</th>
+            <th className="px-4 py-3 font-medium">{t("Byte H")}</th>
             <th className="px-4 py-3 font-medium">{t("DFA")}</th>
             <th className="px-4 py-3 font-medium">{t("Entropy")}</th>
             <th className="px-4 py-3 font-medium">{t("Text preview")}</th>
@@ -1403,7 +1539,10 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
                 {step.description}
               </td>
               <td className="px-4 py-4 tabular-nums text-cyan-700 dark:text-cyan-200">
-                {step.hurstExponent.toFixed(4)}
+                {formatOptionalMetric(step.wordHurstExponent)}
+              </td>
+              <td className="px-4 py-4 tabular-nums text-cyan-700 dark:text-cyan-200">
+                {formatOptionalMetric(step.byteHurstExponent)}
               </td>
               <td className="px-4 py-4 tabular-nums text-slate-700 dark:text-slate-300">
                 {step.dfaAlpha.toFixed(4)}
@@ -1418,7 +1557,7 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
           ))}
           {steps.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
+              <td colSpan={8} className="px-5 py-12 text-center text-slate-500">
                 {t("Waiting for worker steps.")}
               </td>
             </tr>
@@ -1430,17 +1569,23 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
 }
 
 function formatParameters(parameters: Record<string, unknown>) {
+  const whitening = parameters.whiteningEnabled === true ? "; whitening" : "";
+
   if ("shift" in parameters) {
-    return `k=${parameters.shift}`;
+    return `k=${parameters.shift}${whitening}`;
   }
   if ("keyLengths" in parameters && Array.isArray(parameters.keyLengths)) {
-    return `key=${parameters.key}; lengths=${parameters.keyLengths.join(",")}`;
+    return `key=${parameters.key}; lengths=${parameters.keyLengths.join(",")}${whitening}`;
   }
   if ("key" in parameters) {
-    return `key=${parameters.key}`;
+    return `key=${parameters.key}${whitening}`;
   }
 
   return "parameters";
+}
+
+function formatOptionalMetric(value: unknown) {
+  return typeof value === "number" ? value.toFixed(4) : "-";
 }
 
 function downloadEncryptedText(job: ClassicalCipherJob) {

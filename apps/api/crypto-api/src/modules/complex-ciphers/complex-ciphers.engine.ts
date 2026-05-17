@@ -16,7 +16,10 @@ import {
   parseBytes,
 } from './aes.engine';
 import { encryptDes, encryptDesCorpusWithSampledSteps } from './des.engine';
-import { encryptKalynaCorpusWithSampledSteps } from './kalyna.engine';
+import {
+  encryptKalyna,
+  encryptKalynaCorpusWithSampledSteps,
+} from './kalyna.engine';
 import { getKalynaParams } from './kalyna.constants';
 import {
   AesMode,
@@ -29,8 +32,8 @@ import {
   WhiteningComparisonMetadata,
 } from './complex-ciphers.types';
 
-/** Padded plaintext above this size skips per-round step metrics (AES only). */
-export const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 12_000_000;
+/** Padded plaintext above this size skips per-round step metrics. */
+export const COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES = 250_000;
 const FINAL_METRIC_SAMPLE_SIZE = 50_000;
 
 export function runComplexCipher(
@@ -73,6 +76,7 @@ export function computeInteractiveEncryptRoundInsights(
   const algorithmLabel =
     algorithm === ComplexCipherAlgorithm.AES ? 'AES' : 'DES';
   const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
+  const paddedLength = getPaddedLength(plaintext.length, blockBytes);
   const whiteningEnabled = whiteningParameters?.whiteningEnabled ?? false;
   const activeWhitening = resolveXorWhiteningOptions(
     key,
@@ -88,6 +92,48 @@ export function computeInteractiveEncryptRoundInsights(
     outputEncoding,
     activeWhitening,
   );
+  const shouldCompareWhitening =
+    paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
+  const whiteningComparison = shouldCompareWhitening
+    ? computeWhiteningComparison(
+        plaintext,
+        key,
+        mode,
+        iv,
+        algorithmLabel,
+        outputEncoding,
+        whiteningParameters,
+        primaryInsights,
+        whiteningEnabled,
+      )
+    : undefined;
+
+  return {
+    ciphertext: primaryInsights.ciphertext,
+    steps: primaryInsights.steps,
+    metricStats: primaryInsights.metricStats,
+    metadata: {
+      ...primaryInsights.metadata,
+      xorWhiteningEnabled: whiteningEnabled,
+      whiteningFormula: 'Y = E_K(X ⊕ K_pre) ⊕ K_post',
+      whiteningComparison,
+      whiteningComparisonSkipped: !shouldCompareWhitening,
+    },
+  };
+}
+
+function computeWhiteningComparison(
+  plaintext: Uint8Array,
+  key: Uint8Array,
+  mode: AesMode,
+  iv: Uint8Array | undefined,
+  algorithmLabel: 'AES' | 'DES',
+  outputEncoding: BinaryEncoding,
+  whiteningParameters: XorWhiteningParameterInput | undefined,
+  primaryInsights: ReturnType<typeof computeBlockCipherEncryptInsights>,
+  whiteningEnabled: boolean,
+): WhiteningComparisonMetadata {
+  const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
   const withoutInsights = computeBlockCipherEncryptInsights(
     plaintext,
     key,
@@ -111,7 +157,8 @@ export function computeInteractiveEncryptRoundInsights(
           whiteningEnabled: true,
         }),
       );
-  const whiteningComparison: WhiteningComparisonMetadata = {
+
+  return {
     withWhitening: {
       metricStats: withInsights.metricStats,
       byteEntropy: withInsights.byteEntropy,
@@ -121,18 +168,6 @@ export function computeInteractiveEncryptRoundInsights(
       metricStats: withoutInsights.metricStats,
       byteEntropy: withoutInsights.byteEntropy,
       finalText: formatBytes(withoutInsights.ciphertext, outputEncoding),
-    },
-  };
-
-  return {
-    ciphertext: primaryInsights.ciphertext,
-    steps: primaryInsights.steps,
-    metricStats: primaryInsights.metricStats,
-    metadata: {
-      ...primaryInsights.metadata,
-      xorWhiteningEnabled: whiteningEnabled,
-      whiteningFormula: 'Y = E_K(X ⊕ K_pre) ⊕ K_post',
-      whiteningComparison,
     },
   };
 }
@@ -156,7 +191,6 @@ function computeBlockCipherEncryptInsights(
   const paddedLength = getPaddedLength(plaintext.length, blockBytes);
   const cipherOptions = { mode, iv, whitening };
   const shouldCollectRoundMetrics =
-    algorithmLabel === 'DES' ||
     paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
   const result = shouldCollectRoundMetrics
     ? algorithmLabel === 'AES'
@@ -231,13 +265,24 @@ export function computeKalynaEncryptRoundInsights(
 } {
   const { nr, blockBytes } = getKalynaParams(blockSizeBits, key.length * 8);
   const paddedLength = getPaddedLength(plaintext.length, blockBytes);
-  // Kalyna encrypts large corpora quickly; always collect sampled round metrics (like DES).
-  const shouldCollectRoundMetrics = true;
-  const result = encryptKalynaCorpusWithSampledSteps(plaintext, key, {
-    blockSizeBits,
-    mode,
-    iv,
-  });
+  const shouldCollectRoundMetrics =
+    paddedLength <= COMPLEX_CIPHER_ROUND_METRIC_THRESHOLD_BYTES;
+  const result = shouldCollectRoundMetrics
+    ? encryptKalynaCorpusWithSampledSteps(plaintext, key, {
+        blockSizeBits,
+        mode,
+        iv,
+      })
+    : {
+        ciphertext: encryptKalyna(plaintext, key, {
+          blockSizeBits,
+          mode,
+          iv,
+        }).ciphertext,
+        steps: [],
+        sampleSize: 0,
+        totalBytes: paddedLength,
+      };
   const ciphertext = result.ciphertext;
   const stepResponses = shouldCollectRoundMetrics
     ? result.steps.map((bytes, index) =>
@@ -257,7 +302,10 @@ export function computeKalynaEncryptRoundInsights(
   return {
     ciphertext,
     steps: stepResponses,
-    metricStats: calculateStepMetricStats(stepResponses),
+    metricStats:
+      stepResponses.length > 0
+        ? calculateStepMetricStats(stepResponses)
+        : calculateCiphertextMetricStats(ciphertext),
     metadata: {
       mode,
       blockSizeBits,
@@ -417,16 +465,24 @@ function createBlockCipherStepDescription(
     return `${algorithmLabel} XOR pre-whitening (X ⊕ K_pre)`;
   }
 
-  if (algorithmLabel === 'AES' && index === 0) {
-    return 'AES initial AddRoundKey (whitening)';
+  if (xorWhiteningEnabled && index === totalSteps - 1) {
+    return `${algorithmLabel} XOR post-whitening (E_K(...) ⊕ K_post)`;
   }
 
-  if (algorithmLabel === 'Kalyna' && index === 0) {
+  const roundIndex = xorWhiteningEnabled ? index - 1 : index;
+  const roundStepCount = xorWhiteningEnabled ? totalSteps - 2 : totalSteps;
+
+  if (algorithmLabel === 'AES' && roundIndex === 0) {
+    return 'AES initial AddRoundKey';
+  }
+
+  if (algorithmLabel === 'Kalyna' && roundIndex === 0) {
     return 'Kalyna initial AddRoundKey (mod 2^64)';
   }
 
-  const round = algorithmLabel === 'DES' ? index + 1 : index;
-  const lastRound = algorithmLabel === 'DES' ? totalSteps : totalSteps - 1;
+  const round = algorithmLabel === 'DES' ? roundIndex + 1 : roundIndex;
+  const lastRound =
+    algorithmLabel === 'DES' ? roundStepCount : roundStepCount - 1;
   if (round === lastRound) {
     return `${algorithmLabel} final round ${round} of ${lastRound}`;
   }

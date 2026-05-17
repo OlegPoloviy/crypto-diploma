@@ -59,7 +59,7 @@ interface QueuedComplexCipherJob {
   parameters: ComplexCipherParameters;
 }
 
-const COMPLEX_CIPHER_WORKER_TIMEOUT_MS = 60_000;
+const COMPLEX_CIPHER_WORKER_TIMEOUT_MS = 900_000;
 
 @Injectable()
 export class ComplexCiphersService {

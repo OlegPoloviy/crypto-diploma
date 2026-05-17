@@ -57,30 +57,45 @@ export class ClassicalCiphersService {
     private readonly textParserService: TextParserService,
   ) {}
 
-  encryptCaesar(text: string, shift: number): CipherResponseDto {
-    return encryptCaesar(text, shift);
+  encryptCaesar(
+    text: string,
+    shift: number,
+    whiteningEnabled?: boolean,
+  ): CipherResponseDto {
+    return encryptCaesar(text, shift, { enabled: whiteningEnabled === true });
   }
 
-  encryptVigenereByKeySymbols(text: string, key: string): CipherResponseDto {
-    return encryptVigenereByKeySymbols(text, key);
+  encryptVigenereByKeySymbols(
+    text: string,
+    key: string,
+    whiteningEnabled?: boolean,
+  ): CipherResponseDto {
+    return encryptVigenereByKeySymbols(text, key, {
+      enabled: whiteningEnabled === true,
+    });
   }
 
   encryptVigenereByKeyLengths(
     text: string,
     key: string,
     keyLengths = [1, 3, 5, 10, 20],
+    whiteningEnabled?: boolean,
   ): CipherResponseDto {
-    return encryptVigenereByKeyLengths(text, key, keyLengths);
+    return encryptVigenereByKeyLengths(text, key, keyLengths, {
+      enabled: whiteningEnabled === true,
+    });
   }
 
   async createCaesarJob(
     parsedTextId: string,
     shift: number,
     maxSteps?: number,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(parsedTextId, ClassicalCipherAlgorithm.CAESAR, {
       shift,
       maxSteps,
+      whiteningEnabled,
     });
   }
 
@@ -90,6 +105,7 @@ export class ClassicalCiphersService {
     fileType: TextFileType,
     shift: number,
     maxSteps?: number,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -99,7 +115,12 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createCaesarJob(parsedText.id, shift, maxSteps),
+        this.createCaesarJob(
+          parsedText.id,
+          shift,
+          maxSteps,
+          whiteningEnabled,
+        ),
       ),
     );
   }
@@ -107,11 +128,12 @@ export class ClassicalCiphersService {
   async createVigenereKeySymbolsJob(
     parsedTextId: string,
     key: string,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
-      { key },
+      { key, whiteningEnabled },
     );
   }
 
@@ -120,6 +142,7 @@ export class ClassicalCiphersService {
     files: { buffer: Buffer; originalname?: string }[] | undefined,
     fileType: TextFileType,
     key: string,
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -129,7 +152,11 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createVigenereKeySymbolsJob(parsedText.id, key),
+        this.createVigenereKeySymbolsJob(
+          parsedText.id,
+          key,
+          whiteningEnabled,
+        ),
       ),
     );
   }
@@ -138,11 +165,12 @@ export class ClassicalCiphersService {
     parsedTextId: string,
     key: string,
     keyLengths?: number[],
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
-      { key, keyLengths },
+      { key, keyLengths, whiteningEnabled },
     );
   }
 
@@ -152,6 +180,7 @@ export class ClassicalCiphersService {
     fileType: TextFileType,
     key: string,
     keyLengths?: number[],
+    whiteningEnabled?: boolean,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -161,7 +190,12 @@ export class ClassicalCiphersService {
 
     return Promise.all(
       parsedTexts.map((parsedText) =>
-        this.createVigenereKeyLengthsJob(parsedText.id, key, keyLengths),
+        this.createVigenereKeyLengthsJob(
+          parsedText.id,
+          key,
+          keyLengths,
+          whiteningEnabled,
+        ),
       ),
     );
   }

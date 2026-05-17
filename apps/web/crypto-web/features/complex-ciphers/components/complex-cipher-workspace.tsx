@@ -586,6 +586,10 @@ function AesRoundSteps({
     typeof job.metadata?.stepSampleSize === "number"
       ? job.metadata.stepSampleSize
       : null;
+  const thresholdMb =
+    typeof job.metadata?.stepMetricThresholdBytes === "number"
+      ? Math.max(0.1, job.metadata.stepMetricThresholdBytes / 1_000_000)
+      : 0.25;
 
   if (steps.length === 0) {
     return (
@@ -593,7 +597,7 @@ function AesRoundSteps({
         {metricsSkipped
           ? t(
               "Round metrics were skipped because this corpus is above the detailed-step threshold ({{threshold}} MB).",
-              { threshold: "12" },
+              { threshold: formatThresholdMb(thresholdMb) },
             )
           : t("Round states will appear after the corpus worker completes.")}
       </div>
@@ -1300,6 +1304,10 @@ function formatJobOutput(job: ComplexCipherJob) {
 
 function formatMetricValue(value: unknown) {
   return typeof value === "number" ? value.toFixed(4) : "-";
+}
+
+function formatThresholdMb(value: number) {
+  return value >= 1 ? value.toFixed(1) : value.toFixed(2);
 }
 
 function downloadAesCiphertext(job: ComplexCipherJob) {
