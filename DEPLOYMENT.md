@@ -51,6 +51,12 @@ Vercel web env:
 API_URL=https://your-crypto-api.onrender.com
 ```
 
+If Vercel returns `Internal server error` from `/api/*`, check the Vercel
+function logs first. A missing `API_URL` makes the web app try
+`http://localhost:3000`, which is only valid for local development. If `API_URL`
+is correct but Render returns a database error, run the production migrations
+against Supabase.
+
 Run migrations against Supabase only from a production shell/env:
 
 ```powershell
