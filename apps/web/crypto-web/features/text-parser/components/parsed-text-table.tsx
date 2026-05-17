@@ -10,8 +10,26 @@ import {
 import { cn } from "@/lib/utils";
 
 import { formatNumber } from "../lib/format";
-import { ParsedText } from "../types/parsed-text";
+import { ParsedText, ParsedTextCorpusKind } from "../types/parsed-text";
 import { StatusBadge } from "./status-badge";
+
+function CorpusKindBadge({ kind }: { kind: ParsedTextCorpusKind }) {
+  const { t } = useTranslation();
+  const label =
+    kind === "random_bytes" ? t("Random bytes") : t("Natural text");
+  const className =
+    kind === "random_bytes"
+      ? "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-200"
+      : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200";
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export function ParsedTextTable({
   items,
@@ -38,15 +56,17 @@ export function ParsedTextTable({
         <div className="min-w-0 overflow-hidden">
           <table className="w-full table-fixed text-left text-sm">
             <colgroup>
-              <col className="w-[34%]" />
-              <col className="w-[18%]" />
-              <col className="w-[17%]" />
-              <col className="w-[17%]" />
+              <col className="w-[28%]" />
               <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("Title")}</th>
+                <th className="px-4 py-3 font-medium">{t("Kind")}</th>
                 <th className="px-4 py-3 font-medium">{t("Status")}</th>
                 <th className="px-4 py-3 font-medium">{t("Words")}</th>
                 <th className="px-4 py-3 font-medium">{t("Unique")}</th>
@@ -72,6 +92,9 @@ export function ParsedTextTable({
                     </div>
                   </td>
                   <td className="px-4 py-4">
+                    <CorpusKindBadge kind={item.corpusKind} />
+                  </td>
+                  <td className="px-4 py-4">
                     <StatusBadge status={item.status} />
                   </td>
                   <td className="px-4 py-4 text-slate-700 tabular-nums dark:text-slate-300">
@@ -87,7 +110,7 @@ export function ParsedTextTable({
               ))}
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-14 text-center">
+                  <td colSpan={6} className="px-5 py-14 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-slate-500">
                       <Database className="size-8" />
                       <p>{t("No parsed corpora yet.")}</p>

@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { TextPreprocessMode } from '../text-parser.util';
 
 export class ParseTextDto {
   @ApiProperty({
@@ -30,4 +37,15 @@ export class ParseTextDto {
   @IsString()
   @IsOptional()
   originalFileName?: string;
+
+  @ApiProperty({
+    enum: TextPreprocessMode,
+    default: TextPreprocessMode.AUTO,
+    required: false,
+    description:
+      'Text cleanup before metrics: auto detects Gutenberg markers, none keeps raw text',
+  })
+  @IsEnum(TextPreprocessMode)
+  @IsOptional()
+  preprocess?: TextPreprocessMode;
 }

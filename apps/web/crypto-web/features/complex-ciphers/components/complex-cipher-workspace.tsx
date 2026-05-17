@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { BaselineMetricsStrip } from "@/features/text-parser/components/baseline-metrics-strip";
 import { formatNumber, formatTime } from "@/features/text-parser/lib/format";
 import { TextFileType } from "@/features/text-parser/lib/api";
 import { LanguageSwitcher } from "@/lib/i18n";
@@ -192,6 +193,10 @@ function AesCorpusJobPanel({
               </option>
             ))}
           </select>
+          <BaselineMetricsStrip
+            parsedTexts={workspace.parsedTexts}
+            selectedParsedText={workspace.selectedParsedText}
+          />
         </div>
 
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">

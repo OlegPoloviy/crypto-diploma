@@ -1,8 +1,12 @@
 import { parentPort, workerData } from 'worker_threads';
-import { parseBookText } from './text-parser.util';
+import { parsePlainText, TextPreprocessMode } from './text-parser.util';
 
 try {
-  parentPort?.postMessage(parseBookText(workerData.text));
+  const preprocess =
+    workerData.preprocess ?? TextPreprocessMode.AUTO;
+  parentPort?.postMessage(
+    parsePlainText(workerData.text, { preprocess }),
+  );
 } catch (error) {
   parentPort?.postMessage({
     error: error instanceof Error ? error.message : 'Failed to parse text',
