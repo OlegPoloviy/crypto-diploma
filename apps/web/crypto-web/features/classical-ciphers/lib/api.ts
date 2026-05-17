@@ -21,6 +21,7 @@ export async function createCipherJob(input: {
   shift: number;
   key: string;
   keyLengths: number[];
+  whiteningEnabled: boolean;
 }): Promise<ClassicalCipherJob> {
   const endpointByMode: Record<CipherMode, string> = {
     caesar: "/api/classical-ciphers/jobs/caesar",
@@ -29,13 +30,22 @@ export async function createCipherJob(input: {
   };
   const body =
     input.mode === "caesar"
-      ? { parsedTextId: input.parsedTextId, shift: input.shift }
+      ? {
+          parsedTextId: input.parsedTextId,
+          shift: input.shift,
+          whiteningEnabled: input.whiteningEnabled,
+        }
       : input.mode === "vigenere-key-symbols"
-        ? { parsedTextId: input.parsedTextId, key: input.key }
+        ? {
+            parsedTextId: input.parsedTextId,
+            key: input.key,
+            whiteningEnabled: input.whiteningEnabled,
+          }
         : {
             parsedTextId: input.parsedTextId,
             key: input.key,
             keyLengths: input.keyLengths,
+            whiteningEnabled: input.whiteningEnabled,
           };
 
   const response = await fetch(endpointByMode[input.mode], {
@@ -55,6 +65,7 @@ export async function createCipherJobsFromFiles(input: {
   shift: number;
   key: string;
   keyLengths: number[];
+  whiteningEnabled: boolean;
 }): Promise<ClassicalCipherJob[]> {
   const endpointByMode: Record<CipherMode, string> = {
     caesar: "/api/classical-ciphers/jobs/caesar/files",
@@ -76,6 +87,7 @@ export async function createCipherJobsFromFiles(input: {
       formData.append("keyLengths", input.keyLengths.join(","));
     }
   }
+  formData.append("whiteningEnabled", input.whiteningEnabled ? "true" : "false");
 
   const response = await fetch(endpointByMode[input.mode], {
     method: "POST",

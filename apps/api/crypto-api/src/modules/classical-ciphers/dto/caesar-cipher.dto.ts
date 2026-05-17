@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
+import { ClassicalWhiteningFieldsDto } from './classical-whitening-fields.dto';
 
-export class CaesarCipherDto {
+export class CaesarCipherDto extends ClassicalWhiteningFieldsDto {
   @ApiProperty({
     example: 'hello world',
     description: 'Plain text encrypted word-by-word for intermediate states',

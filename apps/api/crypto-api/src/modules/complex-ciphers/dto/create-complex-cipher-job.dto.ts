@@ -11,8 +11,9 @@ import {
   BinaryEncoding,
   KalynaBlockSize,
 } from '../complex-ciphers.types';
+import { XorWhiteningFieldsDto } from './xor-whitening-fields.dto';
 
-export class CreateAesCipherJobDto {
+export class CreateAesCipherJobDto extends XorWhiteningFieldsDto {
   @ApiProperty({
     example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
     description: 'Existing parsed text id from text-parser',
@@ -73,7 +74,7 @@ export class CreateAesCipherJobDto {
   ivEncoding?: BinaryEncoding;
 }
 
-export class CreateDesCipherJobDto {
+export class CreateDesCipherJobDto extends XorWhiteningFieldsDto {
   @ApiProperty({
     example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
     description: 'Existing parsed text id from text-parser',

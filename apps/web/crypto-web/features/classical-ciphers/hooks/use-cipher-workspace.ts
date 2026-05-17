@@ -28,6 +28,7 @@ export function useCipherWorkspace() {
   const [shift, setShift] = useState(3);
   const [key, setKey] = useState("KEY");
   const [keyLengthsText, setKeyLengthsText] = useState("1, 3, 5, 10, 20");
+  const [whiteningEnabled, setWhiteningEnabled] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -168,6 +169,7 @@ export function useCipherWorkspace() {
         shift,
         key,
         keyLengths,
+        whiteningEnabled,
       });
       selectJob(created.id);
       setMessage("Cipher job queued.");
@@ -208,6 +210,7 @@ export function useCipherWorkspace() {
         shift,
         key,
         keyLengths,
+        whiteningEnabled,
       });
       selectJob(created[0]?.id ?? null);
       setMessage(`Queued ${created.length} file cipher jobs.`);
@@ -252,6 +255,7 @@ export function useCipherWorkspace() {
     shift,
     key,
     keyLengthsText,
+    whiteningEnabled,
     isRefreshing,
     isSubmitting,
     message,
@@ -261,6 +265,7 @@ export function useCipherWorkspace() {
     setShift,
     setKey,
     setKeyLengthsText,
+    setWhiteningEnabled,
     hasActiveJobs,
     refresh,
     submitJob,

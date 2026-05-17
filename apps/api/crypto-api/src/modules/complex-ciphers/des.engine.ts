@@ -1,4 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  decryptBlockWithXorWhitening,
+  encryptBlockWithXorWhitening,
+  xorBytes,
+  type XorWhiteningOptions,
+} from './block-cipher-xor-whitening';
 import { AesMode, BinaryEncoding } from './complex-ciphers.types';
 import {
   DES_BLOCK_SIZE as BLOCK_SIZE,
@@ -16,6 +22,7 @@ import {
 interface DesOptions {
   mode?: AesMode;
   iv?: Uint8Array;
+  whitening?: XorWhiteningOptions;
 }
 
 export interface DesCorpusSampledStepsResult {
@@ -43,7 +50,7 @@ export function encryptDes(
       block = xorBlocks(block, previous);
     }
 
-    const encrypted = encryptBlock(block, roundKeys);
+    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
     output.push(...encrypted);
     previous = encrypted;
   }
@@ -73,7 +80,7 @@ export function decryptDes(
 
   for (let offset = 0; offset < ciphertext.length; offset += BLOCK_SIZE) {
     const block = ciphertext.slice(offset, offset + BLOCK_SIZE);
-    let decrypted = decryptBlock(block, roundKeys);
+    let decrypted = decryptCipherBlock(block, roundKeys, options.whitening);
     if (mode === AesMode.CBC) {
       decrypted = xorBlocks(decrypted, previous);
     }
@@ -94,7 +101,8 @@ export function encryptDesCorpusWithSteps(
 ): Uint8Array[] {
   const mode = options.mode ?? AesMode.CBC;
   const roundKeys = expandKey(key);
-  const roundBuffers: number[][] = Array.from({ length: 16 }, () => []);
+  const stepCount = getDesStepCount(options.whitening);
+  const roundBuffers: number[][] = Array.from({ length: stepCount }, () => []);
   const padded = addPkcs7Padding(plaintext);
   const iv = getIv(mode, options.iv);
   let previous = iv;
@@ -105,7 +113,11 @@ export function encryptDesCorpusWithSteps(
       block = xorBlocks(block, previous);
     }
 
-    const steps = encryptDesWithSteps(block, roundKeys);
+    const steps = encryptDesWithOptionalWhiteningSteps(
+      block,
+      roundKeys,
+      options.whitening,
+    );
     const encrypted = getFinalStep(steps, 'DES encryption');
     steps.forEach((step, index) => roundBuffers[index].push(...step));
     previous = encrypted;
@@ -124,7 +136,8 @@ export function encryptDesCorpusWithSampledSteps(
   const roundKeys = expandKey(key);
   const padded = addPkcs7Padding(plaintext);
   const samplePlan = createSamplePlan(padded.length, maxSampleSize);
-  const stepSamples: number[][] = Array.from({ length: 16 }, () => []);
+  const stepCount = getDesStepCount(options.whitening);
+  const stepSamples: number[][] = Array.from({ length: stepCount }, () => []);
   const ciphertext: number[] = [];
   const iv = getIv(mode, options.iv);
   let previous = iv;
@@ -141,11 +154,13 @@ export function encryptDesCorpusWithSampledSteps(
       samplePlan,
     );
     const steps = shouldCollectSteps
-      ? encryptDesWithSteps(block, roundKeys)
+      ? encryptDesWithOptionalWhiteningSteps(
+          block,
+          roundKeys,
+          options.whitening,
+        )
       : null;
-    const encrypted = steps
-      ? getFinalStep(steps, 'DES encryption')
-      : encryptBlock(block, roundKeys);
+    const encrypted = encryptCipherBlock(block, roundKeys, options.whitening);
 
     steps?.forEach((step, stepIndex) => {
       collectStepSample(stepSamples[stepIndex], step, offset, samplePlan);
@@ -198,6 +213,61 @@ export function encryptDesWithSteps(
   assertRoundKeys(roundKeys);
 
   return runBlock(block, roundKeys, true).steps;
+}
+
+function encryptCipherBlock(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array {
+  if (whitening?.enabled && whitening.keys) {
+    return encryptBlockWithXorWhitening(
+      block,
+      roundKeys,
+      whitening.keys,
+      encryptBlock,
+    );
+  }
+
+  return encryptBlock(block, roundKeys);
+}
+
+function encryptDesWithOptionalWhiteningSteps(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array[] {
+  if (!whitening?.enabled || !whitening.keys) {
+    return encryptDesWithSteps(block, roundKeys);
+  }
+
+  const preWhitened = xorBytes(block, whitening.keys.kPre);
+  const roundSteps = encryptDesWithSteps(preWhitened, roundKeys);
+  const encrypted = getFinalStep(roundSteps, 'DES encryption');
+  const postWhitened = xorBytes(encrypted, whitening.keys.kPost);
+
+  return [preWhitened, ...roundSteps, postWhitened];
+}
+
+function getDesStepCount(whitening?: XorWhiteningOptions): number {
+  return whitening?.enabled && whitening.keys ? 18 : 16;
+}
+
+function decryptCipherBlock(
+  block: Uint8Array,
+  roundKeys: Uint8Array[],
+  whitening?: XorWhiteningOptions,
+): Uint8Array {
+  if (whitening?.enabled && whitening.keys) {
+    return decryptBlockWithXorWhitening(
+      block,
+      roundKeys,
+      whitening.keys,
+      decryptBlock,
+    );
+  }
+
+  return decryptBlock(block, roundKeys);
 }
 
 function encryptBlock(block: Uint8Array, roundKeys: Uint8Array[]): Uint8Array {

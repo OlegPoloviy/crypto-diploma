@@ -66,6 +66,7 @@ export function useAesWorkspace() {
   const [plainOutputEncoding, setPlainOutputEncoding] =
     useState<BinaryEncoding>("utf8");
   const [ivEncoding, setIvEncoding] = useState<BinaryEncoding>("hex");
+  const [whiteningEnabled, setWhiteningEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isQueueingJob, setIsQueueingJob] = useState(false);
   const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
@@ -92,6 +93,8 @@ export function useAesWorkspace() {
     algorithm === "kalyna" ? "KALYNA" : algorithm.toUpperCase();
   const kalynaPayload =
     algorithm === "kalyna" ? { blockSizeBits } : {};
+  const whiteningPayload =
+    algorithm === "kalyna" ? {} : { whiteningEnabled: whiteningEnabled === true };
 
   const keySizeHint = useMemo(
     () => describeKeySize(key, keyEncoding),
@@ -239,6 +242,7 @@ export function useAesWorkspace() {
                 mode,
                 iv: mode === "cbc" ? iv : undefined,
                 ivEncoding,
+                ...whiteningPayload,
               },
               algorithm,
             )
@@ -253,6 +257,7 @@ export function useAesWorkspace() {
                 mode,
                 iv: mode === "cbc" ? iv : undefined,
                 ivEncoding,
+                ...whiteningPayload,
               },
               algorithm,
             );
@@ -300,6 +305,7 @@ export function useAesWorkspace() {
           mode,
           iv: mode === "cbc" ? iv : undefined,
           ivEncoding,
+          ...whiteningPayload,
         },
         algorithm,
       );
@@ -345,6 +351,7 @@ export function useAesWorkspace() {
         mode,
         iv: mode === "cbc" ? iv : undefined,
         ivEncoding,
+        ...whiteningPayload,
       });
       selectJob(created[0]?.id ?? null);
       setMessage(`Queued ${created.length} ${cipherLabel} file jobs.`);
@@ -425,6 +432,7 @@ export function useAesWorkspace() {
     setOutputEncoding("hex");
     setPlainOutputEncoding("utf8");
     setIvEncoding("hex");
+    setWhiteningEnabled(false);
     setResult(null);
     setMessage(null);
   }
@@ -454,6 +462,7 @@ export function useAesWorkspace() {
     outputEncoding,
     plainOutputEncoding,
     ivEncoding,
+    whiteningEnabled,
     activeInput,
     activeInputEncoding,
     activeOutputEncoding,
@@ -486,6 +495,7 @@ export function useAesWorkspace() {
     setOutputEncoding,
     setPlainOutputEncoding,
     setIvEncoding,
+    setWhiteningEnabled,
     setSelectedParsedTextId: selectParsedText,
     setSelectedJobId: selectJob,
     submit,

@@ -17,12 +17,24 @@ export interface CipherStep {
   hurstExponent: number;
   dfaAlpha: number;
   wordFrequencyEntropy: number;
+  wordHurstExponent?: number;
+  wordDfaAlpha?: number;
+  wordEntropy?: number;
+  byteHurstExponent?: number;
+  byteDfaAlpha?: number;
+  byteEntropy?: number;
 }
 
 export type CipherMetricKey =
   | "hurstExponent"
   | "dfaAlpha"
-  | "wordFrequencyEntropy";
+  | "wordFrequencyEntropy"
+  | "wordHurstExponent"
+  | "wordDfaAlpha"
+  | "wordEntropy"
+  | "byteHurstExponent"
+  | "byteDfaAlpha"
+  | "byteEntropy";
 
 export interface CipherMetricStat {
   key: CipherMetricKey;

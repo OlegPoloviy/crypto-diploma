@@ -254,6 +254,43 @@ describe('ComplexCiphersService', () => {
     );
   });
 
+  it('does not label the first AES step as optional whitening when disabled', () => {
+    const result = runComplexCipher(
+      'corpus text that spans multiple blocks',
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.CBC,
+        iv: '101112131415161718191a1b1c1d1e1f',
+        whiteningEnabled: false,
+      },
+    );
+
+    expect(result.steps).toHaveLength(11);
+    expect(result.steps?.[0].description).toBe('AES initial AddRoundKey');
+    expect(result.steps?.[0].description).not.toContain('whitening');
+    expect(result.metadata.xorWhiteningEnabled).toBe(false);
+  });
+
+  it('includes real AES XOR pre/post whitening steps when enabled', () => {
+    const result = runComplexCipher(
+      'corpus text that spans multiple blocks',
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.CBC,
+        iv: '101112131415161718191a1b1c1d1e1f',
+        whiteningEnabled: true,
+      },
+    );
+
+    expect(result.steps).toHaveLength(13);
+    expect(result.steps?.[0].description).toContain('XOR pre-whitening');
+    expect(result.steps?.at(-1)?.description).toContain('XOR post-whitening');
+    expect(result.steps?.at(-1)?.text).toBe(result.finalText);
+    expect(result.metadata.xorWhiteningEnabled).toBe(true);
+  });
+
   it('matches the DES FIPS block test vector', () => {
     const plaintext = parseBytes(
       '0123456789abcdef',
@@ -364,7 +401,26 @@ describe('ComplexCiphersService', () => {
     });
   });
 
-  it('skips round metrics for large AES corpora', () => {
+  it('includes real DES XOR pre/post whitening steps when enabled', () => {
+    const result = runComplexCipher(
+      'corpus text that spans multiple blocks',
+      ComplexCipherAlgorithm.DES,
+      {
+        key: '133457799bbcdff1',
+        mode: AesMode.CBC,
+        iv: '1234567890abcdef',
+        whiteningEnabled: true,
+      },
+    );
+
+    expect(result.steps).toHaveLength(18);
+    expect(result.steps?.[0].description).toContain('XOR pre-whitening');
+    expect(result.steps?.at(-1)?.description).toContain('XOR post-whitening');
+    expect(result.steps?.at(-1)?.text).toBe(result.finalText);
+    expect(result.metadata.xorWhiteningEnabled).toBe(true);
+  });
+
+  it('collects sampled AES round metrics for corpora below the round threshold', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.AES,
@@ -377,14 +433,35 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_016,
-      stepMetricThresholdBytes: 50_000,
-      stepMetricsSkipped: true,
-      stepSampleSize: 0,
-      stepSampled: false,
+      stepMetricThresholdBytes: 250_000,
+      stepMetricsSkipped: false,
+      stepSampleSize: 50_000,
+      stepSampled: true,
       stepSampleSourceBytes: 60_016,
     });
+    expect(result.steps.length).toBeGreaterThan(0);
+    expect(result.metricStats?.length).toBe(3);
+  });
+
+  it('skips AES round steps but keeps ciphertext metrics above the round threshold', () => {
+    const result = runComplexCipher(
+      'a'.repeat(250_001),
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.ECB,
+      },
+    );
+
+    expect(result.metadata).toMatchObject({
+      stepMetricThresholdBytes: 250_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+      whiteningComparisonSkipped: true,
+    });
     expect(result.steps).toEqual([]);
-    expect(result.metricStats).toEqual([]);
+    expect(result.metricStats?.length).toBe(3);
+    expect(result.metadata?.whiteningComparison).toBeUndefined();
   });
 
   it('collects sampled Kalyna round metrics for large corpora', () => {
@@ -400,7 +477,7 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_016,
-      stepMetricThresholdBytes: 50_000,
+      stepMetricThresholdBytes: 250_000,
       stepMetricsSkipped: false,
       stepSampleSize: 50_000,
       stepSampled: true,
@@ -410,7 +487,7 @@ describe('ComplexCiphersService', () => {
     expect(result.metricStats?.length).toBe(3);
   });
 
-  it('collects sampled DES round metrics for large corpora (above AES round threshold)', () => {
+  it('collects sampled DES round metrics for corpora below the round threshold', () => {
     const result = runComplexCipher(
       'a'.repeat(60_000),
       ComplexCipherAlgorithm.DES,
@@ -423,7 +500,7 @@ describe('ComplexCiphersService', () => {
 
     expect(result.metadata).toMatchObject({
       ciphertextLength: 60_008,
-      stepMetricThresholdBytes: 50_000,
+      stepMetricThresholdBytes: 250_000,
       stepMetricsSkipped: false,
       stepSampleSize: 1_024,
       stepSampled: true,
@@ -431,6 +508,49 @@ describe('ComplexCiphersService', () => {
     });
     expect(result.steps).toHaveLength(16);
     expect(result.steps?.every((step) => step.text.length > 0)).toBe(true);
+    expect(result.metricStats?.length).toBe(3);
+  });
+
+  it('skips DES round steps above the round threshold but still returns ciphertext', () => {
+    const result = runComplexCipher(
+      'a'.repeat(250_001),
+      ComplexCipherAlgorithm.DES,
+      {
+        key: '133457799bbcdff1',
+        mode: AesMode.CBC,
+        iv: '1234567890abcdef',
+      },
+    );
+
+    expect(result.finalText.length).toBeGreaterThan(0);
+    expect(result.metadata).toMatchObject({
+      stepMetricThresholdBytes: 250_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+      whiteningComparisonSkipped: true,
+    });
+    expect(result.steps).toEqual([]);
+    expect(result.metricStats?.length).toBe(3);
+  });
+
+  it('skips Kalyna round steps above the round threshold but still returns ciphertext', () => {
+    const result = runComplexCipher(
+      'a'.repeat(250_001),
+      ComplexCipherAlgorithm.KALYNA,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        blockSizeBits: KalynaBlockSize.BITS_128,
+        mode: AesMode.ECB,
+      },
+    );
+
+    expect(result.finalText.length).toBeGreaterThan(0);
+    expect(result.metadata).toMatchObject({
+      stepMetricThresholdBytes: 250_000,
+      stepMetricsSkipped: true,
+      stepSampleSize: 0,
+    });
+    expect(result.steps).toEqual([]);
     expect(result.metricStats?.length).toBe(3);
   });
 

@@ -3,7 +3,13 @@ import { ApiProperty } from '@nestjs/swagger';
 export type CipherMetricKey =
   | 'hurstExponent'
   | 'dfaAlpha'
-  | 'wordFrequencyEntropy';
+  | 'wordFrequencyEntropy'
+  | 'wordHurstExponent'
+  | 'wordDfaAlpha'
+  | 'wordEntropy'
+  | 'byteHurstExponent'
+  | 'byteDfaAlpha'
+  | 'byteEntropy';
 
 export class CipherMetricStatDto {
   @ApiProperty({ example: 'hurstExponent' })

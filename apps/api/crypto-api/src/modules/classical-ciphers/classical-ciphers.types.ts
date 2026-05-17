@@ -14,8 +14,18 @@ export enum ClassicalCipherJobStatus {
 }
 
 export type ClassicalCipherParameters =
-  | { shift: number; maxSteps?: number; inputEncoding?: 'utf8' | 'hex' }
-  | { key: string; keyLengths?: number[]; inputEncoding?: 'utf8' | 'hex' };
+  | {
+      shift: number;
+      maxSteps?: number;
+      inputEncoding?: 'utf8' | 'hex';
+      whiteningEnabled?: boolean;
+    }
+  | {
+      key: string;
+      keyLengths?: number[];
+      inputEncoding?: 'utf8' | 'hex';
+      whiteningEnabled?: boolean;
+    };
 
 export interface ClassicalCipherWorkerData {
   text: string;

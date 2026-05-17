@@ -70,6 +70,10 @@ class BatchCipherFileDto {
   @IsString()
   @IsOptional()
   keyLengths?: string;
+
+  @IsString()
+  @IsOptional()
+  whiteningEnabled?: string;
 }
 
 const batchFilesSchema = {
@@ -130,7 +134,11 @@ export class ClassicalCiphersController {
   @ApiCreatedResponse({ type: CipherResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   encryptCaesar(@Body() body: CaesarCipherDto): CipherResponseDto {
-    return this.ciphersService.encryptCaesar(body.text, body.shift);
+    return this.ciphersService.encryptCaesar(
+      body.text,
+      body.shift,
+      body.whiteningEnabled,
+    );
   }
 
   @Post('vigenere/key-symbols')
@@ -142,7 +150,11 @@ export class ClassicalCiphersController {
   encryptVigenereByKeySymbols(
     @Body() body: VigenereCipherDto,
   ): CipherResponseDto {
-    return this.ciphersService.encryptVigenereByKeySymbols(body.text, body.key);
+    return this.ciphersService.encryptVigenereByKeySymbols(
+      body.text,
+      body.key,
+      body.whiteningEnabled,
+    );
   }
 
   @Post('vigenere/key-lengths')
@@ -158,6 +170,7 @@ export class ClassicalCiphersController {
       body.text,
       body.key,
       body.keyLengths,
+      body.whiteningEnabled,
     );
   }
 
@@ -175,6 +188,7 @@ export class ClassicalCiphersController {
       body.parsedTextId,
       body.shift,
       body.maxSteps,
+      body.whiteningEnabled,
     );
   }
 
@@ -189,6 +203,7 @@ export class ClassicalCiphersController {
         ...batchFilesSchema.properties,
         shift: { type: 'number', example: 3 },
         maxSteps: { type: 'number', example: 40 },
+        whiteningEnabled: { type: 'boolean', example: false },
       },
       required: ['title', 'files', 'shift'],
     },
@@ -205,6 +220,7 @@ export class ClassicalCiphersController {
       body.fileType ?? TextFileType.BINARY,
       parseRequiredInteger(body.shift, 'shift'),
       body.maxSteps ? Number.parseInt(body.maxSteps, 10) : undefined,
+      parseOptionalBoolean(body.whiteningEnabled),
     );
   }
 
@@ -221,6 +237,7 @@ export class ClassicalCiphersController {
     return this.ciphersService.createVigenereKeySymbolsJob(
       body.parsedTextId,
       body.key,
+      body.whiteningEnabled,
     );
   }
 
@@ -236,6 +253,7 @@ export class ClassicalCiphersController {
       properties: {
         ...batchFilesSchema.properties,
         key: { type: 'string', example: 'KEY' },
+        whiteningEnabled: { type: 'boolean', example: false },
       },
       required: ['title', 'files', 'key'],
     },
@@ -251,6 +269,7 @@ export class ClassicalCiphersController {
       files,
       body.fileType ?? TextFileType.BINARY,
       body.key ?? '',
+      parseOptionalBoolean(body.whiteningEnabled),
     );
   }
 
@@ -268,6 +287,7 @@ export class ClassicalCiphersController {
       body.parsedTextId,
       body.key,
       body.keyLengths,
+      body.whiteningEnabled,
     );
   }
 
@@ -284,6 +304,7 @@ export class ClassicalCiphersController {
         ...batchFilesSchema.properties,
         key: { type: 'string', example: 'KEY' },
         keyLengths: { type: 'string', example: '1,3,5,10,20' },
+        whiteningEnabled: { type: 'boolean', example: false },
       },
       required: ['title', 'files', 'key'],
     },
@@ -300,6 +321,7 @@ export class ClassicalCiphersController {
       body.fileType ?? TextFileType.BINARY,
       body.key ?? '',
       parseKeyLengths(body.keyLengths),
+      parseOptionalBoolean(body.whiteningEnabled),
     );
   }
 }
@@ -329,4 +351,12 @@ function parseRequiredInteger(
   }
 
   return parsed;
+}
+
+function parseOptionalBoolean(value?: string): boolean | undefined {
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+
+  return value === 'true' || value === '1';
 }

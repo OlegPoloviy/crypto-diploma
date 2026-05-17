@@ -86,6 +86,43 @@ describe('ClassicalCiphersService', () => {
     );
   });
 
+  it('applies optional whitening around Caesar encryption', () => {
+    const plain = service.encryptCaesar('hello world', 3);
+    const whitened = service.encryptCaesar('hello world', 3, true);
+
+    expect(plain.finalText).toBe('khoor zruog');
+    expect(whitened.finalText).not.toBe(plain.finalText);
+    expect(whitened.finalText).toMatch(/^[\da-f]+$/);
+    expect(whitened.steps.at(-1)?.description).toBe(
+      'Classical byte post-whitening',
+    );
+    expect(whitened.steps.at(-1)?.wordHurstExponent).toEqual(
+      expect.any(Number),
+    );
+    expect(whitened.steps.at(-1)?.byteHurstExponent).toEqual(
+      expect.any(Number),
+    );
+    expect(whitened.finalText).not.toContain('\u0000');
+  });
+
+  it('tracks word-level and byte-level Hurst separately for Caesar variants', () => {
+    const text = 'the quick brown fox jumps over the lazy dog '.repeat(20);
+    const caesar = service.encryptCaesar(text, 3);
+    const whitened = service.encryptCaesar(text, 3, true);
+    const caesarFinal = caesar.steps.at(-1);
+    const whitenedFinal = whitened.steps.at(-1);
+
+    expect(caesarFinal?.wordHurstExponent).toBe(
+      whitenedFinal?.wordHurstExponent,
+    );
+    expect(caesarFinal?.byteHurstExponent).toEqual(expect.any(Number));
+    expect(whitenedFinal?.byteHurstExponent).toEqual(expect.any(Number));
+    expect(caesarFinal?.hurstExponent).toBe(caesarFinal?.wordHurstExponent);
+    expect(whitenedFinal?.byteEntropy ?? 0).toBeGreaterThan(
+      caesarFinal?.byteEntropy ?? 0,
+    );
+  });
+
   it('encrypts Vigenere cipher progressively by key symbols', () => {
     const result = service.encryptVigenereByKeySymbols('hello world', 'KEY');
 
@@ -94,6 +131,21 @@ describe('ClassicalCiphersService', () => {
     expect(result.steps[1].text).toBe('rilvs wyvln');
     expect(result.finalText).toBe('rijvs uyvjn');
     expect(result.steps[1].description).toBe("Applied key symbol 'E' (2 of 3)");
+  });
+
+  it('applies optional whitening around Vigenere key-symbol encryption', () => {
+    const plain = service.encryptVigenereByKeySymbols('hello world', 'KEY');
+    const whitened = service.encryptVigenereByKeySymbols(
+      'hello world',
+      'KEY',
+      true,
+    );
+
+    expect(whitened.finalText).not.toBe(plain.finalText);
+    expect(whitened.steps).toHaveLength(4);
+    expect(whitened.steps.at(-1)?.description).toBe(
+      'Classical byte post-whitening',
+    );
   });
 
   it('compares Vigenere encryption by configured key lengths', () => {
@@ -110,6 +162,26 @@ describe('ClassicalCiphersService', () => {
     expect(result.steps[0].text).toBe('kddkmu kd nkgx');
     expect(result.steps[1].text).toBe('kxrkgi kx bkal');
     expect(result.steps.map((step) => step.keyLength)).toEqual([1, 3]);
+  });
+
+  it('applies optional whitening around Vigenere key-length encryption', () => {
+    const plain = service.encryptVigenereByKeyLengths(
+      'attack at dawn',
+      'KEY',
+      [1, 3],
+    );
+    const whitened = service.encryptVigenereByKeyLengths(
+      'attack at dawn',
+      'KEY',
+      [1, 3],
+      true,
+    );
+
+    expect(whitened.finalText).not.toBe(plain.finalText);
+    expect(whitened.steps.at(-1)?.description).toBe(
+      'Encrypted with key length 3',
+    );
+    expect(whitened.steps.map((step) => step.keyLength)).toEqual([1, 3]);
   });
 
   it('limits async Caesar checkpoints for large texts', () => {
@@ -174,6 +246,32 @@ describe('ClassicalCiphersService', () => {
     ).toString('hex');
 
     expect(result.finalText).toBe(expected);
+  });
+
+  it('applies optional whitening to binary classical ciphers', () => {
+    const bytes = Buffer.from([0, 1, 2, 3]);
+    const plain = runClassicalCipher(bytes.toString('hex'), ClassicalCipherAlgorithm.CAESAR, {
+      shift: 1,
+      maxSteps: 1,
+      inputEncoding: 'hex',
+    });
+    const whitened = runClassicalCipher(
+      bytes.toString('hex'),
+      ClassicalCipherAlgorithm.CAESAR,
+      {
+        shift: 1,
+        maxSteps: 1,
+        inputEncoding: 'hex',
+        whiteningEnabled: true,
+      },
+    );
+
+    expect(plain.finalText).toBe('01020304');
+    expect(whitened.finalText).not.toBe(plain.finalText);
+    expect(whitened.steps[0].description).toBe('Classical pre-whitening');
+    expect(whitened.steps.at(-1)?.description).toBe(
+      'Classical post-whitening',
+    );
   });
 
   it('rejects keys without letters', () => {
