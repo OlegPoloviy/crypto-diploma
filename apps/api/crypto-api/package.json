@@ -22,6 +22,7 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d data-source.ts",
+    "migration:run:prod": "typeorm migration:run -d dist/apps/api/crypto-api/data-source.js",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d data-source.ts"
   },
   "dependencies": {
