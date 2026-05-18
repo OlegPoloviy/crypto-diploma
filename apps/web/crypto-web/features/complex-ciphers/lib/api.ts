@@ -70,8 +70,10 @@ export async function createAesJobsFromFiles(input: {
   title: string;
   files: File[];
   fileType: TextFileType;
+  operation?: CreateAesJobInput["operation"];
   key: string;
   blockSizeBits?: CreateAesJobInput["blockSizeBits"];
+  inputEncoding?: CreateAesJobInput["inputEncoding"];
   keyEncoding: CreateAesJobInput["keyEncoding"];
   outputEncoding: CreateAesJobInput["outputEncoding"];
   mode: CreateAesJobInput["mode"];
@@ -82,6 +84,12 @@ export async function createAesJobsFromFiles(input: {
   const formData = new FormData();
   formData.append("title", input.title);
   formData.append("fileType", input.fileType);
+  if (input.operation) {
+    formData.append("operation", input.operation);
+  }
+  if (input.inputEncoding) {
+    formData.append("inputEncoding", input.inputEncoding);
+  }
   formData.append("key", input.key);
   formData.append("keyEncoding", input.keyEncoding);
   formData.append("outputEncoding", input.outputEncoding);

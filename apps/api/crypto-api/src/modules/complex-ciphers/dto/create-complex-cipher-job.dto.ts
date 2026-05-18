@@ -9,6 +9,7 @@ import {
 import {
   AesMode,
   BinaryEncoding,
+  ComplexCipherOperation,
   KalynaBlockSize,
 } from '../complex-ciphers.types';
 import { XorWhiteningFieldsDto } from './xor-whitening-fields.dto';
@@ -20,6 +21,34 @@ export class CreateAesCipherJobDto extends XorWhiteningFieldsDto {
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed complex cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
+
+  @ApiPropertyOptional({
+    enum: ComplexCipherOperation,
+    default: ComplexCipherOperation.ENCRYPT,
+    description:
+      'Whether this queued job encrypts plaintext or decrypts ciphertext',
+  })
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    description:
+      'Encoding used to decode the selected corpus before running the cipher',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @ApiProperty({
     example: '000102030405060708090a0b0c0d0e0f',
@@ -82,6 +111,34 @@ export class CreateDesCipherJobDto extends XorWhiteningFieldsDto {
   @IsUUID('4')
   parsedTextId: string;
 
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed complex cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
+
+  @ApiPropertyOptional({
+    enum: ComplexCipherOperation,
+    default: ComplexCipherOperation.ENCRYPT,
+    description:
+      'Whether this queued job encrypts plaintext or decrypts ciphertext',
+  })
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    description:
+      'Encoding used to decode the selected corpus before running the cipher',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
+
   @ApiProperty({
     example: '133457799bbcdff1',
     description: 'DES key. Must decode to 8 bytes',
@@ -142,6 +199,34 @@ export class CreateKalynaCipherJobDto {
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed complex cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
+
+  @ApiPropertyOptional({
+    enum: ComplexCipherOperation,
+    default: ComplexCipherOperation.ENCRYPT,
+    description:
+      'Whether this queued job encrypts plaintext or decrypts ciphertext',
+  })
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @ApiPropertyOptional({
+    enum: BinaryEncoding,
+    description:
+      'Encoding used to decode the selected corpus before running the cipher',
+  })
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @ApiProperty({
     example: '000102030405060708090a0b0c0d0e0f',

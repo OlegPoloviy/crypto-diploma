@@ -13,14 +13,21 @@ export enum ClassicalCipherJobStatus {
   FAILED = 'failed',
 }
 
+export enum ClassicalCipherOperation {
+  ENCRYPT = 'encrypt',
+  DECRYPT = 'decrypt',
+}
+
 export type ClassicalCipherParameters =
   | {
+      operation?: ClassicalCipherOperation;
       shift: number;
       maxSteps?: number;
       inputEncoding?: 'utf8' | 'hex';
       whiteningEnabled?: boolean;
     }
   | {
+      operation?: ClassicalCipherOperation;
       key: string;
       keyLengths?: number[];
       inputEncoding?: 'utf8' | 'hex';

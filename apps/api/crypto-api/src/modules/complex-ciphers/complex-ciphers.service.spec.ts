@@ -26,6 +26,7 @@ import {
   BinaryEncoding,
   ComplexCipherAlgorithm,
   ComplexCipherJobStatus,
+  ComplexCipherOperation,
   KalynaBlockSize,
 } from './complex-ciphers.types';
 
@@ -254,6 +255,43 @@ describe('ComplexCiphersService', () => {
     );
   });
 
+  it('decrypts AES job ciphertext instead of encrypting it again', () => {
+    const encrypted = runComplexCipher(
+      'previously encrypted corpus',
+      ComplexCipherAlgorithm.AES,
+      {
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.CBC,
+        iv: '101112131415161718191a1b1c1d1e1f',
+        outputEncoding: BinaryEncoding.HEX,
+      },
+    );
+
+    const decrypted = runComplexCipher(
+      encrypted.finalText,
+      ComplexCipherAlgorithm.AES,
+      {
+        operation: ComplexCipherOperation.DECRYPT,
+        key: '000102030405060708090a0b0c0d0e0f',
+        mode: AesMode.CBC,
+        iv: '101112131415161718191a1b1c1d1e1f',
+        inputEncoding: BinaryEncoding.HEX,
+        outputEncoding: BinaryEncoding.UTF8,
+      },
+    );
+
+    expect(decrypted.finalText).toBe('previously encrypted corpus');
+    expect(decrypted.steps).toEqual([]);
+    expect(decrypted.metadata).toMatchObject({
+      operation: ComplexCipherOperation.DECRYPT,
+      algorithm: 'aes',
+      inputEncoding: BinaryEncoding.HEX,
+      outputEncoding: BinaryEncoding.UTF8,
+      ciphertextLength: 32,
+      plaintextLength: 27,
+    });
+  });
+
   it('does not label the first AES step as optional whitening when disabled', () => {
     const result = runComplexCipher(
       'corpus text that spans multiple blocks',
@@ -398,6 +436,43 @@ describe('ComplexCiphersService', () => {
       algorithm: 'des',
       keySize: 64,
       byteEntropy: result.steps?.at(-1)?.wordFrequencyEntropy,
+    });
+  });
+
+  it('decrypts DES job ciphertext instead of encrypting it again', () => {
+    const encrypted = runComplexCipher(
+      'previously encrypted DES corpus',
+      ComplexCipherAlgorithm.DES,
+      {
+        key: '133457799bbcdff1',
+        mode: AesMode.CBC,
+        iv: '1234567890abcdef',
+        outputEncoding: BinaryEncoding.HEX,
+      },
+    );
+
+    const decrypted = runComplexCipher(
+      encrypted.finalText,
+      ComplexCipherAlgorithm.DES,
+      {
+        operation: ComplexCipherOperation.DECRYPT,
+        key: '133457799bbcdff1',
+        mode: AesMode.CBC,
+        iv: '1234567890abcdef',
+        inputEncoding: BinaryEncoding.HEX,
+        outputEncoding: BinaryEncoding.UTF8,
+      },
+    );
+
+    expect(decrypted.finalText).toBe('previously encrypted DES corpus');
+    expect(decrypted.steps).toEqual([]);
+    expect(decrypted.metadata).toMatchObject({
+      operation: ComplexCipherOperation.DECRYPT,
+      algorithm: 'des',
+      inputEncoding: BinaryEncoding.HEX,
+      outputEncoding: BinaryEncoding.UTF8,
+      ciphertextLength: 32,
+      plaintextLength: 31,
     });
   });
 
@@ -686,6 +761,79 @@ describe('ComplexCiphersService', () => {
     );
   });
 
+  it('queues an AES decrypt job from a completed encrypted source job', async () => {
+    const workerSpy = jest
+      .spyOn(service as never, 'runCipherWorker')
+      .mockResolvedValue({
+        finalText: 'previously encrypted corpus',
+        steps: [],
+        metricStats: [
+          {
+            key: 'wordFrequencyEntropy',
+            label: 'Byte entropy',
+            final: 4,
+            mean: 4,
+            standardDeviation: 0,
+            min: 4,
+            max: 4,
+          },
+        ],
+        metadata: {
+          operation: ComplexCipherOperation.DECRYPT,
+          inputEncoding: BinaryEncoding.HEX,
+          outputEncoding: BinaryEncoding.UTF8,
+        },
+      } as never);
+    cipherJobsRepo.findOne.mockResolvedValue({
+      id: '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      algorithm: ComplexCipherAlgorithm.AES,
+      status: ComplexCipherJobStatus.COMPLETED,
+      finalText: 'c7ffa7dc5d5ec3069bb369dcbe3d838f',
+      parameters: {
+        operation: ComplexCipherOperation.ENCRYPT,
+        outputEncoding: BinaryEncoding.HEX,
+      },
+      metadata: {
+        outputEncoding: BinaryEncoding.HEX,
+      },
+    });
+    parsedTextsRepo.findOne.mockResolvedValue({
+      id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      status: ParsedTextStatus.COMPLETED,
+      words: ['previously', 'encrypted', 'corpus'],
+    });
+
+    const result = await service.createAesJob({
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      sourceJobId: '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+      operation: ComplexCipherOperation.DECRYPT,
+      key: '000102030405060708090a0b0c0d0e0f',
+      outputEncoding: BinaryEncoding.UTF8,
+      mode: AesMode.CBC,
+      iv: '101112131415161718191a1b1c1d1e1f',
+    });
+
+    expect(result.parameters).toMatchObject({
+      operation: ComplexCipherOperation.DECRYPT,
+      inputEncoding: BinaryEncoding.HEX,
+      outputEncoding: BinaryEncoding.UTF8,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(workerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'c7ffa7dc5d5ec3069bb369dcbe3d838f',
+        algorithm: ComplexCipherAlgorithm.AES,
+        parameters: expect.objectContaining({
+          operation: ComplexCipherOperation.DECRYPT,
+          inputEncoding: BinaryEncoding.HEX,
+        }),
+      }),
+      '0f50273c-4181-4496-9648-e84f355cedee',
+    );
+  });
+
   it('queues a DES job for completed parsed text and processes it in worker', async () => {
     jest.spyOn(service as never, 'runCipherWorker').mockResolvedValue({
       finalText: '85e813540f0ab405',
@@ -743,6 +891,79 @@ describe('ComplexCiphersService', () => {
           expect.objectContaining({ key: 'hurstExponent' }),
         ]),
       }),
+    );
+  });
+
+  it('queues a DES decrypt job from a completed encrypted source job', async () => {
+    const workerSpy = jest
+      .spyOn(service as never, 'runCipherWorker')
+      .mockResolvedValue({
+        finalText: 'previously encrypted DES corpus',
+        steps: [],
+        metricStats: [
+          {
+            key: 'wordFrequencyEntropy',
+            label: 'Byte entropy',
+            final: 4,
+            mean: 4,
+            standardDeviation: 0,
+            min: 4,
+            max: 4,
+          },
+        ],
+        metadata: {
+          operation: ComplexCipherOperation.DECRYPT,
+          inputEncoding: BinaryEncoding.HEX,
+          outputEncoding: BinaryEncoding.UTF8,
+        },
+      } as never);
+    cipherJobsRepo.findOne.mockResolvedValue({
+      id: '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      algorithm: ComplexCipherAlgorithm.DES,
+      status: ComplexCipherJobStatus.COMPLETED,
+      finalText: '85e813540f0ab405c9500ed4907b32b4',
+      parameters: {
+        operation: ComplexCipherOperation.ENCRYPT,
+        outputEncoding: BinaryEncoding.HEX,
+      },
+      metadata: {
+        outputEncoding: BinaryEncoding.HEX,
+      },
+    });
+    parsedTextsRepo.findOne.mockResolvedValue({
+      id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      status: ParsedTextStatus.COMPLETED,
+      words: ['previously', 'encrypted', 'DES', 'corpus'],
+    });
+
+    const result = await service.createDesJob({
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      sourceJobId: '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+      operation: ComplexCipherOperation.DECRYPT,
+      key: '133457799bbcdff1',
+      outputEncoding: BinaryEncoding.UTF8,
+      mode: AesMode.CBC,
+      iv: '1234567890abcdef',
+    });
+
+    expect(result.parameters).toMatchObject({
+      operation: ComplexCipherOperation.DECRYPT,
+      inputEncoding: BinaryEncoding.HEX,
+      outputEncoding: BinaryEncoding.UTF8,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(workerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '85e813540f0ab405c9500ed4907b32b4',
+        algorithm: ComplexCipherAlgorithm.DES,
+        parameters: expect.objectContaining({
+          operation: ComplexCipherOperation.DECRYPT,
+          inputEncoding: BinaryEncoding.HEX,
+        }),
+      }),
+      '0f50273c-4181-4496-9648-e84f355cedee',
     );
   });
 

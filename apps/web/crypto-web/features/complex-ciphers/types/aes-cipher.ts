@@ -118,8 +118,11 @@ export interface CipherStep {
 
 export interface CreateAesJobInput extends XorWhiteningInput {
   parsedTextId: string;
+  sourceJobId?: string;
+  operation?: AesOperation;
   key: string;
   blockSizeBits?: KalynaBlockSize;
+  inputEncoding?: BinaryEncoding;
   keyEncoding: BinaryEncoding;
   outputEncoding: BinaryEncoding;
   mode: AesMode;

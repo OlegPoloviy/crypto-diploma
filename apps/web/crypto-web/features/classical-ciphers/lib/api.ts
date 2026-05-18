@@ -18,6 +18,8 @@ export async function getCipherJob(id: string): Promise<ClassicalCipherJob> {
 export async function createCipherJob(input: {
   mode: CipherMode;
   parsedTextId: string;
+  sourceJobId?: string;
+  operation?: "encrypt" | "decrypt";
   shift: number;
   key: string;
   keyLengths: number[];
@@ -32,17 +34,23 @@ export async function createCipherJob(input: {
     input.mode === "caesar"
       ? {
           parsedTextId: input.parsedTextId,
+          sourceJobId: input.sourceJobId,
+          operation: input.operation,
           shift: input.shift,
           whiteningEnabled: input.whiteningEnabled,
         }
       : input.mode === "vigenere-key-symbols"
         ? {
             parsedTextId: input.parsedTextId,
+            sourceJobId: input.sourceJobId,
+            operation: input.operation,
             key: input.key,
             whiteningEnabled: input.whiteningEnabled,
           }
         : {
             parsedTextId: input.parsedTextId,
+            sourceJobId: input.sourceJobId,
+            operation: input.operation,
             key: input.key,
             keyLengths: input.keyLengths,
             whiteningEnabled: input.whiteningEnabled,
@@ -62,6 +70,7 @@ export async function createCipherJobsFromFiles(input: {
   title: string;
   files: File[];
   fileType: TextFileType;
+  operation?: "encrypt" | "decrypt";
   shift: number;
   key: string;
   keyLengths: number[];
@@ -77,6 +86,9 @@ export async function createCipherJobsFromFiles(input: {
   const formData = new FormData();
   formData.append("title", input.title);
   formData.append("fileType", input.fileType);
+  if (input.operation) {
+    formData.append("operation", input.operation);
+  }
   input.files.forEach((file) => formData.append("files", file));
 
   if (input.mode === "caesar") {

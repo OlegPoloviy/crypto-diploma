@@ -71,3 +71,4 @@ export interface ClassicalCipherJob {
 }
 
 export type CipherMode = "caesar" | "vigenere-key-symbols" | "vigenere-key-lengths";
+export type CipherOperation = "encrypt" | "decrypt";
