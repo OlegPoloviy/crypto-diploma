@@ -13,6 +13,7 @@ import {
 } from "../lib/api";
 import {
   CipherMode,
+  CipherOperation,
   ClassicalCipherJob,
 } from "../types/classical-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
@@ -23,10 +24,14 @@ export function useCipherWorkspace() {
   const [parsedTexts, setParsedTexts] = useState<ParsedText[]>([]);
   const [jobs, setJobs] = useState<ClassicalCipherJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedSourceJobId, setSelectedSourceJobId] = useState<string | null>(
+    null,
+  );
   const [selectedParsedTextId, setSelectedParsedTextId] = useState<string | null>(
     null,
   );
-  const [mode, setMode] = useState<CipherMode>("caesar");
+  const [mode, setModeState] = useState<CipherMode>("caesar");
+  const [operation, setOperationState] = useState<CipherOperation>("encrypt");
   const [shift, setShift] = useState(3);
   const [key, setKey] = useState("KEY");
   const [keyLengthsText, setKeyLengthsText] = useState("1, 3, 5, 10, 20");
@@ -35,6 +40,7 @@ export function useCipherWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const selectedJobIdRef = useRef<string | null>(null);
+  const selectedSourceJobIdRef = useRef<string | null>(null);
   const selectedParsedTextIdRef = useRef<string | null>(null);
   const parsedTextsRef = useRef<ParsedText[]>([]);
   const jobsRef = useRef<ClassicalCipherJob[]>([]);
@@ -42,6 +48,17 @@ export function useCipherWorkspace() {
   const completedParsedTexts = useMemo(
     () => parsedTexts.filter((item) => item.status === "completed"),
     [parsedTexts],
+  );
+  const encryptedSourceJobs = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          job.algorithm === modeToAlgorithm(mode) &&
+          job.status === "completed" &&
+          Boolean(job.finalText) &&
+          (job.parameters.operation ?? "encrypt") === "encrypt",
+      ),
+    [jobs, mode],
   );
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -54,6 +71,13 @@ export function useCipherWorkspace() {
       null,
     [completedParsedTexts, parsedTexts, selectedParsedTextId],
   );
+  const selectedSourceJob = useMemo(
+    () =>
+      encryptedSourceJobs.find((job) => job.id === selectedSourceJobId) ??
+      encryptedSourceJobs[0] ??
+      null,
+    [encryptedSourceJobs, selectedSourceJobId],
+  );
   const hasActiveJobs = useMemo(
     () =>
       jobs.some((job) => job.status === "queued" || job.status === "processing"),
@@ -63,6 +87,10 @@ export function useCipherWorkspace() {
   useEffect(() => {
     selectedJobIdRef.current = selectedJobId;
   }, [selectedJobId]);
+
+  useEffect(() => {
+    selectedSourceJobIdRef.current = selectedSourceJobId;
+  }, [selectedSourceJobId]);
 
   useEffect(() => {
     selectedParsedTextIdRef.current = selectedParsedTextId;
@@ -85,6 +113,28 @@ export function useCipherWorkspace() {
     selectedParsedTextIdRef.current = id;
     setSelectedParsedTextId(id);
   }, []);
+
+  const selectSourceJob = useCallback((id: string | null) => {
+    selectedSourceJobIdRef.current = id;
+    setSelectedSourceJobId(id);
+  }, []);
+
+  function setOperation(nextOperation: CipherOperation) {
+    setOperationState(nextOperation);
+    if (nextOperation === "decrypt") {
+      selectSourceJob(selectedSourceJob?.id ?? encryptedSourceJobs[0]?.id ?? null);
+    }
+  }
+
+  function setMode(nextMode: CipherMode) {
+    setModeState(nextMode);
+    if (operation === "decrypt") {
+      selectSourceJob(
+        findFirstEncryptedSourceJob(jobsRef.current, modeToAlgorithm(nextMode))
+          ?.id ?? null,
+      );
+    }
+  }
 
   const refresh = useCallback(async (showSpinner = false) => {
       if (showSpinner) {
@@ -144,7 +194,12 @@ export function useCipherWorkspace() {
   }, [hasActiveJobs, refresh]);
 
   async function submitJob() {
-    if (!selectedParsedText) {
+    if (operation === "decrypt" && !selectedSourceJob) {
+      setMessage(t("No completed encrypted result selected."));
+      return null;
+    }
+
+    if (operation === "encrypt" && !selectedParsedText) {
       setMessage(t("No completed parsed text selected."));
       return null;
     }
@@ -161,7 +216,15 @@ export function useCipherWorkspace() {
     try {
       const created = await createCipherJob({
         mode,
-        parsedTextId: selectedParsedText.id,
+        parsedTextId:
+          operation === "decrypt"
+            ? (selectedSourceJob as ClassicalCipherJob).parsedTextId
+            : (selectedParsedText as ParsedText).id,
+        sourceJobId:
+          operation === "decrypt"
+            ? (selectedSourceJob as ClassicalCipherJob).id
+            : undefined,
+        operation,
         shift,
         key,
         keyLengths,
@@ -203,6 +266,7 @@ export function useCipherWorkspace() {
         title: input.title,
         files: input.files,
         fileType: input.fileType,
+        operation,
         shift,
         key,
         keyLengths,
@@ -245,9 +309,13 @@ export function useCipherWorkspace() {
     jobs,
     selectedJob,
     selectedJobId,
+    encryptedSourceJobs,
+    selectedSourceJob,
+    selectedSourceJobId,
     selectedParsedText,
     selectedParsedTextId,
     mode,
+    operation,
     shift,
     key,
     keyLengthsText,
@@ -256,7 +324,9 @@ export function useCipherWorkspace() {
     isSubmitting,
     message,
     setSelectedJobId: selectJob,
+    setSelectedSourceJobId: selectSourceJob,
     setSelectedParsedTextId: selectParsedText,
+    setOperation,
     setMode,
     setShift,
     setKey,
@@ -279,4 +349,27 @@ function parseKeyLengths(value: string): number[] {
         .filter((item) => Number.isFinite(item) && item > 0),
     ),
   ).sort((a, b) => a - b);
+}
+
+function modeToAlgorithm(mode: CipherMode): ClassicalCipherJob["algorithm"] {
+  if (mode === "caesar") {
+    return "caesar";
+  }
+
+  return mode === "vigenere-key-symbols"
+    ? "vigenere_key_symbols"
+    : "vigenere_key_lengths";
+}
+
+function findFirstEncryptedSourceJob(
+  jobs: ClassicalCipherJob[],
+  algorithm: ClassicalCipherJob["algorithm"],
+) {
+  return jobs.find(
+    (job) =>
+      job.algorithm === algorithm &&
+      job.status === "completed" &&
+      Boolean(job.finalText) &&
+      (job.parameters.operation ?? "encrypt") === "encrypt",
+  );
 }

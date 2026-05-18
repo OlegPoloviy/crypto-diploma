@@ -39,7 +39,11 @@ import {
 import { AesDecryptDto, AesEncryptDto } from './dto/aes-cipher.dto';
 import { AesResponseDto } from './dto/aes-response.dto';
 import { ComplexCipherJobResponseDto } from './dto/complex-cipher-job-response.dto';
-import { AesMode, BinaryEncoding } from './complex-ciphers.types';
+import {
+  AesMode,
+  BinaryEncoding,
+  ComplexCipherOperation,
+} from './complex-ciphers.types';
 import { DesDecryptDto, DesEncryptDto } from './dto/des-cipher.dto';
 import { DesResponseDto } from './dto/des-response.dto';
 import { KalynaDecryptDto, KalynaEncryptDto } from './dto/kalyna-cipher.dto';
@@ -56,6 +60,14 @@ class BatchAesFileDto extends XorWhiteningFieldsDto {
   @IsEnum(TextFileType)
   @IsOptional()
   fileType?: TextFileType;
+
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @IsString()
   @IsNotEmpty()
@@ -91,6 +103,14 @@ class BatchKalynaFileDto {
   @IsEnum(TextFileType)
   @IsOptional()
   fileType?: TextFileType;
+
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @IsString()
   @IsNotEmpty()
@@ -129,6 +149,14 @@ class BatchDesFileDto extends XorWhiteningFieldsDto {
   @IsEnum(TextFileType)
   @IsOptional()
   fileType?: TextFileType;
+
+  @IsEnum(ComplexCipherOperation)
+  @IsOptional()
+  operation?: ComplexCipherOperation;
+
+  @IsEnum(BinaryEncoding)
+  @IsOptional()
+  inputEncoding?: BinaryEncoding;
 
   @IsString()
   @IsNotEmpty()
@@ -308,6 +336,15 @@ export class ComplexCiphersController {
           type: 'string',
           example: '000102030405060708090a0b0c0d0e0f',
         },
+        operation: {
+          type: 'string',
+          enum: Object.values(ComplexCipherOperation),
+          default: ComplexCipherOperation.ENCRYPT,
+        },
+        inputEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
+        },
         keyEncoding: {
           type: 'string',
           enum: Object.values(BinaryEncoding),
@@ -352,6 +389,8 @@ export class ComplexCiphersController {
       body.fileType ?? TextFileType.BINARY,
       {
         key: body.key,
+        operation: body.operation,
+        inputEncoding: body.inputEncoding,
         keyEncoding: body.keyEncoding,
         outputEncoding: body.outputEncoding,
         mode: body.mode,
@@ -382,6 +421,15 @@ export class ComplexCiphersController {
         key: {
           type: 'string',
           example: '133457799bbcdff1',
+        },
+        operation: {
+          type: 'string',
+          enum: Object.values(ComplexCipherOperation),
+          default: ComplexCipherOperation.ENCRYPT,
+        },
+        inputEncoding: {
+          type: 'string',
+          enum: Object.values(BinaryEncoding),
         },
         keyEncoding: {
           type: 'string',
@@ -427,6 +475,8 @@ export class ComplexCiphersController {
       body.fileType ?? TextFileType.BINARY,
       {
         key: body.key,
+        operation: body.operation,
+        inputEncoding: body.inputEncoding,
         keyEncoding: body.keyEncoding,
         outputEncoding: body.outputEncoding,
         mode: body.mode,
@@ -456,6 +506,8 @@ export class ComplexCiphersController {
       body.fileType ?? TextFileType.BINARY,
       {
         key: body.key,
+        operation: body.operation,
+        inputEncoding: body.inputEncoding,
         blockSizeBits: body.blockSizeBits,
         keyEncoding: body.keyEncoding,
         outputEncoding: body.outputEncoding,

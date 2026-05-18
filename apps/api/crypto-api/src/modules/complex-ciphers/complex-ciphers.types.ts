@@ -28,6 +28,11 @@ export enum KalynaOperation {
   DECRYPT = 'decrypt',
 }
 
+export enum ComplexCipherOperation {
+  ENCRYPT = 'encrypt',
+  DECRYPT = 'decrypt',
+}
+
 export enum KalynaBlockSize {
   BITS_128 = 128,
   BITS_256 = 256,
@@ -48,6 +53,7 @@ export enum ComplexCipherJobStatus {
 }
 
 export interface AesJobParameters extends XorWhiteningParameterInput {
+  operation?: ComplexCipherOperation;
   key: string;
   inputEncoding?: BinaryEncoding;
   keyEncoding?: BinaryEncoding;
@@ -58,6 +64,7 @@ export interface AesJobParameters extends XorWhiteningParameterInput {
 }
 
 export interface DesJobParameters extends XorWhiteningParameterInput {
+  operation?: ComplexCipherOperation;
   key: string;
   inputEncoding?: BinaryEncoding;
   keyEncoding?: BinaryEncoding;
@@ -79,6 +86,7 @@ export interface WhiteningComparisonMetadata {
 }
 
 export interface KalynaJobParameters {
+  operation?: ComplexCipherOperation;
   key: string;
   blockSizeBits: KalynaBlockSize;
   inputEncoding?: BinaryEncoding;

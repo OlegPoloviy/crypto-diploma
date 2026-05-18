@@ -63,14 +63,21 @@ Run migrations against Supabase only from a production shell/env:
 pnpm --filter crypto-api migration:run
 ```
 
-On Render, after the service is built, prefer the compiled migration command:
+If migrations can run from a production shell/env, use the compiled migration command:
 
 ```powershell
 pnpm --filter crypto-api migration:run:prod
 ```
 
-On Render Free, `preDeployCommand` is not available, so `render.yaml` runs the
-compiled migration command at the end of `buildCommand`.
+On Render Free, `preDeployCommand` is not available. If Render migration commands
+are unreliable, run the manual Supabase SQL patch instead:
+
+```text
+apps/api/crypto-api/sql/supabase-manual-schema.sql
+```
+
+Open Supabase SQL Editor, paste the file contents, and run it against the
+production database.
 
 For a one-shot Render Shell fix, run:
 

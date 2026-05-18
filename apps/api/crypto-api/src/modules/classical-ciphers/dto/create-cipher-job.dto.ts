@@ -1,10 +1,11 @@
-import { ApiProperty, OmitType } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { CaesarCipherDto } from './caesar-cipher.dto';
 import {
   VigenereCipherDto,
   VigenereKeyLengthsDto,
 } from './vigenere-cipher.dto';
+import { ClassicalCipherOperation } from '../classical-ciphers.types';
 
 class ParsedTextCipherDto {
   @ApiProperty({
@@ -13,6 +14,23 @@ class ParsedTextCipherDto {
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    enum: ClassicalCipherOperation,
+    default: ClassicalCipherOperation.ENCRYPT,
+  })
+  @IsEnum(ClassicalCipherOperation)
+  @IsOptional()
+  operation?: ClassicalCipherOperation;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed classical cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
 }
 
 export class CreateCaesarCipherJobDto extends OmitType(CaesarCipherDto, [
@@ -24,6 +42,23 @@ export class CreateCaesarCipherJobDto extends OmitType(CaesarCipherDto, [
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    enum: ClassicalCipherOperation,
+    default: ClassicalCipherOperation.ENCRYPT,
+  })
+  @IsEnum(ClassicalCipherOperation)
+  @IsOptional()
+  operation?: ClassicalCipherOperation;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed classical cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
 
   @ApiProperty({
     example: 40,
@@ -48,6 +83,23 @@ export class CreateVigenereCipherJobDto
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    enum: ClassicalCipherOperation,
+    default: ClassicalCipherOperation.ENCRYPT,
+  })
+  @IsEnum(ClassicalCipherOperation)
+  @IsOptional()
+  operation?: ClassicalCipherOperation;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed classical cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
 }
 
 export class CreateVigenereKeyLengthsJobDto
@@ -60,4 +112,21 @@ export class CreateVigenereKeyLengthsJobDto
   })
   @IsUUID('4')
   parsedTextId: string;
+
+  @ApiPropertyOptional({
+    enum: ClassicalCipherOperation,
+    default: ClassicalCipherOperation.ENCRYPT,
+  })
+  @IsEnum(ClassicalCipherOperation)
+  @IsOptional()
+  operation?: ClassicalCipherOperation;
+
+  @ApiPropertyOptional({
+    example: '0f50273c-4181-4496-9648-e84f355cedee',
+    description:
+      'Completed classical cipher job to use as ciphertext input for decrypt jobs',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  sourceJobId?: string;
 }

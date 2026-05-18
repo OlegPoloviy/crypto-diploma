@@ -145,7 +145,10 @@ function AesCorpusJobPanel({
           {t("Corpus worker")}
         </p>
         <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-          {t("Queue {{cipher}} job", { cipher: workspace.cipherLabel })}
+          {t("Queue {{cipher}} {{operation}} job", {
+            cipher: workspace.cipherLabel,
+            operation: t(workspace.operation),
+          })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
@@ -173,36 +176,69 @@ function AesCorpusJobPanel({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="aes-parsed-text">{t("Parsed corpus")}</Label>
-          <select
-            id="aes-parsed-text"
-            value={
-              workspace.selectedParsedTextId ??
-              workspace.selectedParsedText?.id ??
-              ""
-            }
-            onChange={(event) =>
-              workspace.setSelectedParsedTextId(event.target.value)
-            }
-            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
-          >
-            {workspace.completedParsedTexts.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title} ·{" "}
-                {t("{{count}} words", { count: formatNumber(item.totalWords) })}
-              </option>
-            ))}
-          </select>
-          <BaselineMetricsStrip
-            parsedTexts={workspace.parsedTexts}
-            selectedParsedText={workspace.selectedParsedText}
-          />
-        </div>
+        {workspace.operation === "decrypt" ? (
+          <div className="space-y-2">
+            <Label htmlFor="complex-source-job">{t("Encrypted result")}</Label>
+            <select
+              id="complex-source-job"
+              value={
+                workspace.selectedSourceJobId ??
+                workspace.selectedSourceJob?.id ??
+                ""
+              }
+              onChange={(event) =>
+                workspace.setSelectedSourceJobId(event.target.value)
+              }
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              {workspace.encryptedSourceJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {formatEncryptedSourceJob(job)}
+                </option>
+              ))}
+            </select>
+            {workspace.encryptedSourceJobs.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t("No encrypted {{cipher}} results yet.", {
+                  cipher: workspace.cipherLabel,
+                })}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="aes-parsed-text">{t("Parsed corpus")}</Label>
+            <select
+              id="aes-parsed-text"
+              value={
+                workspace.selectedParsedTextId ??
+                workspace.selectedParsedText?.id ??
+                ""
+              }
+              onChange={(event) =>
+                workspace.setSelectedParsedTextId(event.target.value)
+              }
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              {workspace.completedParsedTexts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} ·{" "}
+                  {t("{{count}} words", {
+                    count: formatNumber(item.totalWords),
+                  })}
+                </option>
+              ))}
+            </select>
+            <BaselineMetricsStrip
+              parsedTexts={workspace.parsedTexts}
+              selectedParsedText={workspace.selectedParsedText}
+            />
+          </div>
+        )}
 
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
           {t(
-            "The worker uses the selected cipher key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.",
+            "The worker uses the selected cipher operation, key, mode, IV, input encoding, and output encoding from the controls above.",
           )}
         </div>
 
@@ -283,7 +319,9 @@ function AesCorpusJobPanel({
             onClick={() => void workspace.submitJob()}
             disabled={
               workspace.isQueueingJob ||
-              workspace.completedParsedTexts.length === 0
+              (workspace.operation === "decrypt"
+                ? workspace.encryptedSourceJobs.length === 0
+                : workspace.completedParsedTexts.length === 0)
             }
           >
             {workspace.isQueueingJob ? (
@@ -457,7 +495,9 @@ function AesJobDetails({
               {t("Worker output")}
             </p>
             <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-              {t("Stored ciphertext")}
+              {job.parameters.operation === "decrypt"
+                ? t("Stored plaintext")
+                : t("Stored ciphertext")}
             </CardTitle>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -560,7 +600,9 @@ function AesJobDetails({
             onClick={() => downloadAesCiphertext(job)}
           >
             <Download className="size-4" />
-            {t("Download ciphertext")}
+            {job.parameters.operation === "decrypt"
+              ? t("Download plaintext")
+              : t("Download ciphertext")}
           </Button>
           <Button
             type="button"
@@ -1355,17 +1397,28 @@ function JobStatusBadge({ status }: { status: ComplexCipherJobStatus }) {
 }
 
 function formatJobParameters(job: ComplexCipherJob) {
+  const operation = String(job.parameters.operation ?? "encrypt").toUpperCase();
   const mode = String(job.parameters.mode ?? "cbc").toUpperCase();
+  const input = String(job.parameters.inputEncoding ?? "utf8").toUpperCase();
   const output = String(job.parameters.outputEncoding ?? "hex").toUpperCase();
   const whitening =
     job.algorithm !== "kalyna" && job.parameters.whiteningEnabled === true
       ? "; WH=on"
       : "";
-  return `${mode}; out=${output}${whitening}`;
+  return `${operation}; ${mode}; in=${input}; out=${output}${whitening}`;
 }
 
 function formatJobAlgorithm(job: { algorithm: ComplexCipherAlgorithm }) {
   return job.algorithm.toUpperCase();
+}
+
+function formatEncryptedSourceJob(job: ComplexCipherJob) {
+  const encoding = String(
+    job.metadata?.outputEncoding ?? job.parameters.outputEncoding ?? "hex",
+  ).toUpperCase();
+  const bytes = String(job.metadata?.ciphertextLength ?? "-");
+
+  return `${formatJobAlgorithm(job)} · ${bytes} bytes · ${encoding} · ${formatTime(job.updatedAt)}`;
 }
 
 function formatJobOutput(job: ComplexCipherJob) {
@@ -1373,7 +1426,10 @@ function formatJobOutput(job: ComplexCipherJob) {
     return "-";
   }
 
-  const bytes = job.metadata?.ciphertextLength;
+  const bytes =
+    job.parameters.operation === "decrypt"
+      ? job.metadata?.plaintextLength
+      : job.metadata?.ciphertextLength;
   const encoding =
     job.metadata?.outputEncoding ?? job.parameters.outputEncoding;
 

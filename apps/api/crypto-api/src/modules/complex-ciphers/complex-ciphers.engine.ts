@@ -10,13 +10,19 @@ import {
   type XorWhiteningParameterInput,
 } from './block-cipher-xor-whitening';
 import {
+  decryptAes,
   encryptAes,
   encryptAesCorpusWithSampledSteps,
   formatBytes,
   parseBytes,
 } from './aes.engine';
-import { encryptDes, encryptDesCorpusWithSampledSteps } from './des.engine';
 import {
+  decryptDes,
+  encryptDes,
+  encryptDesCorpusWithSampledSteps,
+} from './des.engine';
+import {
+  decryptKalyna,
   encryptKalyna,
   encryptKalynaCorpusWithSampledSteps,
 } from './kalyna.engine';
@@ -25,6 +31,7 @@ import {
   AesMode,
   BinaryEncoding,
   ComplexCipherAlgorithm,
+  ComplexCipherOperation,
   ComplexCipherParameters,
   ComplexCipherWorkerResult,
   DesJobParameters,
@@ -43,11 +50,11 @@ export function runComplexCipher(
 ): ComplexCipherWorkerResult {
   switch (algorithm) {
     case ComplexCipherAlgorithm.AES:
-      return encryptTextWithBlockCipher(text, parameters, 'AES');
+      return runTextWithBlockCipher(text, parameters, 'AES');
     case ComplexCipherAlgorithm.DES:
-      return encryptTextWithBlockCipher(text, parameters, 'DES');
+      return runTextWithBlockCipher(text, parameters, 'DES');
     case ComplexCipherAlgorithm.KALYNA:
-      return encryptTextWithKalyna(text, parameters as KalynaJobParameters);
+      return runTextWithKalyna(text, parameters as KalynaJobParameters);
     default:
       throw new BadRequestException('Unsupported complex cipher algorithm');
   }
@@ -326,7 +333,7 @@ export function computeKalynaEncryptRoundInsights(
   };
 }
 
-function encryptTextWithKalyna(
+function runTextWithKalyna(
   text: string,
   parameters: KalynaJobParameters,
 ): ComplexCipherWorkerResult {
@@ -340,11 +347,42 @@ function encryptTextWithKalyna(
   const outputEncoding = parameters.outputEncoding ?? BinaryEncoding.HEX;
   const ivEncoding = parameters.ivEncoding ?? BinaryEncoding.HEX;
   const blockSizeBits = parameters.blockSizeBits;
-  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
+  const operation = parameters.operation ?? ComplexCipherOperation.ENCRYPT;
   const key = parseBytes(parameters.key, keyEncoding, 'key');
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
     : undefined;
+
+  if (operation === ComplexCipherOperation.DECRYPT) {
+    const ciphertext = parseBytes(text, inputEncoding, 'ciphertext');
+    const result = decryptKalyna(ciphertext, key, {
+      blockSizeBits,
+      mode,
+      iv,
+    });
+    const finalText = formatBytes(result.plaintext, outputEncoding);
+
+    return createDecryptWorkerResult({
+      algorithm: 'kalyna',
+      plaintext: result.plaintext,
+      ciphertext,
+      finalText,
+      mode,
+      keySize: key.length * 8,
+      inputEncoding,
+      outputEncoding,
+      iv:
+        result.iv || (mode === AesMode.CBC && iv)
+          ? formatBytes((result.iv ?? iv) as Uint8Array, BinaryEncoding.HEX)
+          : undefined,
+      extraMetadata: {
+        blockSizeBits,
+        whitening: `additive_mod_2^${blockSizeBits}`,
+      },
+    });
+  }
+
+  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
   const insights = computeKalynaEncryptRoundInsights(
     plaintext,
     key,
@@ -364,6 +402,7 @@ function encryptTextWithKalyna(
     metricStats: insights.metricStats,
     metadata: {
       ...insights.metadata,
+      operation,
       inputEncoding,
       outputEncoding,
       iv: encodedIv,
@@ -371,7 +410,7 @@ function encryptTextWithKalyna(
   };
 }
 
-function encryptTextWithBlockCipher(
+function runTextWithBlockCipher(
   text: string,
   parameters: ComplexCipherParameters,
   algorithmLabel: 'AES' | 'DES',
@@ -385,7 +424,7 @@ function encryptTextWithBlockCipher(
   const keyEncoding = parameters.keyEncoding ?? BinaryEncoding.HEX;
   const outputEncoding = parameters.outputEncoding ?? BinaryEncoding.HEX;
   const ivEncoding = parameters.ivEncoding ?? BinaryEncoding.HEX;
-  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
+  const operation = parameters.operation ?? ComplexCipherOperation.ENCRYPT;
   const key = parseBytes(parameters.key, keyEncoding, 'key');
   const iv = parameters.iv
     ? parseBytes(parameters.iv, ivEncoding, 'iv')
@@ -395,6 +434,41 @@ function encryptTextWithBlockCipher(
       ? ComplexCipherAlgorithm.AES
       : ComplexCipherAlgorithm.DES;
   const whiteningParameters = parameters as DesJobParameters;
+
+  if (operation === ComplexCipherOperation.DECRYPT) {
+    const ciphertext = parseBytes(text, inputEncoding, 'ciphertext');
+    const blockBytes = algorithmLabel === 'AES' ? 16 : 8;
+    const whitening = resolveXorWhiteningOptions(
+      key,
+      blockBytes,
+      whiteningParameters,
+    );
+    const result =
+      algorithmLabel === 'AES'
+        ? decryptAes(ciphertext, key, { mode, iv, whitening })
+        : decryptDes(ciphertext, key, { mode, iv, whitening });
+    const finalText = formatBytes(result.plaintext, outputEncoding);
+
+    return createDecryptWorkerResult({
+      algorithm: algorithmLabel.toLowerCase(),
+      plaintext: result.plaintext,
+      ciphertext,
+      finalText,
+      mode,
+      keySize: key.length * 8,
+      inputEncoding,
+      outputEncoding,
+      iv:
+        result.iv || (mode === AesMode.CBC && iv)
+          ? formatBytes((result.iv ?? iv) as Uint8Array, BinaryEncoding.HEX)
+          : undefined,
+      extraMetadata: {
+        xorWhiteningEnabled: whitening.enabled,
+      },
+    });
+  }
+
+  const plaintext = parseBytes(text, inputEncoding, 'plaintext');
   const insights = computeInteractiveEncryptRoundInsights(
     plaintext,
     key,
@@ -416,9 +490,48 @@ function encryptTextWithBlockCipher(
     metricStats: insights.metricStats,
     metadata: {
       ...insights.metadata,
+      operation,
       inputEncoding,
       outputEncoding,
       iv: encodedIv,
+    },
+  };
+}
+
+function createDecryptWorkerResult(input: {
+  algorithm: string;
+  plaintext: Uint8Array;
+  ciphertext: Uint8Array;
+  finalText: string;
+  mode: AesMode;
+  keySize: number;
+  inputEncoding: BinaryEncoding;
+  outputEncoding: BinaryEncoding;
+  iv?: string;
+  extraMetadata?: Record<string, unknown>;
+}): ComplexCipherWorkerResult {
+  const metricStats = calculateCiphertextMetricStats(input.plaintext);
+  const metrics = calculateByteMetrics(
+    sampleBytes(input.plaintext, FINAL_METRIC_SAMPLE_SIZE),
+  );
+
+  return {
+    finalText: input.finalText,
+    steps: [],
+    metricStats,
+    metadata: {
+      operation: ComplexCipherOperation.DECRYPT,
+      mode: input.mode,
+      algorithm: input.algorithm,
+      keySize: input.keySize,
+      inputEncoding: input.inputEncoding,
+      outputEncoding: input.outputEncoding,
+      ciphertextLength: input.ciphertext.length,
+      plaintextLength: input.plaintext.length,
+      byteEntropy: metrics.wordFrequencyEntropy,
+      stepMetricsSkipped: true,
+      iv: input.iv,
+      ...input.extraMetadata,
     },
   };
 }
