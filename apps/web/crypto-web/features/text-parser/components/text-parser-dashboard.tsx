@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, FileText, Hash, Type } from "lucide-react";
+import { Activity, Hash, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useParsedTexts } from "../hooks/use-parsed-texts";

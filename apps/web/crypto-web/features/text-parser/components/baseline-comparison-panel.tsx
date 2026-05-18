@@ -53,7 +53,7 @@ export function BaselineComparisonPanel({
   const { t } = useTranslation();
   const [complexJobs, setComplexJobs] = useState<ComplexCipherJob[]>([]);
   const [classicalJobs, setClassicalJobs] = useState<ClassicalCipherJob[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadedForId, setLoadedForId] = useState<string | null>(null);
 
   const natural = useMemo(() => {
     if (!selected) {
@@ -87,47 +87,46 @@ export function BaselineComparisonPanel({
     );
   }, [items, natural]);
 
+  const naturalId = natural?.id;
+  const isLoading = Boolean(naturalId && loadedForId !== naturalId);
+
   useEffect(() => {
-    if (!natural?.id) {
+    if (!naturalId) {
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
 
     void Promise.all([listComplexCipherJobs(), listCipherJobs()])
       .then(([complex, classical]) => {
         if (!cancelled) {
           setComplexJobs(complex);
           setClassicalJobs(classical);
+          setLoadedForId(naturalId);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setComplexJobs([]);
           setClassicalJobs([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
+          setLoadedForId(naturalId);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [natural?.id]);
+  }, [naturalId]);
 
   const encryptedJob = useMemo(() => {
-    if (!natural?.id) {
+    if (!naturalId) {
       return undefined;
     }
 
     const completedComplex = complexJobs
       .filter(
         (job) =>
-          job.parsedTextId === natural.id && job.status === "completed",
+          job.parsedTextId === naturalId && job.status === "completed",
       )
       .sort(
         (a, b) =>
@@ -141,13 +140,13 @@ export function BaselineComparisonPanel({
     return classicalJobs
       .filter(
         (job) =>
-          job.parsedTextId === natural.id && job.status === "completed",
+          job.parsedTextId === naturalId && job.status === "completed",
       )
       .sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       )[0];
-  }, [classicalJobs, complexJobs, natural?.id]);
+  }, [classicalJobs, complexJobs, naturalId]);
 
   const rows: MetricRow[] = [
     {
@@ -273,4 +272,3 @@ function ComparisonTable({ rows }: { rows: MetricRow[] }) {
     </div>
   );
 }
-

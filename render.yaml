@@ -1,0 +1,23 @@
+services:
+  - type: web
+    runtime: node
+    name: crypto-api
+    region: frankfurt
+    plan: free
+    autoDeployTrigger: commit
+    healthCheckPath: /
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.0 --activate && pnpm install --frozen-lockfile && pnpm --filter crypto-api build && pnpm --filter crypto-api migration:run:prod
+    startCommand: pnpm --filter crypto-api start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      - key: PORT
+        value: '3000'
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: 'true'
+      - key: TYPEORM_LOGGING
+        value: 'false'

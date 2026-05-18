@@ -63,5 +63,21 @@ Run migrations against Supabase only from a production shell/env:
 pnpm --filter crypto-api migration:run
 ```
 
+On Render, after the service is built, prefer the compiled migration command:
+
+```powershell
+pnpm --filter crypto-api migration:run:prod
+```
+
+On Render Free, `preDeployCommand` is not available, so `render.yaml` runs the
+compiled migration command at the end of `buildCommand`.
+
+For a one-shot Render Shell fix, run:
+
+```powershell
+pnpm --filter crypto-api build
+pnpm --filter crypto-api migration:run:prod
+```
+
 Do not copy local `.env` values to Render. Local Docker data and Supabase data
 should stay separate.
