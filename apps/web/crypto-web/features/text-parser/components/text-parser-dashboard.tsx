@@ -20,12 +20,14 @@ export function TextParserDashboard() {
     selectedId,
     isRefreshing,
     isSubmitting,
+    uploadProgress,
     message,
     setSelectedId,
     refresh,
     createFromFile,
     createFromText,
     createRandom,
+    createShuffle,
     createBaselineSet,
   } = useParsedTexts();
 
@@ -35,6 +37,10 @@ export function TextParserDashboard() {
   ).length;
   const totalWords = items.reduce((sum, item) => sum + item.totalWords, 0);
   const uniqueWords = selected?.uniqueWords ?? 0;
+  const shuffleSourceOptions = items.filter(
+    (item) =>
+      item.status === "completed" && item.corpusKind === "natural_text",
+  );
 
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
@@ -51,10 +57,13 @@ export function TextParserDashboard() {
             <div className="min-w-0 xl:col-span-4">
               <ParserFormCard
                 isSubmitting={isSubmitting}
+                uploadProgress={uploadProgress}
                 message={message}
                 onCreateFromFile={createFromFile}
                 onCreateFromText={createFromText}
                 onCreateRandom={createRandom}
+                onCreateShuffle={createShuffle}
+                parsedTextOptions={shuffleSourceOptions}
                 onCreateBaselineSet={createBaselineSet}
               />
             </div>

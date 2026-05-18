@@ -54,3 +54,28 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# External course materials / unrelated programs
+/!!! GoogleDrive_where materials are.txt
+/01text preprocessing/
+/02Zipf1,2&Pareto laws/
+/04Heaps law/
+/05V(L)binning/
+/07linguostatistics of program codes/
+/08statistical laws for letters&(letter&word n-grams)/
+/09random texts_generation/
+/10random texts_properties/
+/11random texts_generation&properties/
+/13consonant coefficient/
+/15word (sentence) length/
+/16repetition characteristics/
+/17waiting-times_p(tau)/
+/19keyword extraction/
+/21correlations_FA/
+/23correlations_DFA/
+/27Markov texts&properties/
+/28random texts_discourse&environment/
+/29linguistic networks&keywords/
+/30text similarity&plagiarism/
+/typical labs&lectures_CL&NLP.doc
+/_tmp_*

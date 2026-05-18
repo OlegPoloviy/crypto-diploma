@@ -405,6 +405,14 @@ const uk = {
   "For binary files, random-looking encrypted output should often land near 6-8 depending on file size and source data.":
     "Для бінарних файлів випадкоподібний зашифрований вихід часто має бути близько 6-8 залежно від розміру файлу та вихідних даних.",
   "Random baseline": "Рандомний baseline",
+  "Shuffle text": "Перемішати текст",
+  "Shuffle source": "Джерело для shuffle",
+  "Paste text": "Вставити текст",
+  "Upload file": "Завантажити файл",
+  "Input file": "Вхідний файл",
+  "Select parsed corpus": "Оберіть розпаршений корпус",
+  "No completed natural text corpora yet.":
+    "Ще немає завершених корпусів природного тексту.",
   "Baseline pair": "Пара baseline",
   Preprocess: "Препроцесинг",
   "Auto (detect Gutenberg)": "Авто (виявити Gutenberg)",
@@ -412,8 +420,11 @@ const uk = {
   Gutenberg: "Gutenberg",
   "Paste plain text here...": "Вставте звичайний текст тут...",
   "Saving...": "Збереження...",
+  "Uploading file...": "Завантаження файлу...",
+  "Processing file...": "Обробка файлу...",
   "Save & compute metrics": "Зберегти й порахувати метрики",
   "Generate random baseline": "Згенерувати рандомний baseline",
+  "Shuffle & compute metrics": "Перемішати й порахувати метрики",
   "Create baseline pair": "Створити пару baseline",
   'Saved "{{title}}" with metrics.': 'Збережено «{{title}}» з метриками.',
   "Saved {{count}} corpora for {{title}}.":
@@ -421,9 +432,12 @@ const uk = {
   "Failed to save corpus": "Не вдалося зберегти корпус",
   "Text or file is required for baseline pair":
     "Для пари baseline потрібен текст або файл",
+  "Text, file, or parsed corpus is required for shuffle":
+    "Для shuffle потрібен текст, файл або розпаршений корпус",
   "Byte length": "Довжина у байтах",
   "Optional seed": "Необовʼязковий seed",
   "Leave empty for crypto random": "Залиште порожнім для crypto random",
+  "Leave empty for random shuffle": "Залиште порожнім для випадкового shuffle",
   "Or upload plain text file": "Або завантажте файл plain text",
   Kind: "Тип",
   "Natural text": "Природний текст",

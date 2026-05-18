@@ -1,7 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Dices, FileStack, FileUp, Layers, Send, Upload } from "lucide-react";
+import {
+  Dices,
+  FileStack,
+  FileUp,
+  Layers,
+  Send,
+  Shuffle,
+  Upload,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { TextFileType } from "../lib/api";
-import { TextPreprocessMode } from "../types/parsed-text";
+import { ParsedText, TextPreprocessMode } from "../types/parsed-text";
 
 const FILE_TYPE_OPTIONS: {
   value: TextFileType;
@@ -31,17 +39,22 @@ const PREPROCESS_OPTIONS: { value: TextPreprocessMode; label: string }[] = [
   { value: "gutenberg", label: "Gutenberg" },
 ];
 
-type FormMode = "file" | "text" | "random" | "baseline";
+type FormMode = "file" | "text" | "shuffle" | "random" | "baseline";
+type ShuffleSource = "text" | "file" | "parsed";
 
 export function ParserFormCard({
   isSubmitting,
+  uploadProgress,
   message,
   onCreateFromFile,
   onCreateFromText,
   onCreateRandom,
+  onCreateShuffle,
+  parsedTextOptions,
   onCreateBaselineSet,
 }: {
   isSubmitting: boolean;
+  uploadProgress: number | null;
   message: string | null;
   onCreateFromFile: (input: {
     title: string;
@@ -59,6 +72,16 @@ export function ParserFormCard({
     byteLength: number;
     seed?: number;
   }) => Promise<unknown>;
+  onCreateShuffle: (input: {
+    title: string;
+    text?: string;
+    file?: File;
+    parsedTextId?: string;
+    fileType?: TextFileType;
+    preprocess?: TextPreprocessMode;
+    seed?: number;
+  }) => Promise<unknown>;
+  parsedTextOptions: ParsedText[];
   onCreateBaselineSet: (input: {
     title: string;
     text?: string;
@@ -78,6 +101,11 @@ export function ParserFormCard({
   const [byteLength, setByteLength] = useState("65536");
   const [seed, setSeed] = useState("");
   const [baselineFile, setBaselineFile] = useState<File | null>(null);
+  const [shuffleSource, setShuffleSource] = useState<ShuffleSource>("text");
+  const [shuffleFile, setShuffleFile] = useState<File | null>(null);
+  const [shuffleFileType, setShuffleFileType] =
+    useState<TextFileType>("plain-text");
+  const [shuffleParsedTextId, setShuffleParsedTextId] = useState("");
 
   const selectedFileType = FILE_TYPE_OPTIONS.find(
     (option) => option.value === fileType,
@@ -104,6 +132,17 @@ export function ParserFormCard({
         byteLength: Number(byteLength),
         seed: seed.trim() ? Number(seed) : undefined,
       });
+    } else if (mode === "shuffle") {
+      created = await onCreateShuffle({
+        title,
+        text: shuffleSource === "text" ? rawText : undefined,
+        file: shuffleSource === "file" ? shuffleFile ?? undefined : undefined,
+        parsedTextId:
+          shuffleSource === "parsed" ? shuffleParsedTextId : undefined,
+        fileType: shuffleSource === "file" ? shuffleFileType : undefined,
+        preprocess,
+        seed: seed.trim() ? Number(seed) : undefined,
+      });
     } else {
       created = await onCreateBaselineSet({
         title,
@@ -119,6 +158,8 @@ export function ParserFormCard({
       setRawText("");
       setFiles([]);
       setBaselineFile(null);
+      setShuffleFile(null);
+      setShuffleParsedTextId("");
       setSeed("");
       event.currentTarget.reset();
     }
@@ -152,6 +193,9 @@ export function ParserFormCard({
               </TabsTrigger>
               <TabsTrigger value="text" className="min-h-8 px-2 text-xs">
                 {t("Raw text")}
+              </TabsTrigger>
+              <TabsTrigger value="shuffle" className="min-h-8 px-2 text-xs">
+                {t("Shuffle text")}
               </TabsTrigger>
               <TabsTrigger value="random" className="min-h-8 px-2 text-xs">
                 {t("Random baseline")}
@@ -209,6 +253,24 @@ export function ParserFormCard({
             />
           ) : null}
 
+          {mode === "shuffle" ? (
+            <ShuffleFields
+              shuffleSource={shuffleSource}
+              setShuffleSource={setShuffleSource}
+              rawText={rawText}
+              setRawText={setRawText}
+              shuffleFile={shuffleFile}
+              setShuffleFile={setShuffleFile}
+              shuffleFileType={shuffleFileType}
+              setShuffleFileType={setShuffleFileType}
+              shuffleParsedTextId={shuffleParsedTextId}
+              setShuffleParsedTextId={setShuffleParsedTextId}
+              parsedTextOptions={parsedTextOptions}
+              preprocess={preprocess}
+              t={t}
+            />
+          ) : null}
+
           {mode === "text" || (mode === "baseline" && !baselineFile) ? (
             <div className="space-y-2">
               <Label className="text-slate-700 dark:text-slate-300">
@@ -240,7 +302,7 @@ export function ParserFormCard({
             </div>
           ) : null}
 
-          {mode === "random" || mode === "baseline" ? (
+          {mode === "random" || mode === "baseline" || mode === "shuffle" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {mode === "random" ? (
                 <FormField
@@ -257,7 +319,11 @@ export function ParserFormCard({
                 value={seed}
                 onChange={setSeed}
                 type="number"
-                placeholder={t("Leave empty for crypto random")}
+                placeholder={
+                  mode === "shuffle"
+                    ? t("Leave empty for random shuffle")
+                    : t("Leave empty for crypto random")
+                }
               />
             </div>
           ) : null}
@@ -268,16 +334,32 @@ export function ParserFormCard({
               disabled={isSubmitting}
               className="min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-100 dark:hover:bg-cyan-400/30"
             >
-              {mode === "file" ? <FileUp /> : mode === "random" ? <Dices /> : mode === "baseline" ? <Layers /> : <Send />}
+              {mode === "file" ? (
+                <FileUp />
+              ) : mode === "random" ? (
+                <Dices />
+              ) : mode === "baseline" ? (
+                <Layers />
+              ) : mode === "shuffle" ? (
+                <Shuffle />
+              ) : (
+                <Send />
+              )}
               {isSubmitting
                 ? t("Saving...")
                 : mode === "baseline"
                   ? t("Create baseline pair")
                   : mode === "random"
                     ? t("Generate random baseline")
+                    : mode === "shuffle"
+                      ? t("Shuffle & compute metrics")
                     : t("Save & compute metrics")}
             </Button>
           </div>
+
+          {uploadProgress !== null ? (
+            <UploadProgressPanel progress={uploadProgress} t={t} />
+          ) : null}
 
           {message ? (
             <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
@@ -287,6 +369,31 @@ export function ParserFormCard({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function UploadProgressPanel({
+  progress,
+  t,
+}: {
+  progress: number;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-400/20 dark:bg-cyan-400/10">
+      <div className="flex items-center justify-between gap-3 text-xs font-medium text-cyan-800 dark:text-cyan-100">
+        <span>
+          {progress >= 100 ? t("Processing file...") : t("Uploading file...")}
+        </span>
+        <span className="tabular-nums">{progress}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white/80 dark:bg-[#080b16]">
+        <div
+          className="h-full rounded-full bg-cyan-600 transition-[width] duration-200 dark:bg-cyan-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -360,6 +467,146 @@ function FileUploadFields({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ShuffleFields({
+  shuffleSource,
+  setShuffleSource,
+  rawText,
+  setRawText,
+  shuffleFile,
+  setShuffleFile,
+  shuffleFileType,
+  setShuffleFileType,
+  shuffleParsedTextId,
+  setShuffleParsedTextId,
+  parsedTextOptions,
+  t,
+}: {
+  shuffleSource: ShuffleSource;
+  setShuffleSource: (value: ShuffleSource) => void;
+  rawText: string;
+  setRawText: (value: string) => void;
+  shuffleFile: File | null;
+  setShuffleFile: (file: File | null) => void;
+  shuffleFileType: TextFileType;
+  setShuffleFileType: (value: TextFileType) => void;
+  shuffleParsedTextId: string;
+  setShuffleParsedTextId: (value: string) => void;
+  parsedTextOptions: ParsedText[];
+  preprocess: TextPreprocessMode;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  const textFileOptions = FILE_TYPE_OPTIONS.filter(
+    (option) => option.value !== "binary",
+  );
+  const selectedFileType = textFileOptions.find(
+    (option) => option.value === shuffleFileType,
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-slate-700 dark:text-slate-300">
+          {t("Shuffle source")}
+        </Label>
+        <select
+          value={shuffleSource}
+          onChange={(event) =>
+            setShuffleSource(event.target.value as ShuffleSource)
+          }
+          className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+        >
+          <option value="text">{t("Paste text")}</option>
+          <option value="file">{t("Upload file")}</option>
+          <option value="parsed">{t("Parsed corpus")}</option>
+        </select>
+      </div>
+
+      {shuffleSource === "text" ? (
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">
+            {t("Input text")}
+          </Label>
+          <Textarea
+            value={rawText}
+            onChange={(event) => setRawText(event.target.value)}
+            placeholder={t("Paste plain text here...")}
+            required
+            className="min-h-48 border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-400 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100 dark:placeholder:text-slate-600"
+          />
+        </div>
+      ) : null}
+
+      {shuffleSource === "file" ? (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">
+              {t("File type")}
+            </Label>
+            <select
+              value={shuffleFileType}
+              onChange={(event) =>
+                setShuffleFileType(event.target.value as TextFileType)
+              }
+              className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              {textFileOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">
+              {t("Input file")}
+            </Label>
+            <Input
+              type="file"
+              accept={selectedFileType?.accept}
+              required
+              onChange={(event) =>
+                setShuffleFile(event.target.files?.[0] ?? null)
+              }
+              className="border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#080b16]"
+            />
+            {shuffleFile ? (
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {shuffleFile.name}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {shuffleSource === "parsed" ? (
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">
+            {t("Parsed corpus")}
+          </Label>
+          <select
+            value={shuffleParsedTextId}
+            required
+            onChange={(event) => setShuffleParsedTextId(event.target.value)}
+            className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+          >
+            <option value="">{t("Select parsed corpus")}</option>
+            {parsedTextOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+          {parsedTextOptions.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t("No completed natural text corpora yet.")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

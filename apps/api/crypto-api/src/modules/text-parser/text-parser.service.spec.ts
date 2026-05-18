@@ -167,6 +167,90 @@ describe('TextParserService', () => {
     expect(result.wordFrequencyEntropy).toEqual(expect.any(Number));
   });
 
+  it('creates reproducible shuffled text with metrics', async () => {
+    await service.createShuffledText({
+      title: 'Shuffled sample',
+      text: 'alpha beta gamma delta epsilon',
+      seed: 7,
+    });
+    await service.createShuffledText({
+      title: 'Shuffled sample 2',
+      text: 'alpha beta gamma delta epsilon',
+      seed: 7,
+    });
+
+    const savedRecords = repo.create.mock.calls.map(([record]) => record);
+    const firstContent = savedRecords[0].content;
+    const secondContent = savedRecords[1].content;
+
+    expect(firstContent).toBe(secondContent);
+    expect(firstContent).not.toBe('alpha beta gamma delta epsilon');
+    expect(firstContent.split(' ').sort()).toEqual([
+      'alpha',
+      'beta',
+      'delta',
+      'epsilon',
+      'gamma',
+    ]);
+    expect(savedRecords[0]).toEqual(
+      expect.objectContaining({
+        source: ParsedTextSource.GENERATED,
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+        status: ParsedTextStatus.COMPLETED,
+        deaDelta: expect.any(Number),
+      }),
+    );
+  });
+
+  it('shuffles uploaded text files without requiring pasted text', async () => {
+    await service.createShuffledTextFromFile(
+      'Uploaded shuffle',
+      {
+        originalname: 'sample.txt',
+        buffer: Buffer.from('one two three four five'),
+      },
+      TextFileType.PLAIN_TEXT,
+      TextPreprocessMode.AUTO,
+      11,
+    );
+
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Uploaded shuffle',
+        source: ParsedTextSource.GENERATED,
+        originalFileName: 'sample.txt',
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+        status: ParsedTextStatus.COMPLETED,
+      }),
+    );
+  });
+
+  it('shuffles an existing completed natural text corpus', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'parsed-text-1',
+      title: 'Stored sample',
+      status: ParsedTextStatus.COMPLETED,
+      content: 'stored text can be shuffled',
+      contentEncoding: ParsedTextContentEncoding.UTF8,
+      corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+    });
+
+    const result = await service.createShuffledTextFromParsedText(
+      'parsed-text-1',
+      'Stored shuffle',
+      13,
+    );
+
+    expect(result.status).toBe(ParsedTextStatus.COMPLETED);
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Stored shuffle',
+        source: ParsedTextSource.GENERATED,
+        originalFileName: 'Stored sample-shuffled.txt',
+      }),
+    );
+  });
+
   it('returns stored content for download', async () => {
     repo.findOne.mockResolvedValue({
       id: 'parsed-text-1',

@@ -41,6 +41,7 @@ import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.d
 import { GenerateRandomBytesDto } from './dto/generate-random.dto';
 import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParseTextDto } from './dto/parse-text.dto';
+import { ShuffleTextDto } from './dto/shuffle-text.dto';
 import { ParsedTextCorpusKind } from './parsed-text.entity';
 import {
   ListParsedTextsQuery,
@@ -78,6 +79,30 @@ class ParseFileDto {
   @IsEnum(TextPreprocessMode)
   @IsOptional()
   preprocess?: TextPreprocessMode;
+}
+
+class ShuffleFileDto extends ParseFileDto {
+  @ApiProperty({ required: false })
+  @IsInt()
+  @IsOptional()
+  seed?: number;
+}
+
+class ShuffleParsedTextDto {
+  @ApiProperty({
+    example: 'Moby Dick shuffled',
+    maxLength: 150,
+    description: 'Human-readable title for the shuffled corpus',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  title: string;
+
+  @ApiProperty({ required: false })
+  @IsInt()
+  @IsOptional()
+  seed?: number;
 }
 
 class BaselineSetFileDto extends ParseFileDto {
@@ -178,6 +203,56 @@ export class TextParserController {
     @Body() body: GenerateRandomBytesDto,
   ): Promise<CreateParsedTextResponseDto> {
     return this.textParserService.createRandomBytes(body);
+  }
+
+  @Post('shuffle')
+  @ApiOperation({ summary: 'Shuffle natural text words and compute metrics' })
+  @ApiCreatedResponse({ type: CreateParsedTextResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed' })
+  createShuffledText(
+    @Body() body: ShuffleTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    return this.textParserService.createShuffledText(body);
+  }
+
+  @Post('shuffle/file')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload text, shuffle words, and compute metrics',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreatedResponse({ type: CreateParsedTextResponseDto })
+  @ApiBadRequestResponse({ description: 'File is missing or invalid' })
+  createShuffledTextFromFile(
+    @Body() body: ShuffleFileDto,
+    @UploadedFile() file?: { buffer: Buffer; originalname?: string },
+  ): Promise<CreateParsedTextResponseDto> {
+    return this.textParserService.createShuffledTextFromFile(
+      body.title,
+      file,
+      body.fileType,
+      body.preprocess,
+      body.seed,
+    );
+  }
+
+  @Post('shuffle/:id')
+  @ApiOperation({
+    summary: 'Shuffle an already parsed text corpus and compute metrics',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Parsed text id' })
+  @ApiCreatedResponse({ type: CreateParsedTextResponseDto })
+  @ApiBadRequestResponse({ description: 'Corpus is not ready or invalid' })
+  @ApiNotFoundResponse({ description: 'Parsed text not found' })
+  createShuffledTextFromParsedText(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: ShuffleParsedTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    return this.textParserService.createShuffledTextFromParsedText(
+      id,
+      body.title,
+      body.seed,
+    );
   }
 
   @Post('baseline-set')

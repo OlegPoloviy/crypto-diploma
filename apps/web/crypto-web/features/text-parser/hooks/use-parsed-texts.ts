@@ -9,10 +9,18 @@ import {
   createParsedTextFromFile,
   createParsedTextFromRaw,
   createRandomBaseline,
+  createShuffledText,
+  createShuffledTextFromFile,
+  createShuffledTextFromParsedText,
   listParsedTexts,
   TextFileType,
+  UploadProgressCallback,
 } from "../lib/api";
-import { BaselineSetResult, ParsedText, TextPreprocessMode } from "../types/parsed-text";
+import {
+  BaselineSetResult,
+  ParsedText,
+  TextPreprocessMode,
+} from "../types/parsed-text";
 
 export function useParsedTexts() {
   const { t } = useTranslation();
@@ -20,6 +28,7 @@ export function useParsedTexts() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
 
@@ -97,7 +106,14 @@ export function useParsedTexts() {
     fileType: TextFileType;
     preprocess?: TextPreprocessMode;
   }) {
-    return submit(() => createParsedTextFromFile(input), input.title);
+    return submit(
+      () =>
+        createParsedTextFromFile({
+          ...input,
+          onUploadProgress: handleUploadProgress,
+        }),
+      input.title,
+    );
   }
 
   async function createRandom(input: {
@@ -106,6 +122,48 @@ export function useParsedTexts() {
     seed?: number;
   }) {
     return submit(() => createRandomBaseline(input), input.title);
+  }
+
+  async function createShuffle(input: {
+    title: string;
+    text?: string;
+    file?: File;
+    parsedTextId?: string;
+    fileType?: TextFileType;
+    preprocess?: TextPreprocessMode;
+    seed?: number;
+  }) {
+    return submit(async () => {
+      if (input.parsedTextId) {
+        return createShuffledTextFromParsedText({
+          title: input.title,
+          parsedTextId: input.parsedTextId,
+          seed: input.seed,
+        });
+      }
+
+      if (input.file) {
+        return createShuffledTextFromFile({
+          title: input.title,
+          file: input.file,
+          fileType: input.fileType,
+          preprocess: input.preprocess,
+          seed: input.seed,
+          onUploadProgress: handleUploadProgress,
+        });
+      }
+
+      if (!input.text?.trim()) {
+        throw new Error(t("Text, file, or parsed corpus is required for shuffle"));
+      }
+
+      return createShuffledText({
+        title: input.title,
+        text: input.text,
+        preprocess: input.preprocess,
+        seed: input.seed,
+      });
+    }, input.title);
   }
 
   async function createBaselineSet(input: {
@@ -123,6 +181,7 @@ export function useParsedTexts() {
           file: input.file,
           preprocess: input.preprocess,
           seed: input.seed,
+          onUploadProgress: handleUploadProgress,
         });
       }
 
@@ -146,6 +205,7 @@ export function useParsedTexts() {
   ) {
     setMessage(null);
     setIsSubmitting(true);
+    setUploadProgress(null);
 
     try {
       const result = await factory();
@@ -173,8 +233,16 @@ export function useParsedTexts() {
       return null;
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   }
+
+  const handleUploadProgress: UploadProgressCallback = useCallback(
+    (progress) => {
+      setUploadProgress(progress);
+    },
+    [],
+  );
 
   return {
     items,
@@ -182,6 +250,7 @@ export function useParsedTexts() {
     selectedId,
     isRefreshing,
     isSubmitting,
+    uploadProgress,
     message,
     setSelectedId: selectParsedText,
     hasActiveJobs,
@@ -189,6 +258,7 @@ export function useParsedTexts() {
     createFromText,
     createFromFile,
     createRandom,
+    createShuffle,
     createBaselineSet,
   };
 }

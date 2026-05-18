@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomBytes, randomInt, randomUUID } from 'crypto';
 import { join } from 'path';
 import { Worker } from 'worker_threads';
 import { FindOptionsWhere, Repository } from 'typeorm';
@@ -16,6 +16,7 @@ import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.d
 import { GenerateRandomBytesDto } from './dto/generate-random.dto';
 import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParsedTextResponseDto } from './dto/parsed-text-response.dto';
+import { ShuffleTextDto } from './dto/shuffle-text.dto';
 import {
   ParsedTextContentEncoding,
   ParsedTextCorpusKind,
@@ -138,6 +139,100 @@ export class TextParserService {
       title: body.title,
       bytes,
       baselineSetId: body.baselineSetId,
+    });
+  }
+
+  async createShuffledText(
+    body: ShuffleTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    const preprocess = body.preprocess ?? TextPreprocessMode.AUTO;
+    const parsed = parsePlainText(body.text, { preprocess });
+
+    if (parsed.words.length < 2) {
+      throw new BadRequestException('Text must contain at least two words');
+    }
+
+    const shuffledText = shuffleWords(parsed.words, body.seed).join(' ');
+
+    return this.createCompletedNaturalText({
+      title: body.title,
+      text: shuffledText,
+      source: ParsedTextSource.GENERATED,
+      preprocess: TextPreprocessMode.NONE,
+    });
+  }
+
+  async createShuffledTextFromFile(
+    title: string,
+    file?: { buffer: Buffer; originalname?: string },
+    fileType = TextFileType.PLAIN_TEXT,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
+    seed?: number,
+  ): Promise<CreateParsedTextResponseDto> {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const upload = this.prepareUpload(file, fileType);
+    if (upload.encoding === ParsedTextContentEncoding.HEX) {
+      throw new BadRequestException('Only text files can be shuffled');
+    }
+
+    return this.createShuffledTextRecord({
+      title,
+      text: upload.text,
+      preprocess,
+      seed,
+      originalFileName: upload.file.originalname,
+    });
+  }
+
+  async createShuffledTextFromParsedText(
+    id: string,
+    title: string,
+    seed?: number,
+  ): Promise<CreateParsedTextResponseDto> {
+    const parsedText = await this.parsedTextsRepo.findOne({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        content: true,
+        contentEncoding: true,
+        corpusKind: true,
+      },
+    });
+
+    if (!parsedText) {
+      throw new NotFoundException(`Parsed text ${id} not found`);
+    }
+
+    if (parsedText.status !== ParsedTextStatus.COMPLETED) {
+      throw new BadRequestException(
+        `Parsed text ${id} is not ready yet: ${parsedText.status}`,
+      );
+    }
+
+    if (
+      parsedText.contentEncoding !== ParsedTextContentEncoding.UTF8 ||
+      parsedText.corpusKind !== ParsedTextCorpusKind.NATURAL_TEXT
+    ) {
+      throw new BadRequestException('Only natural text corpora can be shuffled');
+    }
+
+    if (!parsedText.content?.trim()) {
+      throw new BadRequestException(
+        `Parsed text ${id} has no stored content to shuffle`,
+      );
+    }
+
+    return this.createShuffledTextRecord({
+      title,
+      text: parsedText.content,
+      preprocess: TextPreprocessMode.NONE,
+      seed,
+      originalFileName: `${sanitizeFilename(parsedText.title)}-shuffled.txt`,
     });
   }
 
@@ -405,6 +500,30 @@ export class TextParserService {
     );
 
     return this.toResponse(parsedText);
+  }
+
+  private async createShuffledTextRecord(input: {
+    title: string;
+    text: string;
+    preprocess: TextPreprocessMode;
+    seed?: number;
+    originalFileName?: string;
+  }): Promise<CreateParsedTextResponseDto> {
+    const parsed = parsePlainText(input.text, { preprocess: input.preprocess });
+
+    if (parsed.words.length < 2) {
+      throw new BadRequestException('Text must contain at least two words');
+    }
+
+    const shuffledText = shuffleWords(parsed.words, input.seed).join(' ');
+
+    return this.createCompletedNaturalText({
+      title: input.title,
+      text: shuffledText,
+      source: ParsedTextSource.GENERATED,
+      originalFileName: input.originalFileName,
+      preprocess: TextPreprocessMode.NONE,
+    });
   }
 
   private async saveRandomBytesRecord(input: {
@@ -758,4 +877,37 @@ function generateRandomBuffer(byteLength: number, seed?: number): Buffer {
   }
 
   return buffer;
+}
+
+function shuffleWords(words: string[], seed?: number): string[] {
+  const shuffled = [...words];
+  const nextIndex =
+    seed === undefined
+      ? createCryptoRandomIndex()
+      : createSeededRandomIndex(seed);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = nextIndex(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  return shuffled;
+}
+
+function createCryptoRandomIndex(): (maxExclusive: number) => number {
+  return (maxExclusive) => randomInt(maxExclusive);
+}
+
+function createSeededRandomIndex(
+  seed: number,
+): (maxExclusive: number) => number {
+  let state = seed >>> 0;
+
+  return (maxExclusive) => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return Math.floor((state / 0x100000000) * maxExclusive);
+  };
 }

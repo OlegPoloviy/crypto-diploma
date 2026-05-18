@@ -19,6 +19,8 @@ export interface ParsedTextContentPayload {
   mimeType: string;
 }
 
+export type UploadProgressCallback = (progress: number) => void;
+
 export async function getParsedTextContent(
   id: string,
 ): Promise<ParsedTextContentPayload> {
@@ -67,6 +69,7 @@ export async function createParsedTextFromFile(input: {
   files: File[];
   fileType: TextFileType;
   preprocess?: TextPreprocessMode;
+  onUploadProgress?: UploadProgressCallback;
 }): Promise<ParsedText[]> {
   const formData = new FormData();
   formData.append("title", input.title);
@@ -77,12 +80,11 @@ export async function createParsedTextFromFile(input: {
 
   input.files.forEach((file) => formData.append("files", file));
 
-  const response = await fetch("/api/text-parser/files", {
-    method: "POST",
-    body: formData,
-  });
-
-  return parseResponse<ParsedText[]>(response);
+  return uploadFormData<ParsedText[]>(
+    "/api/text-parser/files",
+    formData,
+    input.onUploadProgress,
+  );
 }
 
 export async function createRandomBaseline(input: {
@@ -95,6 +97,64 @@ export async function createRandomBaseline(input: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
+  });
+
+  return parseResponse<ParsedText>(response);
+}
+
+export async function createShuffledText(input: {
+  title: string;
+  text: string;
+  preprocess?: TextPreprocessMode;
+  seed?: number;
+}): Promise<ParsedText> {
+  const response = await fetch("/api/text-parser/shuffle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  return parseResponse<ParsedText>(response);
+}
+
+export async function createShuffledTextFromFile(input: {
+  title: string;
+  file: File;
+  fileType?: TextFileType;
+  preprocess?: TextPreprocessMode;
+  seed?: number;
+  onUploadProgress?: UploadProgressCallback;
+}): Promise<ParsedText> {
+  const formData = new FormData();
+  formData.append("title", input.title);
+  formData.append("fileType", input.fileType ?? "plain-text");
+  if (input.preprocess) {
+    formData.append("preprocess", input.preprocess);
+  }
+  if (input.seed !== undefined) {
+    formData.append("seed", String(input.seed));
+  }
+  formData.append("file", input.file);
+
+  return uploadFormData<ParsedText>(
+    "/api/text-parser/shuffle/file",
+    formData,
+    input.onUploadProgress,
+  );
+}
+
+export async function createShuffledTextFromParsedText(input: {
+  title: string;
+  parsedTextId: string;
+  seed?: number;
+}): Promise<ParsedText> {
+  const response = await fetch(`/api/text-parser/shuffle/${input.parsedTextId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: input.title,
+      seed: input.seed,
+    }),
   });
 
   return parseResponse<ParsedText>(response);
@@ -124,6 +184,7 @@ export async function createBaselineSetFromFile(input: {
   preprocess?: TextPreprocessMode;
   randomByteLength?: number;
   seed?: number;
+  onUploadProgress?: UploadProgressCallback;
 }): Promise<BaselineSetResult> {
   const formData = new FormData();
   formData.append("title", input.title);
@@ -139,12 +200,11 @@ export async function createBaselineSetFromFile(input: {
   }
   formData.append("file", input.file);
 
-  const response = await fetch("/api/text-parser/baseline-set/file", {
-    method: "POST",
-    body: formData,
-  });
-
-  return parseResponse<BaselineSetResult>(response);
+  return uploadFormData<BaselineSetResult>(
+    "/api/text-parser/baseline-set/file",
+    formData,
+    input.onUploadProgress,
+  );
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -155,4 +215,38 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return text ? (JSON.parse(text) as T) : (null as T);
+}
+
+function uploadFormData<T>(
+  url: string,
+  formData: FormData,
+  onUploadProgress?: UploadProgressCallback,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+
+    request.open("POST", url);
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        return;
+      }
+
+      onUploadProgress?.(
+        Math.min(100, Math.round((event.loaded / event.total) * 100)),
+      );
+    };
+    request.onload = () => {
+      const text = request.responseText;
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(text || "Request failed"));
+        return;
+      }
+
+      onUploadProgress?.(100);
+      resolve(text ? (JSON.parse(text) as T) : (null as T));
+    };
+    request.onerror = () => reject(new Error("Upload failed"));
+    request.onabort = () => reject(new Error("Upload cancelled"));
+    request.send(formData);
+  });
 }
