@@ -54,7 +54,7 @@ export function useAesWorkspace() {
   const [algorithm, setAlgorithmState] =
     useState<ComplexCipherAlgorithm>("aes");
   const [blockSizeBits, setBlockSizeBits] = useState<KalynaBlockSize>(128);
-  const [operation, setOperation] = useState<AesOperation>("encrypt");
+  const [operation, setOperationState] = useState<AesOperation>("encrypt");
   const [mode, setMode] = useState<AesMode>("cbc");
   const [plaintext, setPlaintext] = useState(cipherPresets.aes.plaintext);
   const [ciphertext, setCiphertext] = useState("");
@@ -80,8 +80,12 @@ export function useAesWorkspace() {
     string | null
   >(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedSourceJobId, setSelectedSourceJobId] = useState<string | null>(
+    null,
+  );
   const selectedParsedTextIdRef = useRef<string | null>(null);
   const selectedJobIdRef = useRef<string | null>(null);
+  const selectedSourceJobIdRef = useRef<string | null>(null);
   const parsedTextsRef = useRef<ParsedText[]>([]);
   const jobsRef = useRef<ComplexCipherJob[]>([]);
 
@@ -106,6 +110,17 @@ export function useAesWorkspace() {
     () => parsedTexts.filter((item) => item.status === "completed"),
     [parsedTexts],
   );
+  const encryptedSourceJobs = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          job.algorithm === algorithm &&
+          job.status === "completed" &&
+          Boolean(job.finalText) &&
+          (job.parameters.operation ?? "encrypt") === "encrypt",
+      ),
+    [algorithm, jobs],
+  );
   const selectedParsedText = useMemo(
     () =>
       parsedTexts.find((item) => item.id === selectedParsedTextId) ??
@@ -116,6 +131,13 @@ export function useAesWorkspace() {
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
     [jobs, selectedJobId],
+  );
+  const selectedSourceJob = useMemo(
+    () =>
+      encryptedSourceJobs.find((job) => job.id === selectedSourceJobId) ??
+      encryptedSourceJobs[0] ??
+      null,
+    [encryptedSourceJobs, selectedSourceJobId],
   );
   const hasActiveJobs = useMemo(
     () =>
@@ -134,6 +156,10 @@ export function useAesWorkspace() {
   }, [selectedJobId]);
 
   useEffect(() => {
+    selectedSourceJobIdRef.current = selectedSourceJobId;
+  }, [selectedSourceJobId]);
+
+  useEffect(() => {
     parsedTextsRef.current = parsedTexts;
   }, [parsedTexts]);
 
@@ -150,6 +176,32 @@ export function useAesWorkspace() {
     selectedJobIdRef.current = id;
     setSelectedJobId(id);
   }, []);
+
+  const selectSourceJob = useCallback((id: string | null) => {
+    selectedSourceJobIdRef.current = id;
+    setSelectedSourceJobId(id);
+
+    const sourceJob = jobsRef.current.find((job) => job.id === id);
+    const sourceEncoding = getJobOutputEncoding(sourceJob);
+    if (sourceJob?.finalText) {
+      setCiphertext(sourceJob.finalText);
+    }
+    if (sourceEncoding) {
+      setCipherInputEncoding(sourceEncoding);
+    }
+  }, []);
+
+  function setOperation(nextOperation: AesOperation) {
+    setOperationState(nextOperation);
+    if (nextOperation !== "decrypt") {
+      return;
+    }
+
+    const sourceJob = selectedSourceJob ?? encryptedSourceJobs[0] ?? null;
+    if (sourceJob) {
+      selectSourceJob(sourceJob.id);
+    }
+  }
 
   const refreshJobs = useCallback(
     async (showSpinner = false) => {
@@ -184,6 +236,16 @@ export function useAesWorkspace() {
         if (!selectedJobIdRef.current && complexJobs.length > 0) {
           selectJob(complexJobs[0].id);
         }
+        const firstEncryptedSource = complexJobs.find(
+          (job) =>
+            job.algorithm === algorithm &&
+            job.status === "completed" &&
+            Boolean(job.finalText) &&
+            (job.parameters.operation ?? "encrypt") === "encrypt",
+        );
+        if (!selectedSourceJobIdRef.current && firstEncryptedSource) {
+          selectSourceJob(firstEncryptedSource.id);
+        }
 
         if (
           textsResult.status === "rejected" ||
@@ -203,7 +265,7 @@ export function useAesWorkspace() {
         setIsRefreshingJobs(false);
       }
     },
-    [selectJob, selectParsedText, t],
+    [algorithm, selectJob, selectParsedText, selectSourceJob, t],
   );
 
   useEffect(() => {
@@ -264,6 +326,9 @@ export function useAesWorkspace() {
       if (response.operation === "encrypt") {
         setCiphertext(response.result);
         setCipherInputEncoding(response.outputEncoding);
+      } else {
+        setPlaintext(response.result);
+        setInputEncoding(response.outputEncoding);
       }
       setMessage(
         response.operation === "encrypt"
@@ -284,7 +349,12 @@ export function useAesWorkspace() {
   }
 
   async function submitJob() {
-    if (!selectedParsedText) {
+    if (operation === "decrypt" && !selectedSourceJob) {
+      setMessage(t("No completed encrypted result selected."));
+      return null;
+    }
+
+    if (operation === "encrypt" && !selectedParsedText) {
       setMessage(t("No completed parsed text selected."));
       return null;
     }
@@ -295,11 +365,23 @@ export function useAesWorkspace() {
     try {
       const created = await createAesJob(
         {
-          parsedTextId: selectedParsedText.id,
+          parsedTextId:
+            operation === "decrypt"
+              ? (selectedSourceJob as ComplexCipherJob).parsedTextId
+              : (selectedParsedText as ParsedText).id,
+          sourceJobId:
+            operation === "decrypt"
+              ? (selectedSourceJob as ComplexCipherJob).id
+              : undefined,
+          operation,
           key,
           ...kalynaPayload,
+          inputEncoding:
+            operation === "decrypt"
+              ? (getJobOutputEncoding(selectedSourceJob) ?? activeInputEncoding)
+              : activeInputEncoding,
           keyEncoding,
-          outputEncoding,
+          outputEncoding: activeOutputEncoding,
           mode,
           iv: mode === "cbc" ? iv : undefined,
           ivEncoding,
@@ -342,10 +424,12 @@ export function useAesWorkspace() {
         title: input.title,
         files: input.files,
         fileType: input.fileType,
+        operation,
         key,
         ...kalynaPayload,
+        inputEncoding: activeInputEncoding,
         keyEncoding,
-        outputEncoding,
+        outputEncoding: activeOutputEncoding,
         mode,
         iv: mode === "cbc" ? iv : undefined,
         ivEncoding,
@@ -394,7 +478,7 @@ export function useAesWorkspace() {
   }
 
   function loadFipsVector() {
-    setOperation("encrypt");
+    setOperationState("encrypt");
     setMode("ecb");
     if (algorithm === "kalyna") {
       setBlockSizeBits(128);
@@ -436,12 +520,21 @@ export function useAesWorkspace() {
     setPlainOutputEncoding("utf8");
     setIvEncoding("hex");
     setWhiteningEnabled(false);
+    if (operation === "decrypt") {
+      const sourceJob = findFirstEncryptedSourceJob(
+        jobsRef.current,
+        nextAlgorithm,
+      );
+      selectSourceJob(sourceJob?.id ?? null);
+    } else {
+      selectSourceJob(null);
+    }
     setResult(null);
     setMessage(null);
   }
 
   function swapToDecrypt() {
-    setOperation("decrypt");
+    setOperationState("decrypt");
     setPlainOutputEncoding("utf8");
     if (result?.operation === "encrypt") {
       setCiphertext(result.result);
@@ -483,6 +576,9 @@ export function useAesWorkspace() {
     selectedParsedTextId,
     selectedJob,
     selectedJobId,
+    encryptedSourceJobs,
+    selectedSourceJob,
+    selectedSourceJobId,
     hasActiveJobs,
     setAlgorithm,
     setBlockSizeBits,
@@ -501,6 +597,7 @@ export function useAesWorkspace() {
     setWhiteningEnabled,
     setSelectedParsedTextId: selectParsedText,
     setSelectedJobId: selectJob,
+    setSelectedSourceJobId: selectSourceJob,
     submit,
     submitJob,
     submitFileJobs,
@@ -509,6 +606,35 @@ export function useAesWorkspace() {
     loadFipsVector,
     swapToDecrypt,
   };
+}
+
+function getJobOutputEncoding(
+  job: ComplexCipherJob | null | undefined,
+): BinaryEncoding | null {
+  const metadataEncoding = job?.metadata?.outputEncoding;
+  if (isBinaryEncoding(metadataEncoding)) {
+    return metadataEncoding;
+  }
+
+  const parameterEncoding = job?.parameters.outputEncoding;
+  return isBinaryEncoding(parameterEncoding) ? parameterEncoding : null;
+}
+
+function isBinaryEncoding(value: unknown): value is BinaryEncoding {
+  return value === "utf8" || value === "hex" || value === "base64";
+}
+
+function findFirstEncryptedSourceJob(
+  jobs: ComplexCipherJob[],
+  algorithm: ComplexCipherAlgorithm,
+) {
+  return jobs.find(
+    (job) =>
+      job.algorithm === algorithm &&
+      job.status === "completed" &&
+      Boolean(job.finalText) &&
+      (job.parameters.operation ?? "encrypt") === "encrypt",
+  );
 }
 
 function describeKeySize(key: string, encoding: BinaryEncoding) {

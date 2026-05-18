@@ -26,6 +26,7 @@ import { ClassicalCipherJobEntity } from './classical-cipher-job.entity';
 import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
+  ClassicalCipherOperation,
   ClassicalCipherParameters,
   CipherWorkerProgress,
   ClassicalCipherWorkerData,
@@ -92,12 +93,20 @@ export class ClassicalCiphersService {
     shift: number,
     maxSteps?: number,
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
+    sourceJobId?: string,
   ): Promise<CipherJobResponseDto> {
-    return this.createJob(parsedTextId, ClassicalCipherAlgorithm.CAESAR, {
-      shift,
-      maxSteps,
-      whiteningEnabled,
-    });
+    return this.createJob(
+      parsedTextId,
+      ClassicalCipherAlgorithm.CAESAR,
+      {
+        operation,
+        shift,
+        maxSteps,
+        whiteningEnabled,
+      },
+      sourceJobId,
+    );
   }
 
   async createCaesarJobsFromFiles(
@@ -107,6 +116,7 @@ export class ClassicalCiphersService {
     shift: number,
     maxSteps?: number,
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -121,6 +131,7 @@ export class ClassicalCiphersService {
           shift,
           maxSteps,
           whiteningEnabled,
+          operation,
         ),
       ),
     );
@@ -130,11 +141,14 @@ export class ClassicalCiphersService {
     parsedTextId: string,
     key: string,
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
+    sourceJobId?: string,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
-      { key, whiteningEnabled },
+      { operation, key, whiteningEnabled },
+      sourceJobId,
     );
   }
 
@@ -144,6 +158,7 @@ export class ClassicalCiphersService {
     fileType: TextFileType,
     key: string,
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -157,6 +172,7 @@ export class ClassicalCiphersService {
           parsedText.id,
           key,
           whiteningEnabled,
+          operation,
         ),
       ),
     );
@@ -167,11 +183,14 @@ export class ClassicalCiphersService {
     key: string,
     keyLengths?: number[],
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
+    sourceJobId?: string,
   ): Promise<CipherJobResponseDto> {
     return this.createJob(
       parsedTextId,
       ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
-      { key, keyLengths, whiteningEnabled },
+      { operation, key, keyLengths, whiteningEnabled },
+      sourceJobId,
     );
   }
 
@@ -182,6 +201,7 @@ export class ClassicalCiphersService {
     key: string,
     keyLengths?: number[],
     whiteningEnabled?: boolean,
+    operation?: ClassicalCipherOperation,
   ): Promise<CipherJobResponseDto[]> {
     const parsedTexts = await this.textParserService.createCompletedFromFiles(
       title,
@@ -196,6 +216,7 @@ export class ClassicalCiphersService {
           key,
           keyLengths,
           whiteningEnabled,
+          operation,
         ),
       ),
     );
@@ -241,9 +262,39 @@ export class ClassicalCiphersService {
     parsedTextId: string,
     algorithm: ClassicalCipherAlgorithm,
     parameters: ClassicalCipherParameters,
+    sourceJobId?: string,
   ): Promise<CipherJobResponseDto> {
+    const operation = parameters.operation ?? ClassicalCipherOperation.ENCRYPT;
+    const sourceJob =
+      operation === ClassicalCipherOperation.DECRYPT && sourceJobId
+        ? await this.cipherJobsRepo.findOne({ where: { id: sourceJobId } })
+        : null;
+
+    if (sourceJobId && !sourceJob) {
+      throw new NotFoundException(
+        `Classical cipher job ${sourceJobId} not found`,
+      );
+    }
+
+    if (sourceJob) {
+      if (sourceJob.algorithm !== algorithm) {
+        throw new BadRequestException(
+          `Source job ${sourceJobId} is ${sourceJob.algorithm}, not ${algorithm}`,
+        );
+      }
+
+      if (
+        sourceJob.status !== ClassicalCipherJobStatus.COMPLETED ||
+        !sourceJob.finalText
+      ) {
+        throw new BadRequestException(
+          `Source job ${sourceJobId} has no completed ciphertext`,
+        );
+      }
+    }
+
     const parsedText = await this.parsedTextsRepo.findOne({
-      where: { id: parsedTextId },
+      where: { id: sourceJob?.parsedTextId ?? parsedTextId },
       select: {
         id: true,
         status: true,
@@ -254,7 +305,9 @@ export class ClassicalCiphersService {
     });
 
     if (!parsedText) {
-      throw new NotFoundException(`Parsed text ${parsedTextId} not found`);
+      throw new NotFoundException(
+        `Parsed text ${sourceJob?.parsedTextId ?? parsedTextId} not found`,
+      );
     }
 
     if (parsedText.status !== ParsedTextStatus.COMPLETED) {
@@ -263,7 +316,11 @@ export class ClassicalCiphersService {
       );
     }
 
-    const text = parsedText.content ?? parsedText.words?.join(' ') ?? '';
+    const text =
+      sourceJob?.finalText ??
+      parsedText.content ??
+      parsedText.words?.join(' ') ??
+      '';
     if (!text.trim()) {
       throw new BadRequestException(
         `Parsed text ${parsedTextId} has no content`,
@@ -272,15 +329,17 @@ export class ClassicalCiphersService {
 
     const jobParameters: ClassicalCipherParameters = {
       ...parameters,
+      operation,
       inputEncoding:
-        parsedText.contentEncoding === ParsedTextContentEncoding.HEX
+        getSourceJobOutputEncoding(sourceJob) ??
+        (parsedText.contentEncoding === ParsedTextContentEncoding.HEX
           ? 'hex'
-          : 'utf8',
+          : 'utf8'),
     };
 
     const job = await this.cipherJobsRepo.save(
       this.cipherJobsRepo.create({
-        parsedTextId,
+        parsedTextId: parsedText.id,
         algorithm,
         parameters: jobParameters,
         status: ClassicalCipherJobStatus.QUEUED,
@@ -479,4 +538,22 @@ function isWorkerProgress(
   message: ClassicalCipherWorkerResult,
 ): message is CipherWorkerProgress {
   return 'type' in message && message.type === 'progress';
+}
+
+function getSourceJobOutputEncoding(
+  sourceJob: ClassicalCipherJobEntity | null,
+): 'utf8' | 'hex' | undefined {
+  if (!sourceJob) {
+    return undefined;
+  }
+
+  const inputEncoding = sourceJob.parameters.inputEncoding;
+  if (
+    inputEncoding === 'hex' ||
+    sourceJob.parameters.whiteningEnabled === true
+  ) {
+    return 'hex';
+  }
+
+  return 'utf8';
 }

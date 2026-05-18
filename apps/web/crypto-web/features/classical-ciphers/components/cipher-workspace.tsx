@@ -184,6 +184,13 @@ export function CipherWorkspace() {
                   ""
                 }
                 mode={workspace.mode}
+                operation={workspace.operation}
+                encryptedSourceJobs={workspace.encryptedSourceJobs}
+                selectedSourceJobId={
+                  workspace.selectedSourceJobId ??
+                  workspace.selectedSourceJob?.id ??
+                  ""
+                }
                 shift={workspace.shift}
                 vigenereKey={workspace.key}
                 keyLengthsText={workspace.keyLengthsText}
@@ -191,7 +198,9 @@ export function CipherWorkspace() {
                 isSubmitting={workspace.isSubmitting}
                 message={workspace.message}
                 onParsedTextChange={workspace.setSelectedParsedTextId}
+                onSourceJobChange={workspace.setSelectedSourceJobId}
                 onModeChange={workspace.setMode}
+                onOperationChange={workspace.setOperation}
                 onShiftChange={workspace.setShift}
                 onKeyChange={workspace.setKey}
                 onKeyLengthsChange={workspace.setKeyLengthsText}
@@ -377,6 +386,9 @@ function CipherJobForm({
   selectedParsedText,
   selectedParsedTextId,
   mode,
+  operation,
+  encryptedSourceJobs,
+  selectedSourceJobId,
   shift,
   vigenereKey,
   keyLengthsText,
@@ -384,7 +396,9 @@ function CipherJobForm({
   isSubmitting,
   message,
   onParsedTextChange,
+  onSourceJobChange,
   onModeChange,
+  onOperationChange,
   onShiftChange,
   onKeyChange,
   onKeyLengthsChange,
@@ -397,6 +411,9 @@ function CipherJobForm({
   selectedParsedText?: ParsedText;
   selectedParsedTextId: string;
   mode: CipherMode;
+  operation: "encrypt" | "decrypt";
+  encryptedSourceJobs: ClassicalCipherJob[];
+  selectedSourceJobId: string;
   shift: number;
   vigenereKey: string;
   keyLengthsText: string;
@@ -404,7 +421,9 @@ function CipherJobForm({
   isSubmitting: boolean;
   message: string | null;
   onParsedTextChange: (id: string) => void;
+  onSourceJobChange: (id: string) => void;
   onModeChange: (mode: CipherMode) => void;
+  onOperationChange: (operation: "encrypt" | "decrypt") => void;
   onShiftChange: (shift: number) => void;
   onKeyChange: (key: string) => void;
   onKeyLengthsChange: (value: string) => void;
@@ -453,25 +472,65 @@ function CipherJobForm({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-5 p-5">
-        <div className="space-y-2">
-          <Label htmlFor="parsedTextId">{t("Parsed corpus")}</Label>
-          <select
-            id="parsedTextId"
-            value={selectedParsedTextId}
-            onChange={(event) => onParsedTextChange(event.target.value)}
-            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
-          >
-            {completedParsedTexts.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title} · {t("{{count}} words", { count: formatNumber(item.totalWords) })}
-              </option>
-            ))}
-          </select>
-          <BaselineMetricsStrip
-            parsedTexts={parsedTexts}
-            selectedParsedText={selectedParsedText}
-          />
-        </div>
+        <Tabs
+          value={operation}
+          onValueChange={(value) =>
+            onOperationChange(value as "encrypt" | "decrypt")
+          }
+        >
+          <TabsList className="grid-cols-2">
+            <TabsTrigger value="encrypt">{t("Encrypt")}</TabsTrigger>
+            <TabsTrigger value="decrypt">{t("Decrypt")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {operation === "decrypt" ? (
+          <div className="space-y-2">
+            <Label htmlFor="classical-source-job">
+              {t("Encrypted result")}
+            </Label>
+            <select
+              id="classical-source-job"
+              value={selectedSourceJobId}
+              onChange={(event) => onSourceJobChange(event.target.value)}
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              {encryptedSourceJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {formatEncryptedSourceJob(job)}
+                </option>
+              ))}
+            </select>
+            {encryptedSourceJobs.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t("No encrypted results for this cipher yet.")}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="parsedTextId">{t("Parsed corpus")}</Label>
+            <select
+              id="parsedTextId"
+              value={selectedParsedTextId}
+              onChange={(event) => onParsedTextChange(event.target.value)}
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:ring-3 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-100"
+            >
+              {completedParsedTexts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} ·{" "}
+                  {t("{{count}} words", {
+                    count: formatNumber(item.totalWords),
+                  })}
+                </option>
+              ))}
+            </select>
+            <BaselineMetricsStrip
+              parsedTexts={parsedTexts}
+              selectedParsedText={selectedParsedText}
+            />
+          </div>
+        )}
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#080b16]">
           <div className="space-y-3">
@@ -626,7 +685,12 @@ function CipherJobForm({
           type="button"
           className="mt-auto min-h-10 h-auto w-full whitespace-normal rounded-md bg-cyan-600 px-3 py-2 text-center leading-5 text-white hover:bg-cyan-500"
           onClick={onSubmit}
-          disabled={isSubmitting || completedParsedTexts.length === 0}
+          disabled={
+            isSubmitting ||
+            (operation === "decrypt"
+              ? encryptedSourceJobs.length === 0
+              : completedParsedTexts.length === 0)
+          }
         >
           {isSubmitting ? (
             <Loader2 className="size-4 animate-spin" />
@@ -1673,19 +1737,28 @@ function StepTable({ steps }: { steps: CipherStep[] }) {
 }
 
 function formatParameters(parameters: Record<string, unknown>) {
+  const operation =
+    parameters.operation === "decrypt" ? "DECRYPT; " : "ENCRYPT; ";
   const whitening = parameters.whiteningEnabled === true ? "; whitening" : "";
 
   if ("shift" in parameters) {
-    return `k=${parameters.shift}${whitening}`;
+    return `${operation}k=${parameters.shift}${whitening}`;
   }
   if ("keyLengths" in parameters && Array.isArray(parameters.keyLengths)) {
-    return `key=${parameters.key}; lengths=${parameters.keyLengths.join(",")}${whitening}`;
+    return `${operation}key=${parameters.key}; lengths=${parameters.keyLengths.join(",")}${whitening}`;
   }
   if ("key" in parameters) {
-    return `key=${parameters.key}${whitening}`;
+    return `${operation}key=${parameters.key}${whitening}`;
   }
 
   return "parameters";
+}
+
+function formatEncryptedSourceJob(job: ClassicalCipherJob) {
+  const inputEncoding = String(job.parameters.inputEncoding ?? "utf8").toUpperCase();
+  const length = job.finalText?.length ?? 0;
+
+  return `${algorithmLabel[job.algorithm]} · ${length} chars · ${inputEncoding} · ${formatTime(job.updatedAt)}`;
 }
 
 function formatOptionalMetric(value: unknown) {

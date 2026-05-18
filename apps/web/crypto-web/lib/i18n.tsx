@@ -182,11 +182,15 @@ const uk = {
   Caesar: "Цезар",
   "Corpus worker": "Воркер корпусів",
   "Queue {{cipher}} job": "Поставити {{cipher}}-завдання",
+  "Queue {{cipher}} {{operation}} job":
+    "Поставити {{cipher}}-завдання: {{operation}}",
   "Queue AES job": "Поставити AES-завдання",
   "The worker uses the AES key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.":
     "Воркер використовує AES-ключ, режим, IV та кодування виходу з налаштувань вище. Бінарні файли надсилаються як байтові дані та зберігаються як закодований шифротекст.",
   "The worker uses the selected cipher key, mode, IV, and output encoding from the controls above. Binary files are sent as byte payloads and stored as encoded ciphertext.":
     "Воркер використовує ключ, режим, IV та кодування виходу вибраного шифру з налаштувань вище. Бінарні файли надсилаються як байтові дані та зберігаються як закодований шифротекст.",
+  "The worker uses the selected cipher operation, key, mode, IV, input encoding, and output encoding from the controls above.":
+    "Воркер використовує вибрану операцію шифру, ключ, режим, IV, кодування входу та кодування виходу з налаштувань вище.",
   "Queue corpus job": "Поставити завдання корпусу",
   "Refresh jobs": "Оновити завдання",
   "AES corpus jobs": "AES-завдання корпусів",
@@ -200,6 +204,12 @@ const uk = {
     "Виберіть або поставте завдання корпусу для складного шифру.",
   "Worker output": "Вихід воркера",
   "Stored ciphertext": "Збережений шифротекст",
+  "Stored plaintext": "Збережений відкритий текст",
+  "Encrypted result": "Зашифрований результат",
+  "No encrypted {{cipher}} results yet.":
+    "Ще немає зашифрованих результатів {{cipher}}.",
+  "No encrypted results for this cipher yet.":
+    "Ще немає зашифрованих результатів для цього шифру.",
   Mode: "Режим",
   "Key size": "Розмір ключа",
   "Block size": "Розмір блоку",
@@ -208,6 +218,7 @@ const uk = {
   "Byte entropy": "Байтова ентропія",
   "Cipher bytes": "Байти шифру",
   "Download ciphertext": "Завантажити шифротекст",
+  "Download plaintext": "Завантажити відкритий текст",
   "AES round states will appear after the corpus worker completes.":
     "Стани раундів AES з'являться після завершення воркера корпусу.",
   "AES rounds": "Раунди AES",
@@ -265,6 +276,8 @@ const uk = {
   "{{cipher}} controls": "Налаштування {{cipher}}",
   Encrypt: "Шифрувати",
   Decrypt: "Дешифрувати",
+  encrypt: "шифрування",
+  decrypt: "дешифрування",
   "Plaintext encoding": "Кодування відкритого тексту",
   "Ciphertext encoding": "Кодування шифротексту",
   "Output encoding": "Кодування виходу",

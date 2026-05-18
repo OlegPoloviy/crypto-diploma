@@ -42,6 +42,7 @@ import {
   BinaryEncoding,
   ComplexCipherAlgorithm,
   ComplexCipherJobStatus,
+  ComplexCipherOperation,
   ComplexCipherParameters,
   ComplexCipherWorkerData,
   ComplexCipherWorkerResult,
@@ -271,7 +272,9 @@ export class ComplexCiphersService {
     body: CreateAesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     const parameters: AesJobParameters = {
+      operation: body.operation,
       key: body.key,
+      inputEncoding: body.inputEncoding,
       keyEncoding: body.keyEncoding,
       outputEncoding: body.outputEncoding,
       mode: body.mode,
@@ -287,6 +290,7 @@ export class ComplexCiphersService {
       body.parsedTextId,
       ComplexCipherAlgorithm.AES,
       parameters,
+      body.sourceJobId,
     );
   }
 
@@ -294,8 +298,10 @@ export class ComplexCiphersService {
     body: CreateKalynaCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     const parameters: KalynaJobParameters = {
+      operation: body.operation,
       key: body.key,
       blockSizeBits: body.blockSizeBits,
+      inputEncoding: body.inputEncoding,
       keyEncoding: body.keyEncoding,
       outputEncoding: body.outputEncoding,
       mode: body.mode,
@@ -307,6 +313,7 @@ export class ComplexCiphersService {
       body.parsedTextId,
       ComplexCipherAlgorithm.KALYNA,
       parameters,
+      body.sourceJobId,
     );
   }
 
@@ -314,7 +321,9 @@ export class ComplexCiphersService {
     body: CreateDesCipherJobDto,
   ): Promise<ComplexCipherJobResponseDto> {
     const parameters: DesJobParameters = {
+      operation: body.operation,
       key: body.key,
+      inputEncoding: body.inputEncoding,
       keyEncoding: body.keyEncoding,
       outputEncoding: body.outputEncoding,
       mode: body.mode,
@@ -330,6 +339,7 @@ export class ComplexCiphersService {
       body.parsedTextId,
       ComplexCipherAlgorithm.DES,
       parameters,
+      body.sourceJobId,
     );
   }
 
@@ -439,9 +449,39 @@ export class ComplexCiphersService {
     parsedTextId: string,
     algorithm: ComplexCipherAlgorithm,
     parameters: ComplexCipherParameters,
+    sourceJobId?: string,
   ): Promise<ComplexCipherJobResponseDto> {
+    const operation = parameters.operation ?? ComplexCipherOperation.ENCRYPT;
+    const sourceJob =
+      operation === ComplexCipherOperation.DECRYPT && sourceJobId
+        ? await this.cipherJobsRepo.findOne({ where: { id: sourceJobId } })
+        : null;
+
+    if (sourceJobId && !sourceJob) {
+      throw new NotFoundException(
+        `Complex cipher job ${sourceJobId} not found`,
+      );
+    }
+
+    if (sourceJob) {
+      if (sourceJob.algorithm !== algorithm) {
+        throw new BadRequestException(
+          `Source job ${sourceJobId} is ${sourceJob.algorithm}, not ${algorithm}`,
+        );
+      }
+
+      if (
+        sourceJob.status !== ComplexCipherJobStatus.COMPLETED ||
+        !sourceJob.finalText
+      ) {
+        throw new BadRequestException(
+          `Source job ${sourceJobId} has no completed ciphertext`,
+        );
+      }
+    }
+
     const parsedText = await this.parsedTextsRepo.findOne({
-      where: { id: parsedTextId },
+      where: { id: sourceJob?.parsedTextId ?? parsedTextId },
       select: {
         id: true,
         status: true,
@@ -452,7 +492,9 @@ export class ComplexCiphersService {
     });
 
     if (!parsedText) {
-      throw new NotFoundException(`Parsed text ${parsedTextId} not found`);
+      throw new NotFoundException(
+        `Parsed text ${sourceJob?.parsedTextId ?? parsedTextId} not found`,
+      );
     }
 
     if (parsedText.status !== ParsedTextStatus.COMPLETED) {
@@ -461,7 +503,11 @@ export class ComplexCiphersService {
       );
     }
 
-    const text = parsedText.content ?? parsedText.words?.join(' ') ?? '';
+    const text =
+      sourceJob?.finalText ??
+      parsedText.content ??
+      parsedText.words?.join(' ') ??
+      '';
     if (!text.trim()) {
       throw new BadRequestException(
         `Parsed text ${parsedTextId} has no content`,
@@ -476,15 +522,18 @@ export class ComplexCiphersService {
       ? {
           ...parameters,
           inputEncoding:
-            parsedText.contentEncoding === ParsedTextContentEncoding.HEX
+            parameters.inputEncoding ??
+            getSourceJobOutputEncoding(sourceJob) ??
+            (parsedText.contentEncoding === ParsedTextContentEncoding.HEX
               ? BinaryEncoding.HEX
-              : BinaryEncoding.UTF8,
+              : BinaryEncoding.UTF8),
+          operation,
         }
       : parameters;
 
     const job = await this.cipherJobsRepo.save(
       this.cipherJobsRepo.create({
-        parsedTextId,
+        parsedTextId: parsedText.id,
         algorithm,
         parameters: jobParameters,
         status: ComplexCipherJobStatus.QUEUED,
@@ -701,6 +750,26 @@ export class ComplexCiphersService {
       updatedAt: job.updatedAt,
     };
   }
+}
+
+function getSourceJobOutputEncoding(
+  sourceJob: ComplexCipherJobEntity | null,
+): BinaryEncoding | undefined {
+  const metadataEncoding = sourceJob?.metadata?.outputEncoding;
+  if (isBinaryEncoding(metadataEncoding)) {
+    return metadataEncoding;
+  }
+
+  const parameterEncoding = sourceJob?.parameters.outputEncoding;
+  return isBinaryEncoding(parameterEncoding) ? parameterEncoding : undefined;
+}
+
+function isBinaryEncoding(value: unknown): value is BinaryEncoding {
+  return (
+    value === BinaryEncoding.UTF8 ||
+    value === BinaryEncoding.HEX ||
+    value === BinaryEncoding.BASE64
+  );
 }
 
 function isWorkerProgress(

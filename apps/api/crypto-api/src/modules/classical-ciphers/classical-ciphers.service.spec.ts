@@ -12,6 +12,7 @@ import { calculateTextMetrics } from './classical-ciphers.metrics';
 import {
   ClassicalCipherAlgorithm,
   ClassicalCipherJobStatus,
+  ClassicalCipherOperation,
 } from './classical-ciphers.types';
 
 describe('ClassicalCiphersService', () => {
@@ -245,7 +246,9 @@ describe('ClassicalCiphersService', () => {
     );
     const keyBytes = Buffer.from(key);
     const expected = Buffer.from(
-      bytes.map((byte, index) => (byte + keyBytes[index % keyBytes.length]) % 256),
+      bytes.map(
+        (byte, index) => (byte + keyBytes[index % keyBytes.length]) % 256,
+      ),
     ).toString('hex');
 
     expect(result.finalText).toBe(expected);
@@ -253,11 +256,15 @@ describe('ClassicalCiphersService', () => {
 
   it('applies optional whitening to binary classical ciphers', () => {
     const bytes = Buffer.from([0, 1, 2, 3]);
-    const plain = runClassicalCipher(bytes.toString('hex'), ClassicalCipherAlgorithm.CAESAR, {
-      shift: 1,
-      maxSteps: 1,
-      inputEncoding: 'hex',
-    });
+    const plain = runClassicalCipher(
+      bytes.toString('hex'),
+      ClassicalCipherAlgorithm.CAESAR,
+      {
+        shift: 1,
+        maxSteps: 1,
+        inputEncoding: 'hex',
+      },
+    );
     const whitened = runClassicalCipher(
       bytes.toString('hex'),
       ClassicalCipherAlgorithm.CAESAR,
@@ -272,9 +279,78 @@ describe('ClassicalCiphersService', () => {
     expect(plain.finalText).toBe('01020304');
     expect(whitened.finalText).not.toBe(plain.finalText);
     expect(whitened.steps[0].description).toBe('Classical pre-whitening');
-    expect(whitened.steps.at(-1)?.description).toBe(
-      'Classical post-whitening',
+    expect(whitened.steps.at(-1)?.description).toBe('Classical post-whitening');
+  });
+
+  it('decrypts classical Caesar ciphertext instead of encrypting it again', () => {
+    const encrypted = runClassicalCipher(
+      'hello world',
+      ClassicalCipherAlgorithm.CAESAR,
+      { shift: 3 },
     );
+    const decrypted = runClassicalCipher(
+      encrypted.finalText,
+      ClassicalCipherAlgorithm.CAESAR,
+      {
+        operation: ClassicalCipherOperation.DECRYPT,
+        shift: 3,
+      },
+    );
+
+    expect(encrypted.finalText).toBe('khoor zruog');
+    expect(decrypted.finalText).toBe('hello world');
+    expect(decrypted.metadata).toMatchObject({
+      operation: ClassicalCipherOperation.DECRYPT,
+      plaintextLength: 11,
+    });
+  });
+
+  it('decrypts binary Vigenere ciphertext back to source bytes', () => {
+    const bytes = Buffer.from([0, 1, 2, 3, 4, 5]);
+    const encrypted = runClassicalCipher(
+      bytes.toString('hex'),
+      ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
+      {
+        key: 'abc',
+        inputEncoding: 'hex',
+        whiteningEnabled: true,
+      },
+    );
+    const decrypted = runClassicalCipher(
+      encrypted.finalText,
+      ClassicalCipherAlgorithm.VIGENERE_KEY_SYMBOLS,
+      {
+        operation: ClassicalCipherOperation.DECRYPT,
+        key: 'abc',
+        inputEncoding: 'hex',
+        whiteningEnabled: true,
+      },
+    );
+
+    expect(decrypted.finalText).toBe(bytes.toString('hex'));
+  });
+
+  it('decrypts Vigenere key-length final state with the final effective length', () => {
+    const encrypted = runClassicalCipher(
+      'attack at dawn',
+      ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
+      {
+        key: 'KEY',
+        keyLengths: [1, 3],
+      },
+    );
+    const decrypted = runClassicalCipher(
+      encrypted.finalText,
+      ClassicalCipherAlgorithm.VIGENERE_KEY_LENGTHS,
+      {
+        operation: ClassicalCipherOperation.DECRYPT,
+        key: 'KEY',
+        keyLengths: [1, 3],
+      },
+    );
+
+    expect(encrypted.finalText).toBe('kxrkgi kx bkal');
+    expect(decrypted.finalText).toBe('attack at dawn');
   });
 
   it('rejects keys without letters', () => {
@@ -322,6 +398,60 @@ describe('ClassicalCiphersService', () => {
         finalText: 'khoor zruog',
         metricStats: [],
       }),
+    );
+  });
+
+  it('queues a Caesar decrypt job from a completed encrypted source job', async () => {
+    const workerSpy = jest
+      .spyOn(service as never, 'runCipherWorker')
+      .mockResolvedValue({
+        finalText: 'hello world',
+        steps: [],
+        metricStats: [],
+      } as never);
+    cipherJobsRepo.findOne.mockResolvedValue({
+      id: '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+      parsedTextId: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      algorithm: ClassicalCipherAlgorithm.CAESAR,
+      status: ClassicalCipherJobStatus.COMPLETED,
+      finalText: 'khoor zruog',
+      parameters: {
+        operation: ClassicalCipherOperation.ENCRYPT,
+        shift: 3,
+        inputEncoding: 'utf8',
+      },
+    });
+    parsedTextsRepo.findOne.mockResolvedValue({
+      id: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      status: ParsedTextStatus.COMPLETED,
+      words: ['hello', 'world'],
+    });
+
+    const result = await service.createCaesarJob(
+      '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f',
+      3,
+      undefined,
+      false,
+      ClassicalCipherOperation.DECRYPT,
+      '26ee863d-df65-43f5-b63d-1ed48098a5f2',
+    );
+
+    expect(result.parameters).toMatchObject({
+      operation: ClassicalCipherOperation.DECRYPT,
+      inputEncoding: 'utf8',
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(workerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'khoor zruog',
+        algorithm: ClassicalCipherAlgorithm.CAESAR,
+        parameters: expect.objectContaining({
+          operation: ClassicalCipherOperation.DECRYPT,
+          inputEncoding: 'utf8',
+        }),
+      }),
+      '0f50273c-4181-4496-9648-e84f355cedee',
     );
   });
 

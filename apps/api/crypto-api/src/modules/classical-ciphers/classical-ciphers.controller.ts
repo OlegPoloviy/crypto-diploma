@@ -44,6 +44,7 @@ import {
   VigenereCipherDto,
   VigenereKeyLengthsDto,
 } from './dto/vigenere-cipher.dto';
+import { ClassicalCipherOperation } from './classical-ciphers.types';
 
 class BatchCipherFileDto {
   @IsString()
@@ -54,6 +55,10 @@ class BatchCipherFileDto {
   @IsEnum(TextFileType)
   @IsOptional()
   fileType?: TextFileType;
+
+  @IsEnum(ClassicalCipherOperation)
+  @IsOptional()
+  operation?: ClassicalCipherOperation;
 
   @IsString()
   @IsOptional()
@@ -189,6 +194,8 @@ export class ClassicalCiphersController {
       body.shift,
       body.maxSteps,
       body.whiteningEnabled,
+      body.operation,
+      body.sourceJobId,
     );
   }
 
@@ -221,6 +228,7 @@ export class ClassicalCiphersController {
       parseRequiredInteger(body.shift, 'shift'),
       body.maxSteps ? Number.parseInt(body.maxSteps, 10) : undefined,
       parseOptionalBoolean(body.whiteningEnabled),
+      body.operation,
     );
   }
 
@@ -238,6 +246,8 @@ export class ClassicalCiphersController {
       body.parsedTextId,
       body.key,
       body.whiteningEnabled,
+      body.operation,
+      body.sourceJobId,
     );
   }
 
@@ -270,6 +280,7 @@ export class ClassicalCiphersController {
       body.fileType ?? TextFileType.BINARY,
       body.key ?? '',
       parseOptionalBoolean(body.whiteningEnabled),
+      body.operation,
     );
   }
 
@@ -288,6 +299,8 @@ export class ClassicalCiphersController {
       body.key,
       body.keyLengths,
       body.whiteningEnabled,
+      body.operation,
+      body.sourceJobId,
     );
   }
 
@@ -322,6 +335,7 @@ export class ClassicalCiphersController {
       body.key ?? '',
       parseKeyLengths(body.keyLengths),
       parseOptionalBoolean(body.whiteningEnabled),
+      body.operation,
     );
   }
 }
