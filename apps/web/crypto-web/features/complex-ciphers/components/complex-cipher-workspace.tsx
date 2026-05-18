@@ -1820,7 +1820,7 @@ function AesIOPanel({
                 {t("Input")}
               </p>
               <CardTitle className="mt-1 text-lg text-slate-950 dark:text-slate-50">
-                {workspace.inputLabel}
+                {t(workspace.inputLabel)}
               </CardTitle>
             </div>
             <Badge variant="teal">

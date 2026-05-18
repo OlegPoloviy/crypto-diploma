@@ -85,12 +85,12 @@ const workflowDocs = [
       "For binary input, classical ciphers operate byte-by-byte modulo 256 and return hex output.",
   },
   {
-    title: "Queue AES jobs",
+    title: "Queue complex cipher jobs",
     icon: LockKeyhole,
     body:
-      "Use the AES controls for key, mode, IV, and encoding, then queue one corpus or a batch of uploaded files.",
+      "Use AES, DES, or Kalyna controls for key, mode, IV, block size, and encoding, then queue one corpus or a batch of uploaded files.",
     details:
-      "Binary files are encrypted as bytes. AES output can be rendered as hex, base64, or UTF-8 when valid.",
+      "Binary files are encrypted as bytes. Complex cipher output can be rendered as hex, base64, or UTF-8 when valid.",
   },
   {
     title: "Read charts",
@@ -99,6 +99,33 @@ const workflowDocs = [
       "Step charts show how Hurst, DFA, DEA, and entropy evolve through intermediate states.",
     details:
       "When a job has one stored step, the UI switches to compact bars because a line chart with one point has no progression.",
+  },
+];
+
+const featureDocs = [
+  {
+    title: "Corpus and baseline preparation",
+    icon: Database,
+    body:
+      "The dashboard stores reusable corpora, random byte baselines, and paired natural/random baseline sets for later experiments.",
+    details:
+      "Use the baseline panel to compare source structure against random bytes and the latest completed encrypted output.",
+  },
+  {
+    title: "Classical cipher experiments",
+    icon: Binary,
+    body:
+      "The classical workspace queues Caesar and Vigenere jobs, supports file batches, and can add pre/post modular whitening shifts.",
+    details:
+      "Step tables expose word H, byte H, DFA, DEA, and entropy so weak structure preservation is visible.",
+  },
+  {
+    title: "Complex cipher experiments",
+    icon: LockKeyhole,
+    body:
+      "The complex workspace runs AES, DES, and Kalyna directly and through corpus jobs with selectable encodings.",
+    details:
+      "AES and DES support CBC/ECB and whitening comparison; Kalyna exposes block-size selection for 128, 256, and 512-bit blocks.",
   },
 ];
 
@@ -142,6 +169,12 @@ export function DocumentationWorkspace() {
           <section className="grid gap-4 xl:grid-cols-3">
             {metricDocs.map((metric) => (
               <MetricDocCard key={metric.title} metric={metric} />
+            ))}
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-3">
+            {featureDocs.map((feature) => (
+              <FeatureDocCard key={feature.title} feature={feature} />
             ))}
           </section>
 
@@ -224,11 +257,11 @@ export function DocumentationWorkspace() {
             <UsageCard
               title="What to compare"
               icon={<Workflow className="size-4" />}
-              body="Compare the final metric values, the step progression, and the output encoding. Binary entropy is most meaningful when read as byte entropy."
+              body="Compare source baselines, final metric values, step progression, and output encoding. Binary entropy is most meaningful when read as byte entropy."
               items={[
                 "Low entropy can mean structured input or too little data.",
-                "AES output should generally increase byte entropy.",
-                "Classical ciphers preserve more visible structure than AES.",
+                "AES, DES, and Kalyna output should generally increase byte entropy.",
+                "Classical ciphers usually preserve more visible structure than block ciphers.",
               ]}
             />
           </section>
@@ -270,6 +303,35 @@ function MetricDocCard({
         </p>
         <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:border-white/10 dark:bg-[#080b16] dark:text-slate-400">
           {t(metric.use)}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeatureDocCard({
+  feature,
+}: {
+  feature: (typeof featureDocs)[number];
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
+            <feature.icon className="size-4" />
+          </div>
+          <h2 className="font-semibold text-slate-950 dark:text-slate-50">
+            {t(feature.title)}
+          </h2>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+          {t(feature.body)}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+          {t(feature.details)}
         </p>
       </CardContent>
     </Card>

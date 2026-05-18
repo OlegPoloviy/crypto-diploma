@@ -16,8 +16,10 @@ import {
   ClassicalCipherJob,
 } from "../types/classical-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
+import { useTranslation } from "react-i18next";
 
 export function useCipherWorkspace() {
+  const { t } = useTranslation();
   const [parsedTexts, setParsedTexts] = useState<ParsedText[]>([]);
   const [jobs, setJobs] = useState<ClassicalCipherJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -114,22 +116,16 @@ export function useCipherWorkspace() {
         }
 
         if (textsResult.status === "rejected" || jobsResult.status === "rejected") {
-          const failed = [
-            textsResult.status === "rejected" ? "parsed texts" : null,
-            jobsResult.status === "rejected" ? "cipher jobs" : null,
-          ]
-            .filter(Boolean)
-            .join(" and ");
-          setMessage(`Failed to load ${failed}. Check API deployment.`);
+          setMessage(t("Failed to load cipher data. Check API deployment."));
         }
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : "Failed to load cipher data",
+          error instanceof Error ? error.message : t("Failed to load cipher data"),
         );
       } finally {
         setIsRefreshing(false);
       }
-    }, [selectJob, selectParsedText]);
+    }, [selectJob, selectParsedText, t]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void refresh(true), 0);
@@ -149,13 +145,13 @@ export function useCipherWorkspace() {
 
   async function submitJob() {
     if (!selectedParsedText) {
-      setMessage("No completed parsed text selected.");
+      setMessage(t("No completed parsed text selected."));
       return null;
     }
 
     const keyLengths = parseKeyLengths(keyLengthsText);
     if (mode === "vigenere-key-lengths" && keyLengths.length === 0) {
-      setMessage("Enter at least one key length.");
+      setMessage(t("Enter at least one key length."));
       return null;
     }
 
@@ -172,11 +168,11 @@ export function useCipherWorkspace() {
         whiteningEnabled,
       });
       selectJob(created.id);
-      setMessage("Cipher job queued.");
+      setMessage(t("Cipher job queued."));
       await refresh();
       return created;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to queue job");
+      setMessage(error instanceof Error ? error.message : t("Failed to queue job"));
       return null;
     } finally {
       setIsSubmitting(false);
@@ -190,11 +186,11 @@ export function useCipherWorkspace() {
   }) {
     const keyLengths = parseKeyLengths(keyLengthsText);
     if (input.files.length === 0) {
-      setMessage("Select at least one file.");
+      setMessage(t("Select at least one file."));
       return null;
     }
     if (mode === "vigenere-key-lengths" && keyLengths.length === 0) {
-      setMessage("Enter at least one key length.");
+      setMessage(t("Enter at least one key length."));
       return null;
     }
 
@@ -213,11 +209,11 @@ export function useCipherWorkspace() {
         whiteningEnabled,
       });
       selectJob(created[0]?.id ?? null);
-      setMessage(`Queued ${created.length} file cipher jobs.`);
+      setMessage(t("Queued {{count}} file cipher jobs.", { count: created.length }));
       await refresh();
       return created;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to queue jobs");
+      setMessage(error instanceof Error ? error.message : t("Failed to queue jobs"));
       return null;
     } finally {
       setIsSubmitting(false);
@@ -234,11 +230,11 @@ export function useCipherWorkspace() {
       if (selectedJobIdRef.current === id) {
         selectJob(remainingJobs[0]?.id ?? null);
       }
-      setMessage("Cipher job stopped and deleted.");
+      setMessage(t("Cipher job stopped and deleted."));
       await refresh();
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to delete cipher job",
+        error instanceof Error ? error.message : t("Failed to delete cipher job"),
       );
     }
   }

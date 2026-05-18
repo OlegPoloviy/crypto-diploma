@@ -23,6 +23,7 @@ import {
   KalynaBlockSize,
 } from "../types/aes-cipher";
 import { TextFileType } from "@/features/text-parser/lib/api";
+import { useTranslation } from "react-i18next";
 
 const cipherPresets: Record<
   ComplexCipherAlgorithm,
@@ -49,6 +50,7 @@ const cipherPresets: Record<
 };
 
 export function useAesWorkspace() {
+  const { t } = useTranslation();
   const [algorithm, setAlgorithmState] =
     useState<ComplexCipherAlgorithm>("aes");
   const [blockSizeBits, setBlockSizeBits] = useState<KalynaBlockSize>(128);
@@ -187,25 +189,21 @@ export function useAesWorkspace() {
           textsResult.status === "rejected" ||
           jobsResult.status === "rejected"
         ) {
-          const failed = [
-            textsResult.status === "rejected" ? "parsed texts" : null,
-            jobsResult.status === "rejected" ? "complex cipher jobs" : null,
-          ]
-            .filter(Boolean)
-            .join(" and ");
-          setMessage(`Failed to load ${failed}. Check API deployment.`);
+          setMessage(
+            t("Failed to load complex cipher data. Check API deployment."),
+          );
         }
       } catch (error) {
         setMessage(
           error instanceof Error
             ? error.message
-            : "Failed to load complex cipher jobs",
+            : t("Failed to load complex cipher jobs"),
         );
       } finally {
         setIsRefreshingJobs(false);
       }
     },
-    [selectJob, selectParsedText],
+    [selectJob, selectParsedText, t],
   );
 
   useEffect(() => {
@@ -269,15 +267,15 @@ export function useAesWorkspace() {
       }
       setMessage(
         response.operation === "encrypt"
-          ? `${cipherLabel} encryption completed.`
-          : `${cipherLabel} decryption completed.`,
+          ? t("{{cipher}} encryption completed.", { cipher: cipherLabel })
+          : t("{{cipher}} decryption completed.", { cipher: cipherLabel }),
       );
       return response;
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : `${cipherLabel} request failed`,
+          : t("{{cipher}} request failed", { cipher: cipherLabel }),
       );
       return null;
     } finally {
@@ -287,7 +285,7 @@ export function useAesWorkspace() {
 
   async function submitJob() {
     if (!selectedParsedText) {
-      setMessage("No completed parsed text selected.");
+      setMessage(t("No completed parsed text selected."));
       return null;
     }
 
@@ -310,14 +308,14 @@ export function useAesWorkspace() {
         algorithm,
       );
       selectJob(created.id);
-      setMessage(`${cipherLabel} corpus job queued.`);
+      setMessage(t("{{cipher}} corpus job queued.", { cipher: cipherLabel }));
       await refreshJobs();
       return created;
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : `Failed to queue ${cipherLabel} job`,
+          : t("Failed to queue {{cipher}} job", { cipher: cipherLabel }),
       );
       return null;
     } finally {
@@ -331,7 +329,7 @@ export function useAesWorkspace() {
     fileType: TextFileType;
   }) {
     if (input.files.length === 0) {
-      setMessage("Select at least one file.");
+      setMessage(t("Select at least one file."));
       return null;
     }
 
@@ -354,14 +352,19 @@ export function useAesWorkspace() {
         ...whiteningPayload,
       });
       selectJob(created[0]?.id ?? null);
-      setMessage(`Queued ${created.length} ${cipherLabel} file jobs.`);
+      setMessage(
+        t("Queued {{count}} {{cipher}} file jobs.", {
+          count: created.length,
+          cipher: cipherLabel,
+        }),
+      );
       await refreshJobs();
       return created;
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : `Failed to queue ${cipherLabel} jobs`,
+          : t("Failed to queue {{cipher}} jobs", { cipher: cipherLabel }),
       );
       return null;
     } finally {
@@ -379,13 +382,13 @@ export function useAesWorkspace() {
       if (selectedJobIdRef.current === id) {
         selectJob(remainingJobs[0]?.id ?? null);
       }
-      setMessage("Complex cipher job stopped and deleted.");
+      setMessage(t("Complex cipher job stopped and deleted."));
       await refreshJobs();
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Failed to delete complex cipher job",
+          : t("Failed to delete complex cipher job"),
       );
     }
   }
@@ -413,7 +416,7 @@ export function useAesWorkspace() {
     setKeyEncoding("hex");
     setOutputEncoding("hex");
     setResult(null);
-    setMessage(cipherPresets[algorithm].vectorMessage);
+    setMessage(t(cipherPresets[algorithm].vectorMessage));
   }
 
   function setAlgorithm(nextAlgorithm: ComplexCipherAlgorithm) {

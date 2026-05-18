@@ -545,7 +545,7 @@ function CipherJobForm({
         >
           <TabsList className="h-auto min-h-10 grid-cols-3">
             <TabsTrigger value="caesar" className="min-h-8 px-2 text-xs sm:text-sm">
-              Caesar
+              {t("Caesar")}
             </TabsTrigger>
             <TabsTrigger
               value="vigenere-key-symbols"

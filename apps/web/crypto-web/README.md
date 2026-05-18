@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Crypto Web
 
-## Getting Started
+Веб-інтерфейс дипломної платформи для підготовки корпусів, запуску криптографічних експериментів і порівняння метрик після шифрування.
 
-First, run the development server:
+## Основні сторінки
+
+- `/` - конструктор корпусів: вставка тексту, завантаження файлів, генерація випадкового baseline, створення пари natural/random і перегляд метрик корпусу.
+- `/classical-ciphers` - класичні шифри: Caesar, Vigenere за символами ключа, Vigenere за довжинами ключа, пакетне шифрування файлів і optional whitening.
+- `/complex-ciphers` - складні шифри: AES, DES і Kalyna через API, режими CBC/ECB, hex/base64/UTF-8 кодування, corpus worker jobs, whitening-порівняння для AES/DES.
+- `/documentation` - короткий довідник по workflow, типах файлів, метриках Hurst/DFA/DEA/Entropy і тому, що саме варто порівнювати.
+
+## Релевантні фічі
+
+- Повторне використання готових корпусів у класичних і складних шифрах.
+- Worker-backed jobs для важких обчислень, щоб UI не чекав синхронного розрахунку метрик.
+- Підтримка текстових форматів (`txt`, Markdown, CSV, JSON) і бінарних файлів.
+- Метрики для аналізу структури даних: Hurst exponent, DFA alpha, DEA delta, word/byte entropy.
+- Baseline comparison між природним текстом, випадковими байтами та завершеним шифрованим запуском.
+- Завантаження результатів: текст корпусу, зашифрований текст, ciphertext і бінарний вихід.
+- Українська локалізація за замовчуванням з перемикачем `UK/EN`.
+
+## Локальний запуск
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Застосунок запускається на [http://localhost:3001](http://localhost:3001).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Налаштування API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js routes у `app/api/**` проксіюють запити до backend API. Для локальної інтеграції перевірте `next.config.ts` і змінні середовища backend URL, які використовуються у route handlers.
 
-## Learn More
+## Перевірки
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run lint
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Перед демонстрацією варто пройти основний сценарій: створити корпус, запустити класичний cipher job, запустити complex cipher job, відкрити `/documentation` і перевірити перемикач мови.
