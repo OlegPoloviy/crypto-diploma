@@ -102,6 +102,23 @@ export async function createRandomBaseline(input: {
   return parseResponse<ParsedText>(response);
 }
 
+export async function createRandomText(input: {
+  title: string;
+  wordCount: number;
+  alphabet?: string;
+  minWordLength?: number;
+  maxWordLength?: number;
+  seed?: number;
+}): Promise<ParsedText> {
+  const response = await fetch("/api/text-parser/random-text", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  return parseResponse<ParsedText>(response);
+}
+
 export async function createShuffledText(input: {
   title: string;
   text: string;

@@ -73,6 +73,7 @@ export type ComplexCipherJobStatus =
 export interface ComplexCipherJob {
   id: string;
   parsedTextId: string;
+  parsedTextTitle?: string | null;
   algorithm: ComplexCipherAlgorithm;
   status: ComplexCipherJobStatus;
   parameters: Record<string, unknown>;

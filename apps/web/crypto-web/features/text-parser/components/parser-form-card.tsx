@@ -40,6 +40,7 @@ const PREPROCESS_OPTIONS: { value: TextPreprocessMode; label: string }[] = [
 ];
 
 type FormMode = "file" | "text" | "shuffle" | "random" | "baseline";
+type ExtendedFormMode = FormMode | "monkey";
 type ShuffleSource = "text" | "file" | "parsed";
 
 export function ParserFormCard({
@@ -49,6 +50,7 @@ export function ParserFormCard({
   onCreateFromFile,
   onCreateFromText,
   onCreateRandom,
+  onCreateMonkeyText,
   onCreateShuffle,
   parsedTextOptions,
   onCreateBaselineSet,
@@ -72,6 +74,14 @@ export function ParserFormCard({
     byteLength: number;
     seed?: number;
   }) => Promise<unknown>;
+  onCreateMonkeyText: (input: {
+    title: string;
+    wordCount: number;
+    alphabet?: string;
+    minWordLength?: number;
+    maxWordLength?: number;
+    seed?: number;
+  }) => Promise<unknown>;
   onCreateShuffle: (input: {
     title: string;
     text?: string;
@@ -92,13 +102,17 @@ export function ParserFormCard({
   }) => Promise<unknown>;
 }) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<FormMode>("file");
+  const [mode, setMode] = useState<ExtendedFormMode>("file");
   const [title, setTitle] = useState("");
   const [rawText, setRawText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [fileType, setFileType] = useState<TextFileType>("plain-text");
   const [preprocess, setPreprocess] = useState<TextPreprocessMode>("auto");
   const [byteLength, setByteLength] = useState("65536");
+  const [wordCount, setWordCount] = useState("1000");
+  const [minWordLength, setMinWordLength] = useState("3");
+  const [maxWordLength, setMaxWordLength] = useState("10");
+  const [alphabet, setAlphabet] = useState("abcdefghijklmnopqrstuvwxyz");
   const [seed, setSeed] = useState("");
   const [baselineFile, setBaselineFile] = useState<File | null>(null);
   const [shuffleSource, setShuffleSource] = useState<ShuffleSource>("text");
@@ -130,6 +144,19 @@ export function ParserFormCard({
       created = await onCreateRandom({
         title,
         byteLength: Number(byteLength),
+        seed: seed.trim() ? Number(seed) : undefined,
+      });
+    } else if (mode === "monkey") {
+      created = await onCreateMonkeyText({
+        title,
+        wordCount: Number(wordCount),
+        alphabet: alphabet.trim() || undefined,
+        minWordLength: minWordLength.trim()
+          ? Number(minWordLength)
+          : undefined,
+        maxWordLength: maxWordLength.trim()
+          ? Number(maxWordLength)
+          : undefined,
         seed: seed.trim() ? Number(seed) : undefined,
       });
     } else if (mode === "shuffle") {
@@ -185,7 +212,7 @@ export function ParserFormCard({
         <form onSubmit={submit} className="space-y-5">
           <Tabs
             value={mode}
-            onValueChange={(value) => setMode(value as FormMode)}
+            onValueChange={(value) => setMode(value as ExtendedFormMode)}
           >
             <TabsList className="h-auto min-h-10 flex-wrap border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#080b16]">
               <TabsTrigger value="file" className="min-h-8 px-2 text-xs">
@@ -199,6 +226,9 @@ export function ParserFormCard({
               </TabsTrigger>
               <TabsTrigger value="random" className="min-h-8 px-2 text-xs">
                 {t("Random baseline")}
+              </TabsTrigger>
+              <TabsTrigger value="monkey" className="min-h-8 px-2 text-xs">
+                {t("Monkey text")}
               </TabsTrigger>
               <TabsTrigger value="baseline" className="min-h-8 px-2 text-xs">
                 {t("Baseline pair")}
@@ -220,7 +250,7 @@ export function ParserFormCard({
             />
           </div>
 
-          {mode !== "random" ? (
+          {mode !== "random" && mode !== "monkey" ? (
             <div className="space-y-2">
               <Label className="text-slate-700 dark:text-slate-300">
                 {t("Preprocess")}
@@ -302,7 +332,47 @@ export function ParserFormCard({
             </div>
           ) : null}
 
-          {mode === "random" || mode === "baseline" || mode === "shuffle" ? (
+          {mode === "monkey" ? (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <FormField
+                  label={t("Word count")}
+                  value={wordCount}
+                  onChange={setWordCount}
+                  type="number"
+                  min={1}
+                  required
+                />
+                <FormField
+                  label={t("Min word length")}
+                  value={minWordLength}
+                  onChange={setMinWordLength}
+                  type="number"
+                  min={1}
+                  required
+                />
+                <FormField
+                  label={t("Max word length")}
+                  value={maxWordLength}
+                  onChange={setMaxWordLength}
+                  type="number"
+                  min={1}
+                  required
+                />
+              </div>
+              <FormField
+                label={t("Alphabet")}
+                value={alphabet}
+                onChange={setAlphabet}
+                placeholder="abcdefghijklmnopqrstuvwxyz"
+              />
+            </div>
+          ) : null}
+
+          {mode === "random" ||
+          mode === "monkey" ||
+          mode === "baseline" ||
+          mode === "shuffle" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {mode === "random" ? (
                 <FormField
@@ -322,7 +392,9 @@ export function ParserFormCard({
                 placeholder={
                   mode === "shuffle"
                     ? t("Leave empty for random shuffle")
-                    : t("Leave empty for crypto random")
+                    : mode === "monkey"
+                      ? t("Leave empty for random text")
+                      : t("Leave empty for crypto random")
                 }
               />
             </div>
@@ -336,7 +408,7 @@ export function ParserFormCard({
             >
               {mode === "file" ? (
                 <FileUp />
-              ) : mode === "random" ? (
+              ) : mode === "random" || mode === "monkey" ? (
                 <Dices />
               ) : mode === "baseline" ? (
                 <Layers />
@@ -351,9 +423,11 @@ export function ParserFormCard({
                   ? t("Create baseline pair")
                   : mode === "random"
                     ? t("Generate random baseline")
-                    : mode === "shuffle"
-                      ? t("Shuffle & compute metrics")
-                    : t("Save & compute metrics")}
+                    : mode === "monkey"
+                      ? t("Generate monkey text")
+                      : mode === "shuffle"
+                        ? t("Shuffle & compute metrics")
+                        : t("Save & compute metrics")}
             </Button>
           </div>
 

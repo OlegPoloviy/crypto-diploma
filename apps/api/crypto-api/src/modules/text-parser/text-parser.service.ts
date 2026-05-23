@@ -14,6 +14,7 @@ import { BaselineSetResponseDto } from './dto/baseline-set-response.dto';
 import { BaselineSetTextDto } from './dto/baseline-set-text.dto';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
 import { GenerateRandomBytesDto } from './dto/generate-random.dto';
+import { GenerateRandomTextDto } from './dto/generate-random-text.dto';
 import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParsedTextResponseDto } from './dto/parsed-text-response.dto';
 import { ShuffleTextDto } from './dto/shuffle-text.dto';
@@ -67,6 +68,7 @@ const TEXT_FILE_EXTENSIONS: Record<TextFileType, string[]> = {
 
 const SYNC_PARSE_BYTE_THRESHOLD = 512 * 1024;
 const HEX_CHUNK_SIZE = 64;
+const DEFAULT_MONKEY_ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
 
 @Injectable()
 export class TextParserService {
@@ -139,6 +141,25 @@ export class TextParserService {
       title: body.title,
       bytes,
       baselineSetId: body.baselineSetId,
+    });
+  }
+
+  async createRandomText(
+    body: GenerateRandomTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    const text = generateMonkeyText({
+      wordCount: body.wordCount,
+      alphabet: body.alphabet,
+      minWordLength: body.minWordLength,
+      maxWordLength: body.maxWordLength,
+      seed: body.seed,
+    });
+
+    return this.createCompletedNaturalText({
+      title: body.title,
+      text,
+      source: ParsedTextSource.GENERATED,
+      preprocess: TextPreprocessMode.NONE,
     });
   }
 
@@ -877,6 +898,51 @@ function generateRandomBuffer(byteLength: number, seed?: number): Buffer {
   }
 
   return buffer;
+}
+
+function generateMonkeyText(input: {
+  wordCount: number;
+  alphabet?: string;
+  minWordLength?: number;
+  maxWordLength?: number;
+  seed?: number;
+}): string {
+  const alphabet = Array.from(
+    new Set(Array.from(input.alphabet?.trim() || DEFAULT_MONKEY_ALPHABET)),
+  ).filter((character) => /\p{L}/u.test(character));
+
+  if (alphabet.length === 0) {
+    throw new BadRequestException('Alphabet must contain at least one letter');
+  }
+
+  const minWordLength = input.minWordLength ?? 3;
+  const maxWordLength = input.maxWordLength ?? 10;
+
+  if (minWordLength > maxWordLength) {
+    throw new BadRequestException(
+      'Minimum word length cannot be greater than maximum word length',
+    );
+  }
+
+  const nextIndex =
+    input.seed === undefined
+      ? createCryptoRandomIndex()
+      : createSeededRandomIndex(input.seed);
+  const words: string[] = [];
+
+  for (let wordIndex = 0; wordIndex < input.wordCount; wordIndex += 1) {
+    const length =
+      minWordLength + nextIndex(maxWordLength - minWordLength + 1);
+    let word = '';
+
+    for (let charIndex = 0; charIndex < length; charIndex += 1) {
+      word += alphabet[nextIndex(alphabet.length)];
+    }
+
+    words.push(word);
+  }
+
+  return words.join(' ');
 }
 
 function shuffleWords(words: string[], seed?: number): string[] {

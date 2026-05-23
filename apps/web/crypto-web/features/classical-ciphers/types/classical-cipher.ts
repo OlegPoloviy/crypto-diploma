@@ -55,6 +55,7 @@ export interface CipherMetricStat {
 export interface ClassicalCipherJob {
   id: string;
   parsedTextId: string;
+  parsedTextTitle?: string | null;
   algorithm: ClassicalCipherAlgorithm;
   status: ClassicalCipherJobStatus;
   parameters: Record<string, unknown>;

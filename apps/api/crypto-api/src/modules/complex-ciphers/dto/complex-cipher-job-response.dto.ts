@@ -13,6 +13,9 @@ export class ComplexCipherJobResponseDto {
   @ApiProperty({ example: '5a0a9879-cc1c-40fc-87bb-13c33d9a4a7f' })
   parsedTextId: string;
 
+  @ApiProperty({ example: 'Moby Dick', nullable: true })
+  parsedTextTitle?: string | null;
+
   @ApiProperty({ enum: ComplexCipherAlgorithm })
   algorithm: ComplexCipherAlgorithm;
 

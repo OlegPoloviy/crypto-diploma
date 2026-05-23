@@ -27,6 +27,7 @@ export function TextParserDashboard() {
     createFromFile,
     createFromText,
     createRandom,
+    createMonkeyText,
     createShuffle,
     createBaselineSet,
   } = useParsedTexts();
@@ -62,6 +63,7 @@ export function TextParserDashboard() {
                 onCreateFromFile={createFromFile}
                 onCreateFromText={createFromText}
                 onCreateRandom={createRandom}
+                onCreateMonkeyText={createMonkeyText}
                 onCreateShuffle={createShuffle}
                 parsedTextOptions={shuffleSourceOptions}
                 onCreateBaselineSet={createBaselineSet}

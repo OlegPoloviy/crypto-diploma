@@ -9,6 +9,7 @@ import {
   createParsedTextFromFile,
   createParsedTextFromRaw,
   createRandomBaseline,
+  createRandomText,
   createShuffledText,
   createShuffledTextFromFile,
   createShuffledTextFromParsedText,
@@ -122,6 +123,17 @@ export function useParsedTexts() {
     seed?: number;
   }) {
     return submit(() => createRandomBaseline(input), input.title);
+  }
+
+  async function createMonkeyText(input: {
+    title: string;
+    wordCount: number;
+    alphabet?: string;
+    minWordLength?: number;
+    maxWordLength?: number;
+    seed?: number;
+  }) {
+    return submit(() => createRandomText(input), input.title);
   }
 
   async function createShuffle(input: {
@@ -258,6 +270,7 @@ export function useParsedTexts() {
     createFromText,
     createFromFile,
     createRandom,
+    createMonkeyText,
     createShuffle,
     createBaselineSet,
   };

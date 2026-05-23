@@ -1777,7 +1777,7 @@ function downloadEncryptedText(job: ClassicalCipherJob) {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `${job.algorithm}-${job.id.slice(0, 8)}.txt`;
+  link.download = buildCipherDownloadFilename(job, "txt");
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1796,7 +1796,26 @@ function downloadEncryptedBinary(job: ClassicalCipherJob) {
       : new TextEncoder().encode(job.finalText);
   const bits = bytesToBitString(bytes);
 
-  downloadTextFile(bits, `${job.algorithm}-${job.id.slice(0, 8)}-binary.txt`);
+  downloadTextFile(bits, buildCipherDownloadFilename(job, "binary.txt"));
+}
+
+function buildCipherDownloadFilename(
+  job: ClassicalCipherJob,
+  extension: string,
+) {
+  return `${sanitizeFilename(algorithmLabel[job.algorithm])}-${sanitizeFilename(
+    job.parsedTextTitle ?? job.parsedTextId,
+  )}.${extension}`;
+}
+
+function sanitizeFilename(value: string) {
+  return value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "corpus";
 }
 
 function decodeHexBytes(value: string) {

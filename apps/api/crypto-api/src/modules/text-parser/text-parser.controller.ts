@@ -39,6 +39,7 @@ import { BaselineSetResponseDto } from './dto/baseline-set-response.dto';
 import { BaselineSetTextDto } from './dto/baseline-set-text.dto';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
 import { GenerateRandomBytesDto } from './dto/generate-random.dto';
+import { GenerateRandomTextDto } from './dto/generate-random-text.dto';
 import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParseTextDto } from './dto/parse-text.dto';
 import { ShuffleTextDto } from './dto/shuffle-text.dto';
@@ -203,6 +204,15 @@ export class TextParserController {
     @Body() body: GenerateRandomBytesDto,
   ): Promise<CreateParsedTextResponseDto> {
     return this.textParserService.createRandomBytes(body);
+  }
+
+  @Post('random-text')
+  @ApiOperation({ summary: 'Generate monkey text with metrics' })
+  @ApiCreatedResponse({ type: CreateParsedTextResponseDto })
+  createRandomText(
+    @Body() body: GenerateRandomTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    return this.textParserService.createRandomText(body);
   }
 
   @Post('shuffle')
