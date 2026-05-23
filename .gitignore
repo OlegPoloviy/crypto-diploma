@@ -45,6 +45,7 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+.kalyna-ref
 __pycache__/
 *.py[cod]
 venv/
