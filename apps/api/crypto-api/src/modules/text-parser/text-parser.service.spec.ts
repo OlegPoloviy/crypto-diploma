@@ -251,13 +251,14 @@ describe('TextParserService', () => {
     );
   });
 
-  it('returns stored content for download', async () => {
+  it('returns prepared word content for natural text download', async () => {
     repo.findOne.mockResolvedValue({
       id: 'parsed-text-1',
       title: 'Sample book',
       status: ParsedTextStatus.COMPLETED,
-      content: 'hello world',
+      content: 'Hello, world! 42',
       contentEncoding: ParsedTextContentEncoding.UTF8,
+      words: ['hello', 'world'],
       originalFileName: 'book.txt',
       corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
     });
@@ -269,6 +270,27 @@ describe('TextParserService', () => {
       contentEncoding: ParsedTextContentEncoding.UTF8,
       content: 'hello world',
       mimeType: 'text/plain; charset=utf-8',
+    });
+  });
+
+  it('keeps hex payloads unchanged for random byte downloads', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'parsed-text-1',
+      title: 'Random bytes',
+      status: ParsedTextStatus.COMPLETED,
+      content: '000102ff',
+      contentEncoding: ParsedTextContentEncoding.HEX,
+      originalFileName: 'payload.bin',
+      corpusKind: ParsedTextCorpusKind.RANDOM_BYTES,
+    });
+
+    const content = await service.getContent('parsed-text-1');
+
+    expect(content).toEqual({
+      filename: 'payload.bin',
+      contentEncoding: ParsedTextContentEncoding.HEX,
+      content: '000102ff',
+      mimeType: 'application/octet-stream',
     });
   });
 

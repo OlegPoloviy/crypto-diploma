@@ -86,3 +86,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /_tmp_*
 /FA-all-elements-Fa_Dfa_refractor-0/
 /monkey-text-ui.png
+
+# Diploma document artifacts
+/DIPLOMA*.docx
+/DIPLOMA*.pdf
+/_docx_extract/
+/tools/add_block_cipher_testing_section.py
+/~$*.docx
+/~WRL*.tmp

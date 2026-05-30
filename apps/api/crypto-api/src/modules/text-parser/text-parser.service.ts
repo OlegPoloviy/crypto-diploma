@@ -454,6 +454,7 @@ export class TextParserService {
         status: true,
         content: true,
         contentEncoding: true,
+        words: true,
         originalFileName: true,
         corpusKind: true,
       },
@@ -469,8 +470,8 @@ export class TextParserService {
       );
     }
 
-    const storedContent = parsedText.content?.trim();
-    if (!storedContent) {
+    const downloadableContent = buildDownloadContent(parsedText);
+    if (!downloadableContent) {
       throw new BadRequestException(
         `Parsed text ${id} has no stored content to download`,
       );
@@ -481,7 +482,7 @@ export class TextParserService {
     return {
       filename: buildDownloadFilename(parsedText),
       contentEncoding: parsedText.contentEncoding,
-      content: storedContent,
+      content: downloadableContent,
       mimeType: isHex ? 'application/octet-stream' : 'text/plain; charset=utf-8',
     };
   }
@@ -843,6 +844,34 @@ function preprocessNaturalContent(
   preprocess: TextPreprocessMode,
 ): string {
   return preprocessRawText(text, preprocess);
+}
+
+function buildDownloadContent(parsedText: {
+  content?: string;
+  contentEncoding: ParsedTextContentEncoding;
+  corpusKind: ParsedTextCorpusKind;
+  words?: string[];
+}): string {
+  const storedContent = parsedText.content?.trim() ?? '';
+  const shouldDownloadPreparedWords =
+    parsedText.contentEncoding === ParsedTextContentEncoding.UTF8 &&
+    parsedText.corpusKind === ParsedTextCorpusKind.NATURAL_TEXT;
+
+  if (!shouldDownloadPreparedWords) {
+    return storedContent;
+  }
+
+  if (parsedText.words?.length) {
+    return parsedText.words.join(' ');
+  }
+
+  if (!storedContent) {
+    return '';
+  }
+
+  return parsePlainText(storedContent, {
+    preprocess: TextPreprocessMode.NONE,
+  }).words.join(' ');
 }
 
 function chunkText(text: string, chunkSize: number): string[] {
