@@ -53,7 +53,7 @@ export function ParsedTextTable({
         </CardTitle>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
-        <div className="min-w-0 overflow-hidden">
+        <div className="max-h-[36rem] min-w-0 overflow-auto">
           <table className="w-full table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[28%]" />
@@ -63,7 +63,7 @@ export function ParsedTextTable({
               <col className="w-[14%]" />
               <col className="w-[16%]" />
             </colgroup>
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
+            <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("Title")}</th>
                 <th className="px-4 py-3 font-medium">{t("Kind")}</th>

@@ -223,15 +223,23 @@ export class ClassicalCiphersService {
   }
 
   async findAllJobs(): Promise<CipherJobResponseDto[]> {
-    const jobs = await this.cipherJobsRepo.find({
-      order: { createdAt: 'DESC' },
-    });
+    const jobs = await this.cipherJobsRepo
+      .createQueryBuilder('job')
+      .leftJoin('job.parsedText', 'parsedText')
+      .addSelect(['parsedText.id', 'parsedText.title'])
+      .orderBy('job.createdAt', 'DESC')
+      .getMany();
 
     return jobs.map((job) => this.toJobResponse(job));
   }
 
   async findOneJob(id: string): Promise<CipherJobResponseDto> {
-    const job = await this.cipherJobsRepo.findOne({ where: { id } });
+    const job = await this.cipherJobsRepo
+      .createQueryBuilder('job')
+      .leftJoin('job.parsedText', 'parsedText')
+      .addSelect(['parsedText.id', 'parsedText.title'])
+      .where('job.id = :id', { id })
+      .getOne();
     if (!job) {
       throw new NotFoundException(`Classical cipher job ${id} not found`);
     }
@@ -349,6 +357,7 @@ export class ClassicalCiphersService {
         progressMessage: 'Queued',
       }),
     );
+    job.parsedText = parsedText;
 
     this.enqueue({
       id: job.id,
@@ -517,6 +526,7 @@ export class ClassicalCiphersService {
     return {
       id: job.id,
       parsedTextId: job.parsedTextId,
+      parsedTextTitle: job.parsedText?.title ?? null,
       algorithm: job.algorithm,
       parameters: job.parameters,
       status: job.status,

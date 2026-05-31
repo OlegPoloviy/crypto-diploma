@@ -1,4 +1,4 @@
-// DSTU GOST 7624:2014 Kalyna tables (from reference implementation)
+// Kalyna / DSTU 7624:2014 algorithm tables.
 
 export const KALYNA_MDS_MATRIX: number[][] = [
   [0x01, 0x01, 0x05, 0x01, 0x08, 0x06, 0x07, 0x04],

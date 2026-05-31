@@ -167,13 +167,98 @@ describe('TextParserService', () => {
     expect(result.wordFrequencyEntropy).toEqual(expect.any(Number));
   });
 
-  it('returns stored content for download', async () => {
+  it('creates reproducible shuffled text with metrics', async () => {
+    await service.createShuffledText({
+      title: 'Shuffled sample',
+      text: 'alpha beta gamma delta epsilon',
+      seed: 7,
+    });
+    await service.createShuffledText({
+      title: 'Shuffled sample 2',
+      text: 'alpha beta gamma delta epsilon',
+      seed: 7,
+    });
+
+    const savedRecords = repo.create.mock.calls.map(([record]) => record);
+    const firstContent = savedRecords[0].content;
+    const secondContent = savedRecords[1].content;
+
+    expect(firstContent).toBe(secondContent);
+    expect(firstContent).not.toBe('alpha beta gamma delta epsilon');
+    expect(firstContent.split(' ').sort()).toEqual([
+      'alpha',
+      'beta',
+      'delta',
+      'epsilon',
+      'gamma',
+    ]);
+    expect(savedRecords[0]).toEqual(
+      expect.objectContaining({
+        source: ParsedTextSource.GENERATED,
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+        status: ParsedTextStatus.COMPLETED,
+        deaDelta: expect.any(Number),
+      }),
+    );
+  });
+
+  it('shuffles uploaded text files without requiring pasted text', async () => {
+    await service.createShuffledTextFromFile(
+      'Uploaded shuffle',
+      {
+        originalname: 'sample.txt',
+        buffer: Buffer.from('one two three four five'),
+      },
+      TextFileType.PLAIN_TEXT,
+      TextPreprocessMode.AUTO,
+      11,
+    );
+
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Uploaded shuffle',
+        source: ParsedTextSource.GENERATED,
+        originalFileName: 'sample.txt',
+        corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+        status: ParsedTextStatus.COMPLETED,
+      }),
+    );
+  });
+
+  it('shuffles an existing completed natural text corpus', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'parsed-text-1',
+      title: 'Stored sample',
+      status: ParsedTextStatus.COMPLETED,
+      content: 'stored text can be shuffled',
+      contentEncoding: ParsedTextContentEncoding.UTF8,
+      corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
+    });
+
+    const result = await service.createShuffledTextFromParsedText(
+      'parsed-text-1',
+      'Stored shuffle',
+      13,
+    );
+
+    expect(result.status).toBe(ParsedTextStatus.COMPLETED);
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Stored shuffle',
+        source: ParsedTextSource.GENERATED,
+        originalFileName: 'Stored sample-shuffled.txt',
+      }),
+    );
+  });
+
+  it('returns prepared word content for natural text download', async () => {
     repo.findOne.mockResolvedValue({
       id: 'parsed-text-1',
       title: 'Sample book',
       status: ParsedTextStatus.COMPLETED,
-      content: 'hello world',
+      content: 'Hello, world! 42',
       contentEncoding: ParsedTextContentEncoding.UTF8,
+      words: ['hello', 'world'],
       originalFileName: 'book.txt',
       corpusKind: ParsedTextCorpusKind.NATURAL_TEXT,
     });
@@ -185,6 +270,27 @@ describe('TextParserService', () => {
       contentEncoding: ParsedTextContentEncoding.UTF8,
       content: 'hello world',
       mimeType: 'text/plain; charset=utf-8',
+    });
+  });
+
+  it('keeps hex payloads unchanged for random byte downloads', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'parsed-text-1',
+      title: 'Random bytes',
+      status: ParsedTextStatus.COMPLETED,
+      content: '000102ff',
+      contentEncoding: ParsedTextContentEncoding.HEX,
+      originalFileName: 'payload.bin',
+      corpusKind: ParsedTextCorpusKind.RANDOM_BYTES,
+    });
+
+    const content = await service.getContent('parsed-text-1');
+
+    expect(content).toEqual({
+      filename: 'payload.bin',
+      contentEncoding: ParsedTextContentEncoding.HEX,
+      content: '000102ff',
+      mimeType: 'application/octet-stream',
     });
   });
 

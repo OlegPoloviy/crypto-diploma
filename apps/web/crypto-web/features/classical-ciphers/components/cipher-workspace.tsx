@@ -759,9 +759,9 @@ function CipherJobsTable({
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div className="max-h-[54rem] overflow-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
+            <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
                 <th className="px-4 py-3 font-medium">{t("Status")}</th>
@@ -1777,7 +1777,7 @@ function downloadEncryptedText(job: ClassicalCipherJob) {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `${job.algorithm}-${job.id.slice(0, 8)}.txt`;
+  link.download = buildCipherDownloadFilename(job, "txt");
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1796,7 +1796,26 @@ function downloadEncryptedBinary(job: ClassicalCipherJob) {
       : new TextEncoder().encode(job.finalText);
   const bits = bytesToBitString(bytes);
 
-  downloadTextFile(bits, `${job.algorithm}-${job.id.slice(0, 8)}-binary.txt`);
+  downloadTextFile(bits, buildCipherDownloadFilename(job, "binary.txt"));
+}
+
+function buildCipherDownloadFilename(
+  job: ClassicalCipherJob,
+  extension: string,
+) {
+  return `${sanitizeFilename(algorithmLabel[job.algorithm])}-${sanitizeFilename(
+    job.parsedTextTitle ?? job.parsedTextId,
+  )}.${extension}`;
+}
+
+function sanitizeFilename(value: string) {
+  return value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "corpus";
 }
 
 function decodeHexBytes(value: string) {

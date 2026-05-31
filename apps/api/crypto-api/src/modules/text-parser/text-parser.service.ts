@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomBytes, randomInt, randomUUID } from 'crypto';
 import { join } from 'path';
 import { Worker } from 'worker_threads';
 import { FindOptionsWhere, Repository } from 'typeorm';
@@ -14,8 +14,10 @@ import { BaselineSetResponseDto } from './dto/baseline-set-response.dto';
 import { BaselineSetTextDto } from './dto/baseline-set-text.dto';
 import { CreateParsedTextResponseDto } from './dto/create-parsed-text-response.dto';
 import { GenerateRandomBytesDto } from './dto/generate-random.dto';
+import { GenerateRandomTextDto } from './dto/generate-random-text.dto';
 import { ParsedTextContentResponseDto } from './dto/parsed-text-content-response.dto';
 import { ParsedTextResponseDto } from './dto/parsed-text-response.dto';
+import { ShuffleTextDto } from './dto/shuffle-text.dto';
 import {
   ParsedTextContentEncoding,
   ParsedTextCorpusKind,
@@ -66,6 +68,7 @@ const TEXT_FILE_EXTENSIONS: Record<TextFileType, string[]> = {
 
 const SYNC_PARSE_BYTE_THRESHOLD = 512 * 1024;
 const HEX_CHUNK_SIZE = 64;
+const DEFAULT_MONKEY_ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
 
 @Injectable()
 export class TextParserService {
@@ -138,6 +141,119 @@ export class TextParserService {
       title: body.title,
       bytes,
       baselineSetId: body.baselineSetId,
+    });
+  }
+
+  async createRandomText(
+    body: GenerateRandomTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    const text = generateMonkeyText({
+      wordCount: body.wordCount,
+      alphabet: body.alphabet,
+      minWordLength: body.minWordLength,
+      maxWordLength: body.maxWordLength,
+      seed: body.seed,
+    });
+
+    return this.createCompletedNaturalText({
+      title: body.title,
+      text,
+      source: ParsedTextSource.GENERATED,
+      preprocess: TextPreprocessMode.NONE,
+    });
+  }
+
+  async createShuffledText(
+    body: ShuffleTextDto,
+  ): Promise<CreateParsedTextResponseDto> {
+    const preprocess = body.preprocess ?? TextPreprocessMode.AUTO;
+    const parsed = parsePlainText(body.text, { preprocess });
+
+    if (parsed.words.length < 2) {
+      throw new BadRequestException('Text must contain at least two words');
+    }
+
+    const shuffledText = shuffleWords(parsed.words, body.seed).join(' ');
+
+    return this.createCompletedNaturalText({
+      title: body.title,
+      text: shuffledText,
+      source: ParsedTextSource.GENERATED,
+      preprocess: TextPreprocessMode.NONE,
+    });
+  }
+
+  async createShuffledTextFromFile(
+    title: string,
+    file?: { buffer: Buffer; originalname?: string },
+    fileType = TextFileType.PLAIN_TEXT,
+    preprocess: TextPreprocessMode = TextPreprocessMode.AUTO,
+    seed?: number,
+  ): Promise<CreateParsedTextResponseDto> {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const upload = this.prepareUpload(file, fileType);
+    if (upload.encoding === ParsedTextContentEncoding.HEX) {
+      throw new BadRequestException('Only text files can be shuffled');
+    }
+
+    return this.createShuffledTextRecord({
+      title,
+      text: upload.text,
+      preprocess,
+      seed,
+      originalFileName: upload.file.originalname,
+    });
+  }
+
+  async createShuffledTextFromParsedText(
+    id: string,
+    title: string,
+    seed?: number,
+  ): Promise<CreateParsedTextResponseDto> {
+    const parsedText = await this.parsedTextsRepo.findOne({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        content: true,
+        contentEncoding: true,
+        corpusKind: true,
+      },
+    });
+
+    if (!parsedText) {
+      throw new NotFoundException(`Parsed text ${id} not found`);
+    }
+
+    if (parsedText.status !== ParsedTextStatus.COMPLETED) {
+      throw new BadRequestException(
+        `Parsed text ${id} is not ready yet: ${parsedText.status}`,
+      );
+    }
+
+    if (
+      parsedText.contentEncoding !== ParsedTextContentEncoding.UTF8 ||
+      parsedText.corpusKind !== ParsedTextCorpusKind.NATURAL_TEXT
+    ) {
+      throw new BadRequestException('Only natural text corpora can be shuffled');
+    }
+
+    if (!parsedText.content?.trim()) {
+      throw new BadRequestException(
+        `Parsed text ${id} has no stored content to shuffle`,
+      );
+    }
+
+    return this.createShuffledTextRecord({
+      title,
+      text: parsedText.content,
+      preprocess: TextPreprocessMode.NONE,
+      seed,
+      originalFileName: `${sanitizeFilename(parsedText.title)}-shuffled.txt`,
     });
   }
 
@@ -338,6 +454,7 @@ export class TextParserService {
         status: true,
         content: true,
         contentEncoding: true,
+        words: true,
         originalFileName: true,
         corpusKind: true,
       },
@@ -353,8 +470,8 @@ export class TextParserService {
       );
     }
 
-    const storedContent = parsedText.content?.trim();
-    if (!storedContent) {
+    const downloadableContent = buildDownloadContent(parsedText);
+    if (!downloadableContent) {
       throw new BadRequestException(
         `Parsed text ${id} has no stored content to download`,
       );
@@ -365,7 +482,7 @@ export class TextParserService {
     return {
       filename: buildDownloadFilename(parsedText),
       contentEncoding: parsedText.contentEncoding,
-      content: storedContent,
+      content: downloadableContent,
       mimeType: isHex ? 'application/octet-stream' : 'text/plain; charset=utf-8',
     };
   }
@@ -405,6 +522,30 @@ export class TextParserService {
     );
 
     return this.toResponse(parsedText);
+  }
+
+  private async createShuffledTextRecord(input: {
+    title: string;
+    text: string;
+    preprocess: TextPreprocessMode;
+    seed?: number;
+    originalFileName?: string;
+  }): Promise<CreateParsedTextResponseDto> {
+    const parsed = parsePlainText(input.text, { preprocess: input.preprocess });
+
+    if (parsed.words.length < 2) {
+      throw new BadRequestException('Text must contain at least two words');
+    }
+
+    const shuffledText = shuffleWords(parsed.words, input.seed).join(' ');
+
+    return this.createCompletedNaturalText({
+      title: input.title,
+      text: shuffledText,
+      source: ParsedTextSource.GENERATED,
+      originalFileName: input.originalFileName,
+      preprocess: TextPreprocessMode.NONE,
+    });
   }
 
   private async saveRandomBytesRecord(input: {
@@ -705,6 +846,34 @@ function preprocessNaturalContent(
   return preprocessRawText(text, preprocess);
 }
 
+function buildDownloadContent(parsedText: {
+  content?: string;
+  contentEncoding: ParsedTextContentEncoding;
+  corpusKind: ParsedTextCorpusKind;
+  words?: string[];
+}): string {
+  const storedContent = parsedText.content?.trim() ?? '';
+  const shouldDownloadPreparedWords =
+    parsedText.contentEncoding === ParsedTextContentEncoding.UTF8 &&
+    parsedText.corpusKind === ParsedTextCorpusKind.NATURAL_TEXT;
+
+  if (!shouldDownloadPreparedWords) {
+    return storedContent;
+  }
+
+  if (parsedText.words?.length) {
+    return parsedText.words.join(' ');
+  }
+
+  if (!storedContent) {
+    return '';
+  }
+
+  return parsePlainText(storedContent, {
+    preprocess: TextPreprocessMode.NONE,
+  }).words.join(' ');
+}
+
 function chunkText(text: string, chunkSize: number): string[] {
   const chunks: string[] = [];
   for (let index = 0; index < text.length; index += chunkSize) {
@@ -758,4 +927,82 @@ function generateRandomBuffer(byteLength: number, seed?: number): Buffer {
   }
 
   return buffer;
+}
+
+function generateMonkeyText(input: {
+  wordCount: number;
+  alphabet?: string;
+  minWordLength?: number;
+  maxWordLength?: number;
+  seed?: number;
+}): string {
+  const alphabet = Array.from(
+    new Set(Array.from(input.alphabet?.trim() || DEFAULT_MONKEY_ALPHABET)),
+  ).filter((character) => /\p{L}/u.test(character));
+
+  if (alphabet.length === 0) {
+    throw new BadRequestException('Alphabet must contain at least one letter');
+  }
+
+  const minWordLength = input.minWordLength ?? 3;
+  const maxWordLength = input.maxWordLength ?? 10;
+
+  if (minWordLength > maxWordLength) {
+    throw new BadRequestException(
+      'Minimum word length cannot be greater than maximum word length',
+    );
+  }
+
+  const nextIndex =
+    input.seed === undefined
+      ? createCryptoRandomIndex()
+      : createSeededRandomIndex(input.seed);
+  const words: string[] = [];
+
+  for (let wordIndex = 0; wordIndex < input.wordCount; wordIndex += 1) {
+    const length =
+      minWordLength + nextIndex(maxWordLength - minWordLength + 1);
+    let word = '';
+
+    for (let charIndex = 0; charIndex < length; charIndex += 1) {
+      word += alphabet[nextIndex(alphabet.length)];
+    }
+
+    words.push(word);
+  }
+
+  return words.join(' ');
+}
+
+function shuffleWords(words: string[], seed?: number): string[] {
+  const shuffled = [...words];
+  const nextIndex =
+    seed === undefined
+      ? createCryptoRandomIndex()
+      : createSeededRandomIndex(seed);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = nextIndex(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  return shuffled;
+}
+
+function createCryptoRandomIndex(): (maxExclusive: number) => number {
+  return (maxExclusive) => randomInt(maxExclusive);
+}
+
+function createSeededRandomIndex(
+  seed: number,
+): (maxExclusive: number) => number {
+  let state = seed >>> 0;
+
+  return (maxExclusive) => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return Math.floor((state / 0x100000000) * maxExclusive);
+  };
 }

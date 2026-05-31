@@ -378,9 +378,9 @@ function AesJobsPanel({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-[36rem] overflow-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
                 <tr>
                   <th className="px-4 py-3 font-medium">{t("Algorithm")}</th>
                   <th className="px-4 py-3 font-medium">{t("Status")}</th>
@@ -1459,7 +1459,7 @@ function downloadAesCiphertext(job: ComplexCipherJob) {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `${job.algorithm}-${job.id.slice(0, 8)}-${outputEncoding}.txt`;
+  link.download = buildCipherDownloadFilename(job, `${outputEncoding}.txt`);
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1479,7 +1479,7 @@ function downloadAesBinary(job: ComplexCipherJob) {
 
   downloadTextFile(
     bits,
-    `${job.algorithm}-${job.id.slice(0, 8)}-${outputEncoding}-binary.txt`,
+    buildCipherDownloadFilename(job, `${outputEncoding}-binary.txt`),
   );
 }
 
@@ -1492,6 +1492,25 @@ function downloadAesResultBinary(
   const bits = bytesToBitString(bytes);
 
   downloadTextFile(bits, `${algorithm}-result-${outputEncoding}-binary.txt`);
+}
+
+function buildCipherDownloadFilename(
+  job: ComplexCipherJob,
+  extension: string,
+) {
+  return `${sanitizeFilename(formatJobAlgorithm(job))}-${sanitizeFilename(
+    job.parsedTextTitle ?? job.parsedTextId,
+  )}.${extension}`;
+}
+
+function sanitizeFilename(value: string) {
+  return value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "corpus";
 }
 
 function decodeAesOutputBytes(value: string, encoding: BinaryEncoding) {
