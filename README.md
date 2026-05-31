@@ -8,8 +8,8 @@
 
 - **ПІБ**: Польовий Олег Володимирович
 - **Група**: ФеС - 42
-- **Керівник**: Горон Богдан Ігорович, доцент
-- **Дата виконання**: 2026
+- **Керівник**: Горон Богдан Ігорович, кандидат фізико-математичних наук, доцент
+- **Дата виконання**: 31.05.2026
 
 ---
 
@@ -114,6 +114,7 @@
 
 ## Основні сторінки інтерфейсу
 
+
 | Сторінка             | Призначення                                                                                          |
 | -------------------- | ---------------------------------------------------------------------------------------------------- |
 | `/`                  | Dashboard для створення корпусів, завантаження файлів, генерації random baseline та перегляду метрик |
@@ -121,18 +122,20 @@
 | `/complex-ciphers`   | Робоча область для AES, DES і Kalyna, налаштування ключів, режимів, IV, кодувань і whitening         |
 | `/documentation`     | Вбудований довідник для користувача: workflow, типи файлів, метрики та інтерпретація результатів     |
 
+
 ---
 
 ## Опис основних модулів / файлів
+
 
 | Модуль / файл                                                 | Призначення                                                                     |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `apps/api/crypto-api/src/main.ts`                             | Точка входу NestJS API, глобальна валідація DTO, Swagger за `/docs`             |
 | `apps/api/crypto-api/src/app.module.ts`                       | Підключення Database, Experiments, TextParser, ClassicalCiphers, ComplexCiphers |
 | `apps/api/crypto-api/src/modules/database/database.module.ts` | TypeORM-підключення до PostgreSQL через `.env` або `DATABASE_URL`               |
-| `apps/api/crypto-api/src/modules/text-parser/`\*              | Створення корпусів, парсинг тексту, random baseline, shuffle, метрики           |
-| `apps/api/crypto-api/src/modules/classical-ciphers/*`         | Caesar, Vigenere, classical cipher jobs, metric stats, worker thread            |
-| `apps/api/crypto-api/src/modules/complex-ciphers/*`           | AES, DES, Kalyna, ECB/CBC, whitening, complex cipher jobs, worker thread        |
+| `apps/api/crypto-api/src/modules/text-parser/`                | Створення корпусів, парсинг тексту, random baseline, shuffle, метрики           |
+| `apps/api/crypto-api/src/modules/classical-ciphers/`*         | Caesar, Vigenere, classical cipher jobs, metric stats, worker thread            |
+| `apps/api/crypto-api/src/modules/complex-ciphers/`*           | AES, DES, Kalyna, ECB/CBC, whitening, complex cipher jobs, worker thread        |
 | `apps/api/crypto-api/src/modules/experiments/*`               | Допоміжний модуль для збереження експериментів                                  |
 | `apps/web/crypto-web/app/page.tsx`                            | Головна сторінка підготовки корпусів                                            |
 | `apps/web/crypto-web/app/classical-ciphers/page.tsx`          | Сторінка класичних шифрів                                                       |
@@ -143,6 +146,7 @@
 | `shared/types/*`                                              | Спільні типи алгоритмів і статусів                                              |
 | `compose.yml`                                                 | Локальний PostgreSQL у Docker                                                   |
 | `DEPLOYMENT.md`                                               | Інструкції для локального та production-середовища                              |
+
 
 ---
 
@@ -166,6 +170,8 @@ flowchart LR
   Experiments --> DB
 ```
 
+
+
 Backend API приймає HTTP-запити, валідує DTO через `ValidationPipe`, виконує синхронні операції для малих даних і переносить важкі обчислення у worker threads. Frontend працює як користувацький інтерфейс і як proxy-рівень для API-запитів.
 
 ---
@@ -177,9 +183,53 @@ Backend API приймає HTTP-запити, валідує DTO через `Val
 Потрібно встановити:
 
 - Node.js 20+ або 22.x;
-- pnpm 10.x;
+- pnpm 10.15.0 або іншу сумісну 10.x версію;
 - Docker Desktop;
 - Git.
+
+#### Встановлення Node.js
+
+Найпростіший варіант для Windows:
+
+1. Перейдіть на [https://nodejs.org/](https://nodejs.org/).
+2. Завантажте LTS-версію Node.js. Для цього проєкту підходить Node.js 20+ або 22.x.
+3. Запустіть інсталятор `.msi`.
+4. На кроці налаштувань залиште увімкненою опцію додавання Node.js до `PATH`.
+5. Дочекайтеся завершення встановлення і відкрийте новий термінал.
+
+Альтернативно, якщо встановлений Windows Package Manager:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+Після встановлення перевірте версію:
+
+```bash
+node -v
+npm -v
+```
+
+Якщо команда `node -v` не працює, закрийте і відкрийте термінал ще раз або перевірте, чи Node.js доданий до змінної середовища `PATH`.
+
+#### Встановлення pnpm
+
+Node.js постачається з Corepack, через який зручно вмикати pnpm:
+
+```bash
+corepack enable
+corepack prepare pnpm@10.15.0 --activate
+pnpm -v
+```
+
+Якщо Corepack недоступний або команда не спрацювала, можна встановити pnpm через npm:
+
+```bash
+npm install -g pnpm@10.15.0
+pnpm -v
+```
+
+У проєкті в `package.json` зафіксовано пакетний менеджер `pnpm@10.15.0`, тому бажано використовувати саме цю версію. Якщо встановлена інша 10.x версія, вона теж зазвичай підходить, але при проблемах із lock-файлом краще перемкнутися на `10.15.0`.
 
 Перевірка:
 
@@ -190,14 +240,29 @@ docker -v
 git --version
 ```
 
-### 2. Клонування репозиторію
+### 2. Отримання коду проєкту
+
+Є два рівноцінні варіанти: клонувати репозиторій через Git або завантажити ZIP-архів.
+
+#### Варіант A: клонування репозиторію
 
 ```bash
 git clone git@github.com:OlegPoloviy/crypto-diploma.git
-cd crypto-thesis-platform
+cd crypto-diploma
 ```
 
-Якщо репозиторій вже відкритий локально, цей крок пропускається.
+Якщо SSH-доступ до GitHub не налаштований, можна використати HTTPS:
+
+```bash
+git clone https://github.com/OlegPoloviy/crypto-diploma.git
+cd crypto-diploma
+```
+
+#### Варіант B: завантаження з архіву
+
+Назва папки після розпакування може відрізнятися, наприклад `crypto-diploma-main`, `crypto-diploma-master` або назва, яку ви задали вручну. Головне, щоб у цій папці були файли `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` і `compose.yml`.
+
+Якщо проєкт уже відкритий локально, цей крок пропускається.
 
 ### 3. Встановлення залежностей
 
@@ -549,12 +614,14 @@ pnpm build
 
 Основні таблиці:
 
+
 | Таблиця                 | Призначення                                                             |
 | ----------------------- | ----------------------------------------------------------------------- |
 | `parsed_texts`          | Збережені корпуси, їхній вміст, тип, статус і статистичні метрики       |
 | `classical_cipher_jobs` | Задачі Caesar/Vigenere, параметри, прогрес, результат, проміжні кроки   |
 | `complex_cipher_jobs`   | Задачі AES/DES/Kalyna, параметри, metadata, прогрес, результат, метрики |
 | `experiments`           | Допоміжне збереження експериментів                                      |
+
 
 Міграції розташовані у:
 
@@ -598,47 +665,34 @@ API_URL=https://your-crypto-api.onrender.com
 
 На головній сторінці користувач створює корпуси, завантажує файли, генерує random baseline і переглядає базові статистичні метрики.
 
-<img src="assets/dashboard.png" alt="Dashboard підготовки корпусів" width="100%">
-
 ### Baseline comparison
 
 Панель baseline дає змогу порівняти природний текст із випадковими байтами та оцінити різницю в Hurst, DFA, DEA й entropy.
-
-<img src="assets/baseline.png" alt="Порівняння natural text і random bytes" width="100%">
 
 ### Classical ciphers workspace
 
 Робоча область класичних шифрів підтримує Caesar, Vigenere, batch jobs, вибір корпусу, прогрес виконання та перегляд результатів.
 
-<img src="assets/classical-ciphers.png" alt="Робоча область класичних шифрів" width="100%">
-
 ### Classical cipher step details
 
 Деталі кроку показують проміжні стани шифрування й метрики, що дозволяє оцінювати зміну структури даних у процесі перетворення.
-
-<img src="assets/classical-cipher-step-info.png" alt="Деталі проміжного кроку класичного шифру" width="100%">
 
 ### Complex ciphers workspace
 
 Робоча область блокових шифрів містить налаштування AES, DES і Kalyna: ключі, режими ECB/CBC, IV, кодування та whitening comparison.
 
-<img src="assets/complex-ciphers.png" alt="Робоча область блокових шифрів" width="100%">
-
 ### Вбудована документація
 
 Сторінка документації пояснює workflow застосунку, підтримувані типи файлів, метрики та логіку інтерпретації результатів.
-
-<img src="assets/documentation.png" alt="Сторінка документації" width="100%">
 
 ### Swagger API documentation
 
 Backend автоматично формує Swagger-документацію, через яку можна перевірити доступні endpoint-и, DTO та приклади запитів.
 
-<img src="assets/swagger.png" alt="Swagger документація API" width="100%">
-
 ---
 
 ## Проблеми і рішення
+
 
 | Проблема                            | Причина                                         | Рішення                                                                            |
 | ----------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -652,21 +706,28 @@ Backend автоматично формує Swagger-документацію, ч
 | Великі файли обробляються не одразу | Дані поставлені у background job                | Перевіряти статус job через UI або `GET /.../jobs/:id`                             |
 | UTF-8 результат не читається        | Ciphertext не є валідним UTF-8                  | Використовувати `hex` або `base64` outputEncoding                                  |
 
+
 ---
 
 ## Використані джерела / література
 
-- NestJS Documentation
-- Next.js Documentation
-- React Documentation
-- TypeORM Documentation
-- PostgreSQL Documentation
-- Swagger / OpenAPI Documentation
-- NIST FIPS 197: Advanced Encryption Standard (AES)
-- NIST FIPS 46-3: Data Encryption Standard (DES)
-- ДСТУ 7624:2014: алгоритм блокового симетричного перетворення Kalyna
-- Документація Docker і Docker Compose
-- Матеріали з аналізу Hurst exponent, DFA, DEA та entropy-based статистичних методів
+- NestJS Documentation: <https://docs.nestjs.com/>
+- Next.js Documentation: <https://nextjs.org/docs>
+- React Documentation: <https://react.dev/>
+- TypeORM Documentation: <https://typeorm.io/>
+- PostgreSQL Documentation: <https://www.postgresql.org/docs/>
+- Swagger / OpenAPI Documentation: <https://swagger.io/docs/specification/>
+- Docker Documentation: <https://docs.docker.com/>
+- Docker Compose Documentation: <https://docs.docker.com/compose/>
+- NIST FIPS 197: Advanced Encryption Standard (AES): <https://csrc.nist.gov/pubs/fips/197/final>
+- NIST FIPS 46-3: Data Encryption Standard (DES): <https://csrc.nist.gov/pubs/fips/46-3/final>
+- NIST SP 800-38A: Recommendation for Block Cipher Modes of Operation: <https://csrc.nist.gov/pubs/sp/800/38/a/final>
+- ДСТУ 7624:2014: Інформаційні технології. Криптографічний захист інформації. Алгоритм симетричного блокового перетворення: <https://online.budstandart.com/ua/catalog/doc-page?id_doc=65314>
+- Oliynykov R., Gorbenko I., Kazymyrov O., Ruzhentsev V., Gorbenko Y. та ін. Design principles and main properties of the Ukrainian national standard of block encryption: <https://doi.org/10.18372/2410-7840.17.8789>
+- Hurst H. E. Long-term storage capacity of reservoirs: <https://doi.org/10.2307/2985411>
+- Peng C.-K. et al. Mosaic organization of DNA nucleotides: detrended fluctuation analysis approach: <https://doi.org/10.1103/PhysRevE.49.1685>
+- Scafetta N., Grigolini P. Scaling detection in time series: diffusion entropy analysis: <https://doi.org/10.1103/PhysRevE.66.036130>
+- Shannon C. E. A Mathematical Theory of Communication: <https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf>
 
 ---
 
