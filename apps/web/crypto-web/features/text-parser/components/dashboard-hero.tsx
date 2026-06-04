@@ -17,10 +17,10 @@ export function DashboardHero({
     <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#12192b] dark:shadow-2xl dark:shadow-black/20">
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0 max-w-2xl">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.34em] text-cyan-700 dark:text-cyan-300">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-cyan-700 dark:text-cyan-300 sm:tracking-[0.34em]">
             {t("Corpus Builder")}
           </p>
-          <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-950 dark:text-slate-50">
+          <h1 className="mt-3 text-2xl font-semibold leading-tight text-slate-950 dark:text-slate-50 sm:text-3xl">
             {t("Prepare texts for encryption analysis")}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-400">

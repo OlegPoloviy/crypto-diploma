@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MobileNav } from "@/components/mobile-nav";
 import { LanguageSwitcher } from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -143,6 +144,7 @@ export function DocumentationWorkspace() {
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
       <div className="grid w-full max-w-none min-w-0 grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <MobileNav active="documentation" />
         <DocumentationSidebar />
 
         <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-clip">
@@ -166,19 +168,19 @@ export function DocumentationWorkspace() {
             </div>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-3">
+          <section className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {metricDocs.map((metric) => (
               <MetricDocCard key={metric.title} metric={metric} />
             ))}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-3">
+          <section className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {featureDocs.map((feature) => (
               <FeatureDocCard key={feature.title} feature={feature} />
             ))}
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
             <Card className="border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
               <CardHeader className="border-b border-slate-200 dark:border-white/10">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
@@ -243,7 +245,7 @@ export function DocumentationWorkspace() {
             </Card>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-2">
+          <section className="grid min-w-0 gap-5 md:grid-cols-2">
             <UsageCard
               title="Batch queues"
               icon={<Upload className="size-4" />}

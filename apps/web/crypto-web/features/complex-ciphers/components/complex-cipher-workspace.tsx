@@ -28,6 +28,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MobileNav } from "@/components/mobile-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +88,7 @@ export function ComplexCipherWorkspace() {
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
       <div className="grid w-full max-w-none min-w-0 grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <MobileNav active="complex" />
         <ComplexCipherSidebar />
 
         <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-clip">
@@ -281,7 +283,7 @@ function AesCorpusJobPanel({
                   <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
                     {fileLabel}
                   </span>
-                  <Input
+                  <input
                     type="file"
                     accept={selectedFileType?.accept}
                     multiple
@@ -377,8 +379,8 @@ function AesJobsPanel({
             ) : null}
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="max-h-[36rem] overflow-auto">
+        <CardContent className="min-w-0 p-0">
+          <div className="max-h-[36rem] min-w-0 overflow-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
                 <tr>
@@ -1666,7 +1668,7 @@ function ComplexCipherHero({ onLoadVector }: { onLoadVector: () => void }) {
         <Button
           type="button"
           variant="outline"
-          className="rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+          className="h-auto min-h-10 w-full whitespace-normal rounded-md border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5 md:w-auto"
           onClick={onLoadVector}
         >
           <RotateCcw className="size-4" />

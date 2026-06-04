@@ -67,6 +67,11 @@ body {
   min-width: 0;
 }
 
+input[type="file"].sr-only {
+  width: 1px !important;
+  height: 1px !important;
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
