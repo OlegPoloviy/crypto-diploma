@@ -3,6 +3,7 @@
 import { Activity, Hash, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { MobileNav } from "@/components/mobile-nav";
 import { useParsedTexts } from "../hooks/use-parsed-texts";
 import { DashboardHero } from "./dashboard-hero";
 import { MetricCard } from "./metric-card";
@@ -46,6 +47,7 @@ export function TextParserDashboard() {
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
       <div className="mx-auto grid w-full max-w-[min(1440px,100%)] min-w-0 grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <MobileNav active="dashboard" />
         <ParserSidebar />
 
         <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-clip">

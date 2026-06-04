@@ -94,3 +94,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /tools/add_block_cipher_testing_section.py
 /~$*.docx
 /~WRL*.tmp
+
+presentation.js
+/presentation.pptx
+doc-work/
+*.pptx

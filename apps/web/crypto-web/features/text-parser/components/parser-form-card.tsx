@@ -194,9 +194,9 @@ export function ParserFormCard({
 
   return (
     <Card className="min-w-0 border-slate-200 bg-white dark:border-white/10 dark:bg-[#111424]">
-      <CardHeader className="flex-row items-start justify-between">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-slate-500 sm:tracking-[0.32em]">
             {t("Configuration")}
           </p>
           <CardTitle className="mt-2 text-lg text-slate-950 dark:text-slate-50">
@@ -520,7 +520,7 @@ function FileUploadFields({
             <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">
               {fileLabel}
             </span>
-            <Input
+            <input
               type="file"
               accept={selectedFileType?.accept}
               multiple

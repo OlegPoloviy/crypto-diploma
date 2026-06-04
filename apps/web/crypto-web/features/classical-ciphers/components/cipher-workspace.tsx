@@ -25,6 +25,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MobileNav } from "@/components/mobile-nav";
 import {
   Card,
   CardContent,
@@ -135,6 +136,7 @@ export function CipherWorkspace() {
   return (
     <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 p-4 text-slate-950 dark:bg-[#070912] dark:text-slate-100 sm:p-6">
       <div className="grid w-full max-w-none min-w-0 grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <MobileNav active="classical" />
         <CipherSidebar />
 
         <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-clip">
@@ -335,7 +337,7 @@ function CipherHero({
         <Button
           type="button"
           variant="outline"
-          className="rounded-md border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+          className="h-auto min-h-10 w-full whitespace-normal rounded-md border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5 md:w-auto"
           onClick={onRefresh}
           disabled={isRefreshing}
         >
@@ -569,7 +571,7 @@ function CipherJobForm({
                   <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
                     {fileLabel}
                   </span>
-                  <Input
+                  <input
                     type="file"
                     accept={selectedFileType?.accept}
                     multiple
@@ -758,8 +760,8 @@ function CipherJobsTable({
           {t("Cipher jobs")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="max-h-[54rem] overflow-auto">
+      <CardContent className="min-w-0 p-0">
+        <div className="max-h-[54rem] min-w-0 overflow-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-[#0b0f1d]">
               <tr>

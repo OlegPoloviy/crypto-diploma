@@ -54,7 +54,7 @@ export function ParsedTextTable({
       </CardHeader>
       <CardContent className="min-w-0 p-0">
         <div className="max-h-[36rem] min-w-0 overflow-auto">
-          <table className="w-full table-fixed text-left text-sm">
+          <table className="w-full min-w-[760px] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[28%]" />
               <col className="w-[14%]" />
